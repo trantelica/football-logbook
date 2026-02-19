@@ -57,6 +57,17 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        draft: {
+          DEFAULT: "hsl(var(--draft))",
+          foreground: "hsl(var(--draft-foreground))",
+          muted: "hsl(var(--draft-muted))",
+        },
+        committed: {
+          DEFAULT: "hsl(var(--committed))",
+          foreground: "hsl(var(--committed-foreground))",
+          muted: "hsl(var(--committed-muted))",
+        },
+        "field-touched": "hsl(var(--field-touched))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,20 +76,12 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
         },
       },
       animation: {
