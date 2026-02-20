@@ -9,17 +9,17 @@ import { v4 as uuidv4 } from "uuid";
 import type { GameMeta } from "./types";
 import { SCHEMA_VERSION } from "./schema";
 import { createGame as dbCreateGame, getAllGames } from "./db";
+import { useSeason } from "./seasonContext";
 
 interface GameContextValue {
   activeGame: GameMeta | null;
   games: GameMeta[];
+  seasonGames: GameMeta[];
   createNewGame: (opponent: string, date: string) => Promise<GameMeta>;
   switchGame: (gameId: string) => void;
-  /** True if we're about to switch and need confirmation */
   pendingSwitch: string | null;
   confirmSwitch: () => void;
   cancelSwitch: () => void;
-  /** Called by transaction provider to signal dirty draft */
   hasDraft: boolean;
   setHasDraft: (v: boolean) => void;
 }
@@ -27,6 +27,9 @@ interface GameContextValue {
 const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
+  const { activeSeason } = useSeason();
+  const seasonId = activeSeason?.seasonId ?? "";
+
   const [activeGame, setActiveGame] = useState<GameMeta | null>(null);
   const [games, setGames] = useState<GameMeta[]>([]);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
@@ -37,10 +40,20 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     getAllGames().then(setGames);
   }, []);
 
+  // Clear active game when season changes
+  useEffect(() => {
+    setActiveGame(null);
+    setHasDraft(false);
+  }, [seasonId]);
+
+  const seasonGames = games.filter((g) => g.seasonId === seasonId);
+
   const createNewGame = useCallback(
     async (opponent: string, date: string): Promise<GameMeta> => {
+      if (!seasonId) throw new Error("No active season");
       const meta: GameMeta = {
         gameId: uuidv4(),
+        seasonId,
         opponent,
         date,
         createdAt: new Date().toISOString(),
@@ -52,7 +65,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       setHasDraft(false);
       return meta;
     },
-    []
+    [seasonId]
   );
 
   const switchGame = useCallback(
@@ -85,6 +98,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       value={{
         activeGame,
         games,
+        seasonGames,
         createNewGame,
         switchGame,
         pendingSwitch,

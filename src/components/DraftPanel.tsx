@@ -1,14 +1,19 @@
-import React from "react";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
+import { useLookup } from "@/engine/lookupContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY } from "@/engine/schema";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus } from "lucide-react";
+import { LookupConfirmDialog } from "./LookupConfirmDialog";
+import { toast } from "sonner";
 
 export function DraftPanel() {
   const { activeGame } = useGameContext();
@@ -24,6 +29,13 @@ export function DraftPanel() {
     backToEdit,
     commitProposal,
   } = useTransaction();
+  const { getValues, isLookupField, addValue } = useLookup();
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    fieldName: string;
+    fieldLabel: string;
+    value: string;
+  } | null>(null);
 
   if (!activeGame) {
     return (
@@ -80,8 +92,29 @@ export function DraftPanel() {
       error && "border-destructive"
     );
 
+    // LOOKUP-sourced string fields → combobox
+    if (isLookupField(fieldName) && fieldDef.dataType === "string") {
+      return (
+        <LookupCombobox
+          key={fieldName}
+          fieldName={fieldName}
+          fieldLabel={fieldDef.label}
+          requiredAtCommit={fieldDef.requiredAtCommit}
+          value={value != null ? String(value) : ""}
+          onChange={(v) => updateField(fieldName, v)}
+          onRequestAdd={(v) =>
+            setConfirmDialog({ fieldName, fieldLabel: fieldDef.label, value: v })
+          }
+          lookupValues={getValues(fieldName)}
+          disabled={isProposal}
+          className={fieldClasses}
+          inputClassName={inputClasses}
+          error={error}
+        />
+      );
+    }
+
     if (fieldDef.allowedValues) {
-      // Render as dropdown for any field with constrained values (enum or integer with allowedValues)
       const displayLabel = (v: string) => {
         if (fieldName === "qtr") return QTR_DISPLAY[v] ?? v;
         return v;
@@ -149,85 +182,216 @@ export function DraftPanel() {
   };
 
   return (
-    <div
-      className={cn(
-        "rounded-lg border-2 p-4 space-y-4",
-        borderClasses
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide">
-          {isProposal ? "Proposal Review" : "Draft Entry"}
-        </h2>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 gap-1 text-xs"
-            onClick={clearDraft}
-          >
-            <Eraser className="h-3 w-3" />
-            Clear Draft
-          </Button>
-        </div>
-      </div>
-
-      {isSegment && (
-        <div className={cn(
-          "text-xs rounded px-2 py-1",
-          isProposal
-            ? "text-proposal-foreground bg-proposal/20"
-            : "text-candidate-foreground bg-candidate/20"
-        )}>
-          Segment row (ODK=S): Only Play #, Quarter, and ODK are required.
-        </div>
-      )}
-
-      {commitErrors._noop && (
-        <div className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">
-          {commitErrors._noop}
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {playSchema.map((f) => renderField(f.name))}
-      </div>
-
-      <div className="flex gap-2 pt-2 border-t border-border/30">
-        {!isProposal && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1"
-            onClick={reviewProposal}
-            disabled={touchedFields.size === 0}
-          >
-            <Eye className="h-3.5 w-3.5" />
-            Review Proposal
-          </Button>
+    <>
+      <div
+        className={cn(
+          "rounded-lg border-2 p-4 space-y-4",
+          borderClasses
         )}
-        {isProposal && (
-          <>
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide">
+            {isProposal ? "Proposal Review" : "Draft Entry"}
+          </h2>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1 text-xs"
+              onClick={clearDraft}
+            >
+              <Eraser className="h-3 w-3" />
+              Clear Draft
+            </Button>
+          </div>
+        </div>
+
+        {isSegment && (
+          <div className={cn(
+            "text-xs rounded px-2 py-1",
+            isProposal
+              ? "text-proposal-foreground bg-proposal/20"
+              : "text-candidate-foreground bg-candidate/20"
+          )}>
+            Segment row (ODK=S): Only Play #, Quarter, and ODK are required.
+          </div>
+        )}
+
+        {commitErrors._noop && (
+          <div className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">
+            {commitErrors._noop}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {playSchema.map((f) => renderField(f.name))}
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-border/30">
+          {!isProposal && (
             <Button
               size="sm"
               variant="outline"
               className="gap-1"
-              onClick={backToEdit}
+              onClick={reviewProposal}
+              disabled={touchedFields.size === 0}
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Edit
+              <Eye className="h-3.5 w-3.5" />
+              Review Proposal
             </Button>
-            <Button
-              size="sm"
-              className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-              onClick={commitProposal}
-            >
-              <Check className="h-3.5 w-3.5" />
-              Commit
-            </Button>
-          </>
-        )}
+          )}
+          {isProposal && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={backToEdit}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to Edit
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
+                onClick={commitProposal}
+              >
+                <Check className="h-3.5 w-3.5" />
+                Commit
+              </Button>
+            </>
+          )}
+        </div>
       </div>
+
+      {confirmDialog && (
+        <LookupConfirmDialog
+          open
+          fieldLabel={confirmDialog.fieldLabel}
+          value={confirmDialog.value}
+          onConfirm={async () => {
+            const { fieldName, value } = confirmDialog;
+            try {
+              await addValue(fieldName, value);
+              updateField(fieldName, value);
+            } catch (err: unknown) {
+              toast.error(err instanceof Error ? err.message : "Failed to add value");
+              updateField(fieldName, "");
+            }
+            setConfirmDialog(null);
+          }}
+          onCancel={() => {
+            updateField(confirmDialog.fieldName, "");
+            setConfirmDialog(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Lookup Combobox Sub-Component ──
+
+interface LookupComboboxProps {
+  fieldName: string;
+  fieldLabel: string;
+  requiredAtCommit: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  onRequestAdd: (value: string) => void;
+  lookupValues: string[];
+  disabled: boolean;
+  className: string;
+  inputClassName: string;
+  error?: string;
+}
+
+function LookupCombobox({
+  fieldName,
+  fieldLabel,
+  requiredAtCommit,
+  value,
+  onChange,
+  onRequestAdd,
+  lookupValues,
+  disabled,
+  className,
+  inputClassName,
+  error,
+}: LookupComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = lookupValues.filter((v) =>
+    v.toLowerCase().includes((search || value).toLowerCase())
+  );
+
+  const typedValue = search || value;
+  const isNovelValue =
+    typedValue.trim() !== "" &&
+    !lookupValues.some((v) => v.toLowerCase() === typedValue.trim().toLowerCase());
+
+  return (
+    <div className={className}>
+      <Label className="text-xs font-medium text-muted-foreground">
+        {fieldLabel}
+        {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+      <Popover open={open && !disabled} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Input
+            className={inputClassName}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setSearch(e.target.value);
+              if (!open) setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder={lookupValues.length === 0 ? "No values yet. Type to add." : "—"}
+            disabled={disabled}
+          />
+        </PopoverTrigger>
+        <PopoverContent className="w-[200px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <Command>
+            <CommandList>
+              {filtered.length === 0 && !isNovelValue && (
+                <CommandEmpty className="text-xs py-2 text-center">No matching values.</CommandEmpty>
+              )}
+              <CommandGroup>
+                {filtered.map((v) => (
+                  <CommandItem
+                    key={v}
+                    value={v}
+                    onSelect={() => {
+                      onChange(v);
+                      setSearch("");
+                      setOpen(false);
+                    }}
+                    className="text-xs font-mono"
+                  >
+                    {v}
+                  </CommandItem>
+                ))}
+                {isNovelValue && (
+                  <CommandItem
+                    value={`__add__${typedValue}`}
+                    onSelect={() => {
+                      onRequestAdd(typedValue.trim());
+                      setOpen(false);
+                    }}
+                    className="text-xs gap-1"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add "{typedValue.trim()}"
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

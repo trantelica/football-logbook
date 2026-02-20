@@ -11,20 +11,50 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useGameContext } from "@/engine/gameContext";
+import { useSeason } from "@/engine/seasonContext";
 import { NewGameDialog } from "./NewGameDialog";
-import { Plus } from "lucide-react";
+import { Plus, CalendarDays } from "lucide-react";
 
 export function GameBar() {
   const {
     activeGame,
-    games,
+    seasonGames,
     switchGame,
     pendingSwitch,
     confirmSwitch,
     cancelSwitch,
   } = useGameContext();
+
+  const {
+    activeSeason,
+    seasons,
+    switchSeason,
+    createNewSeason,
+    pendingSwitchSeason,
+    confirmSeasonSwitch,
+    cancelSeasonSwitch,
+  } = useSeason();
+
   const [newGameOpen, setNewGameOpen] = useState(false);
+  const [newSeasonOpen, setNewSeasonOpen] = useState(false);
+  const [newSeasonLabel, setNewSeasonLabel] = useState("");
+
+  const handleCreateSeason = async () => {
+    if (!newSeasonLabel.trim()) return;
+    await createNewSeason(newSeasonLabel.trim());
+    setNewSeasonLabel("");
+    setNewSeasonOpen(false);
+  };
 
   return (
     <>
@@ -34,18 +64,19 @@ export function GameBar() {
         </h1>
         <div className="mx-2 h-5 w-px bg-border" />
 
-        {games.length > 0 && (
+        {/* Season selector */}
+        {seasons.length > 0 && (
           <Select
-            value={activeGame?.gameId ?? ""}
-            onValueChange={(v) => switchGame(v)}
+            value={activeSeason?.seasonId ?? ""}
+            onValueChange={(v) => switchSeason(v)}
           >
-            <SelectTrigger className="w-[240px] h-8 text-sm">
-              <SelectValue placeholder="Select game…" />
+            <SelectTrigger className="w-[180px] h-8 text-sm">
+              <SelectValue placeholder="Select season…" />
             </SelectTrigger>
             <SelectContent>
-              {games.map((g) => (
-                <SelectItem key={g.gameId} value={g.gameId}>
-                  vs {g.opponent} — {g.date}
+              {seasons.map((s) => (
+                <SelectItem key={s.seasonId} value={s.seasonId}>
+                  {s.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -56,11 +87,46 @@ export function GameBar() {
           size="sm"
           variant="outline"
           className="h-8 gap-1"
-          onClick={() => setNewGameOpen(true)}
+          onClick={() => setNewSeasonOpen(true)}
         >
-          <Plus className="h-3.5 w-3.5" />
-          New Game
+          <CalendarDays className="h-3.5 w-3.5" />
+          New Season
         </Button>
+
+        {activeSeason && (
+          <>
+            <div className="mx-1 h-5 w-px bg-border" />
+
+            {/* Game selector — only games in this season */}
+            {seasonGames.length > 0 && (
+              <Select
+                value={activeGame?.gameId ?? ""}
+                onValueChange={(v) => switchGame(v)}
+              >
+                <SelectTrigger className="w-[220px] h-8 text-sm">
+                  <SelectValue placeholder="Select game…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasonGames.map((g) => (
+                    <SelectItem key={g.gameId} value={g.gameId}>
+                      vs {g.opponent} — {g.date}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1"
+              onClick={() => setNewGameOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Game
+            </Button>
+          </>
+        )}
 
         {activeGame && (
           <div className="ml-auto text-xs text-muted-foreground font-mono">
@@ -71,7 +137,37 @@ export function GameBar() {
 
       <NewGameDialog open={newGameOpen} onOpenChange={setNewGameOpen} />
 
-      {/* Switch confirmation dialog */}
+      {/* New Season Dialog */}
+      <Dialog open={newSeasonOpen} onOpenChange={setNewSeasonOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold">New Season</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="season-label">Season Label</Label>
+            <Input
+              id="season-label"
+              value={newSeasonLabel}
+              onChange={(e) => setNewSeasonLabel(e.target.value)}
+              placeholder="e.g. 2025 Varsity"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreateSeason();
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewSeasonOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateSeason} disabled={!newSeasonLabel.trim()}>
+              Create Season
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Game switch confirmation */}
       <AlertDialog open={!!pendingSwitch}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -84,6 +180,25 @@ export function GameBar() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={cancelSwitch}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmSwitch}>
+              Switch & Clear Draft
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Season switch confirmation */}
+      <AlertDialog open={!!pendingSwitchSeason}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch Season?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an active draft. Switching seasons will clear all unsaved
+              draft data. Committed plays and audit history are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelSeasonSwitch}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmSeasonSwitch}>
               Switch & Clear Draft
             </AlertDialogAction>
           </AlertDialogFooter>
