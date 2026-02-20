@@ -31,10 +31,56 @@ export type CandidateData = {
 /** Game metadata */
 export interface GameMeta {
   gameId: string;
+  seasonId: string;
   opponent: string;
   date: string; // YYYY-MM-DD
   createdAt: string; // ISO 8601
   schemaVersion: string;
+}
+
+/** Season metadata */
+export interface SeasonMeta {
+  seasonId: string;
+  label: string; // e.g. "2025 Varsity"
+  createdAt: string; // ISO 8601
+  seasonRevision: number; // monotonic, incremented on any lookup/roster mutation
+}
+
+/** Season-scoped lookup table for a single field */
+export interface LookupTable {
+  seasonId: string;
+  fieldName: string; // "offForm" | "offPlay" | "motion"
+  values: string[]; // ordered approved values
+  updatedAt: string; // ISO 8601
+}
+
+/** Append-only audit record for lookup mutations */
+export interface LookupAuditRecord {
+  id?: number; // auto-increment IDB key
+  seasonId: string;
+  fieldName: string;
+  action: "add" | "remove";
+  value: string;
+  seasonRevision: number; // revision after this change
+  timestamp: string; // ISO 8601
+}
+
+/** Season-scoped roster entry */
+export interface RosterEntry {
+  seasonId: string;
+  jerseyNumber: number;
+  playerName: string;
+}
+
+/** Append-only audit record for roster mutations */
+export interface RosterAuditRecord {
+  id?: number; // auto-increment IDB key
+  seasonId: string;
+  jerseyNumber: number;
+  playerName: string;
+  action: "add" | "remove" | "update";
+  seasonRevision: number;
+  timestamp: string; // ISO 8601
 }
 
 /** Audit log entry — append-only */

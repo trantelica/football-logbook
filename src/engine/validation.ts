@@ -12,6 +12,7 @@ import {
   type FieldDefinition,
 } from "./schema";
 import type { CandidateData, ValidationErrors, PlayRecord } from "./types";
+import { canonicalizeLookupValue } from "./db";
 
 // ── playNum Parsing ──
 
@@ -32,7 +33,6 @@ export function parsePlayNum(raw: string | number | undefined | null): PlayNumRe
     return { valid: false, value: 0, error: "Play # is required" };
   }
 
-  // Reject non-numeric characters (allows leading zeros)
   if (!/^\d+$/.test(str)) {
     return { valid: false, value: 0, error: "Play # must be a whole number" };
   }
@@ -51,7 +51,6 @@ export function parsePlayNum(raw: string | number | undefined | null): PlayNumRe
     return { valid: false, value: 0, error: "Play # must be greater than 0" };
   }
 
-  // Normalized value (strips leading zeros)
   return { valid: true, value: num };
 }
 
@@ -73,7 +72,6 @@ function validateField(
       if (fieldDef.name === "playNum" && num <= 0) {
         return `${fieldDef.label} must be greater than 0`;
       }
-      // Check allowedValues constraint for integer fields (e.g., qtr, dn)
       if (fieldDef.allowedValues && !fieldDef.allowedValues.includes(String(num))) {
         return `${fieldDef.label} must be one of: ${fieldDef.allowedValues.join(", ")}`;
       }
@@ -99,11 +97,38 @@ function validateField(
   return null;
 }
 
+// ── Lookup Validation ──
+
+function validateLookupField(
+  fieldDef: FieldDefinition,
+  value: unknown,
+  lookups: Map<string, string[]> | undefined,
+  mode: "error" | "warning"
+): string | null {
+  if (fieldDef.source !== "LOOKUP") return null;
+  if (value === null || value === undefined || value === "") return null;
+  if (!lookups) return null;
+
+  const approvedValues = lookups.get(fieldDef.name);
+  if (!approvedValues || approvedValues.length === 0) return null; // bootstrapping
+
+  const canonical = canonicalizeLookupValue(String(value));
+  const found = approvedValues.some((v) => canonicalizeLookupValue(v) === canonical);
+  if (!found) {
+    if (mode === "error") {
+      return `${fieldDef.label} is not a recognized value`;
+    }
+    return `${fieldDef.label} is not in the lookup table`;
+  }
+  return null;
+}
+
 // ── Inline Validation (touched fields only) ──
 
 export function validateInline(
   candidate: CandidateData,
-  touchedFields: Set<string>
+  touchedFields: Set<string>,
+  lookups?: Map<string, string[]>
 ): ValidationErrors {
   const errors: ValidationErrors = {};
 
@@ -121,7 +146,16 @@ export function validateInline(
 
     const value = (candidate as Record<string, unknown>)[fieldName];
     const error = validateField(fieldDef, value);
-    if (error) errors[fieldName] = error;
+    if (error) {
+      errors[fieldName] = error;
+      continue;
+    }
+
+    // Soft lookup warning
+    const lookupWarning = validateLookupField(fieldDef, value, lookups, "warning");
+    if (lookupWarning) {
+      errors[fieldName] = lookupWarning;
+    }
   }
 
   return errors;
@@ -137,7 +171,8 @@ export interface CommitGateResult {
 
 export function validateCommitGate(
   candidate: CandidateData,
-  activePass: number
+  activePass: number,
+  lookups?: Map<string, string[]>
 ): CommitGateResult {
   const errors: ValidationErrors = {};
 
@@ -152,9 +187,8 @@ export function validateCommitGate(
 
   // 3. Required field checks
   if (isSegment) {
-    // ODK=S: only minimal fields required
     for (const fieldName of SEGMENT_REQUIRED_FIELDS) {
-      if (fieldName === "playNum") continue; // already validated
+      if (fieldName === "playNum") continue;
       const value = (candidate as Record<string, unknown>)[fieldName];
       if (value === null || value === undefined || value === "") {
         const fieldDef = playSchema.find((f) => f.name === fieldName);
@@ -162,10 +196,9 @@ export function validateCommitGate(
       }
     }
   } else {
-    // Standard: pass-aware required fields
     const requiredFields = getRequiredFieldsForPass(activePass);
     for (const fieldDef of requiredFields) {
-      if (fieldDef.name === "playNum") continue; // already validated
+      if (fieldDef.name === "playNum") continue;
       const value = (candidate as Record<string, unknown>)[fieldDef.name];
       if (value === null || value === undefined || value === "") {
         errors[fieldDef.name] = `${fieldDef.label} is required`;
@@ -173,16 +206,25 @@ export function validateCommitGate(
     }
   }
 
-  // 4. Type/enum validation on ALL populated fields (even untouched)
+  // 4. Type/enum validation on ALL populated fields
   for (const fieldDef of playSchema) {
     if (fieldDef.name === "playNum") continue;
-    if (errors[fieldDef.name]) continue; // already has error
+    if (errors[fieldDef.name]) continue;
 
     const value = (candidate as Record<string, unknown>)[fieldDef.name];
     if (value === null || value === undefined || value === "") continue;
 
     const error = validateField(fieldDef, value);
-    if (error) errors[fieldDef.name] = error;
+    if (error) {
+      errors[fieldDef.name] = error;
+      continue;
+    }
+
+    // Lookup membership check (blocking at commit)
+    const lookupError = validateLookupField(fieldDef, value, lookups, "error");
+    if (lookupError) {
+      errors[fieldDef.name] = lookupError;
+    }
   }
 
   if (Object.keys(errors).length > 0) {

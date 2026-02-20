@@ -9,6 +9,7 @@ import type { CandidateData, PlayRecord, TransactionState, ValidationErrors } fr
 import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame } from "./db";
 import { useGameContext } from "./gameContext";
+import { useLookup } from "./lookupContext";
 import { playSchema } from "./schema";
 
 interface TransactionContextValue {
@@ -42,6 +43,7 @@ function emptyCandidate(gameId: string): CandidateData {
 
 export function TransactionProvider({ children }: { children: React.ReactNode }) {
   const { activeGame, setHasDraft } = useGameContext();
+  const { getLookupMap } = useLookup();
   const gameId = activeGame?.gameId ?? "";
 
   const [state, setState] = useState<TransactionState>("idle");
@@ -87,9 +89,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
-      setInlineErrors(validateInline(newCandidate, newTouched));
+      setInlineErrors(validateInline(newCandidate, newTouched, getLookupMap()));
     },
-    [candidate, touchedFields]
+    [candidate, touchedFields, getLookupMap]
   );
 
   const clearDraft = useCallback(() => {
@@ -103,12 +105,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [gameId]);
 
   const reviewProposal = useCallback(() => {
-    const errors = validateInline(candidate, touchedFields);
+    const errors = validateInline(candidate, touchedFields, getLookupMap());
     setInlineErrors(errors);
     if (Object.keys(errors).length === 0) {
       setState("proposal");
     }
-  }, [candidate, touchedFields]);
+  }, [candidate, touchedFields, getLookupMap]);
 
   const backToEdit = useCallback(() => {
     if (state === "proposal") {
@@ -118,10 +120,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [state]);
 
   const commitProposal = useCallback(async (): Promise<boolean> => {
-    // Guard: commit only from proposal state
     if (state !== "proposal") return false;
 
-    const result = validateCommitGate(candidate, activePass);
+    const result = validateCommitGate(candidate, activePass, getLookupMap());
     if (!result.valid) {
       setCommitErrors(result.errors);
       return false;
@@ -129,7 +130,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     const normalized = result.normalizedPlay!;
 
-    // Check for collision
     const existing = await getPlay(gameId, normalized.playNum);
     if (existing) {
       setExistingPlay(existing);
@@ -143,12 +143,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [candidate, activePass, gameId, clearDraft, state]);
+  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap]);
 
   const confirmOverwrite = useCallback(async (): Promise<boolean> => {
     if (!pendingNormalized || !existingPlay) return false;
 
-    // No-op detection: compare normalized values field-by-field
     const isNoop = playSchema.every((f) => {
       const oldVal = (existingPlay as unknown as Record<string, unknown>)[f.name];
       const newVal = (pendingNormalized as unknown as Record<string, unknown>)[f.name];

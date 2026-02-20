@@ -5,7 +5,7 @@
  * All validation, UI rendering, and export logic derive from it.
  */
 
-export const SCHEMA_VERSION = "1.0.0";
+export const SCHEMA_VERSION = "2.0.0";
 
 export type FieldDataType = "integer" | "string" | "boolean" | "enum";
 export type FieldSource = "COACH" | "LOGIC" | "LOOKUP";
@@ -116,7 +116,7 @@ export const playSchema: readonly FieldDefinition[] = [
     name: "offForm",
     label: "Off. Formation",
     dataType: "string",
-    source: "COACH",
+    source: "LOOKUP",
     defaultPolicy: "null",
     defaultPassEntry: 1,
     requiredAtCommit: false,
@@ -125,7 +125,7 @@ export const playSchema: readonly FieldDefinition[] = [
     name: "offPlay",
     label: "Off. Play",
     dataType: "string",
-    source: "COACH",
+    source: "LOOKUP",
     defaultPolicy: "null",
     defaultPassEntry: 1,
     requiredAtCommit: false,
@@ -134,7 +134,7 @@ export const playSchema: readonly FieldDefinition[] = [
     name: "motion",
     label: "Motion",
     dataType: "string",
-    source: "COACH",
+    source: "LOOKUP",
     defaultPolicy: "null",
     defaultPassEntry: 1,
     requiredAtCommit: false,

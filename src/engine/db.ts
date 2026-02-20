@@ -2,16 +2,21 @@
  * Football Engine — IndexedDB Persistence Layer
  * 
  * Database: football-engine
- * Stores: games, plays, audit, schema_versions
+ * Stores: games, plays, audit, schema_versions, seasons, lookups, lookup_audit, roster, roster_audit
  */
 
 import { openDB, type IDBPDatabase } from "idb";
-import type { PlayRecord, GameMeta, AuditRecord } from "./types";
+import type { PlayRecord, GameMeta, AuditRecord, SeasonMeta, LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord } from "./types";
 import { SCHEMA_VERSION, exportSchemaSnapshot } from "./schema";
 import { computeSnapshotHash } from "./hash";
 
 const DB_NAME = "football-engine";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
+
+/** Canonicalize a lookup value: trim + collapse internal spaces, preserve casing */
+export function canonicalizeLookupValue(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -23,12 +28,12 @@ function getDB(): Promise<IDBPDatabase> {
         if (!db.objectStoreNames.contains("games")) {
           db.createObjectStore("games", { keyPath: "gameId" });
         }
-        // Plays store — composite key as single string "gameId:playNum"
+        // Plays store
         if (!db.objectStoreNames.contains("plays")) {
           const playStore = db.createObjectStore("plays", { keyPath: ["gameId", "playNum"] });
           playStore.createIndex("byGame", "gameId");
         }
-        // Audit store — auto-increment
+        // Audit store
         if (!db.objectStoreNames.contains("audit")) {
           const auditStore = db.createObjectStore("audit", {
             keyPath: "id",
@@ -41,10 +46,235 @@ function getDB(): Promise<IDBPDatabase> {
         if (!db.objectStoreNames.contains("schema_versions")) {
           db.createObjectStore("schema_versions", { keyPath: "version" });
         }
+        // Seasons store
+        if (!db.objectStoreNames.contains("seasons")) {
+          db.createObjectStore("seasons", { keyPath: "seasonId" });
+        }
+        // Lookups store
+        if (!db.objectStoreNames.contains("lookups")) {
+          const lookupStore = db.createObjectStore("lookups", { keyPath: ["seasonId", "fieldName"] });
+          lookupStore.createIndex("bySeason", "seasonId");
+        }
+        // Lookup audit store
+        if (!db.objectStoreNames.contains("lookup_audit")) {
+          const lookupAuditStore = db.createObjectStore("lookup_audit", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          lookupAuditStore.createIndex("bySeason", "seasonId");
+        }
+        // Roster store
+        if (!db.objectStoreNames.contains("roster")) {
+          const rosterStore = db.createObjectStore("roster", { keyPath: ["seasonId", "jerseyNumber"] });
+          rosterStore.createIndex("bySeason", "seasonId");
+        }
+        // Roster audit store
+        if (!db.objectStoreNames.contains("roster_audit")) {
+          const rosterAuditStore = db.createObjectStore("roster_audit", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          rosterAuditStore.createIndex("bySeason", "seasonId");
+        }
       },
     });
   }
   return dbPromise;
+}
+
+// ── Seasons ──
+
+export async function createSeason(meta: SeasonMeta): Promise<void> {
+  const db = await getDB();
+  await db.put("seasons", meta);
+}
+
+export async function getAllSeasons(): Promise<SeasonMeta[]> {
+  const db = await getDB();
+  return db.getAll("seasons");
+}
+
+export async function getSeason(seasonId: string): Promise<SeasonMeta | undefined> {
+  const db = await getDB();
+  return db.get("seasons", seasonId);
+}
+
+export async function incrementSeasonRevision(seasonId: string): Promise<number> {
+  const db = await getDB();
+  const season = await db.get("seasons", seasonId) as SeasonMeta | undefined;
+  if (!season) throw new Error(`Season ${seasonId} not found`);
+  season.seasonRevision += 1;
+  await db.put("seasons", season);
+  return season.seasonRevision;
+}
+
+// ── Lookups ──
+
+export async function getLookupTable(seasonId: string, fieldName: string): Promise<LookupTable | undefined> {
+  const db = await getDB();
+  return db.get("lookups", [seasonId, fieldName]);
+}
+
+export async function getAllLookups(seasonId: string): Promise<LookupTable[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("lookups", "bySeason", seasonId);
+}
+
+export async function initDefaultLookups(seasonId: string, lookupFields: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction("lookups", "readwrite");
+  for (const fieldName of lookupFields) {
+    const existing = await tx.store.get([seasonId, fieldName]);
+    if (!existing) {
+      await tx.store.put({
+        seasonId,
+        fieldName,
+        values: [],
+        updatedAt: new Date().toISOString(),
+      } satisfies LookupTable);
+    }
+  }
+  await tx.done;
+}
+
+export async function addLookupValue(seasonId: string, fieldName: string, rawValue: string): Promise<void> {
+  const value = canonicalizeLookupValue(rawValue);
+  if (!value) throw new Error("Value cannot be empty");
+
+  const db = await getDB();
+  const table = await db.get("lookups", [seasonId, fieldName]) as LookupTable | undefined;
+  if (!table) throw new Error(`Lookup table not found: ${fieldName}`);
+
+  // Check duplicate using canonicalized comparison
+  if (table.values.some((v) => canonicalizeLookupValue(v) === value)) {
+    throw new Error(`"${value}" already exists in ${fieldName}`);
+  }
+
+  const newRevision = await incrementSeasonRevision(seasonId);
+
+  table.values.push(value);
+  table.updatedAt = new Date().toISOString();
+  await db.put("lookups", table);
+
+  const auditRecord: Omit<LookupAuditRecord, "id"> = {
+    seasonId,
+    fieldName,
+    action: "add",
+    value,
+    seasonRevision: newRevision,
+    timestamp: new Date().toISOString(),
+  };
+  await db.add("lookup_audit", auditRecord);
+}
+
+export async function removeLookupValue(seasonId: string, fieldName: string, rawValue: string): Promise<void> {
+  const value = canonicalizeLookupValue(rawValue);
+  const db = await getDB();
+
+  // Safety check: query plays in this season that use this value
+  const games = (await db.getAll("games") as GameMeta[]).filter((g) => g.seasonId === seasonId);
+  for (const game of games) {
+    const plays = await db.getAllFromIndex("plays", "byGame", game.gameId) as PlayRecord[];
+    const used = plays.some((p) => {
+      const fieldVal = (p as unknown as Record<string, unknown>)[fieldName];
+      return fieldVal !== null && fieldVal !== undefined && canonicalizeLookupValue(String(fieldVal)) === value;
+    });
+    if (used) {
+      throw new Error("Value used in committed plays. Removal blocked.");
+    }
+  }
+
+  const table = await db.get("lookups", [seasonId, fieldName]) as LookupTable | undefined;
+  if (!table) throw new Error(`Lookup table not found: ${fieldName}`);
+
+  table.values = table.values.filter((v) => canonicalizeLookupValue(v) !== value);
+  table.updatedAt = new Date().toISOString();
+
+  const newRevision = await incrementSeasonRevision(seasonId);
+
+  await db.put("lookups", table);
+
+  const auditRecord: Omit<LookupAuditRecord, "id"> = {
+    seasonId,
+    fieldName,
+    action: "remove",
+    value,
+    seasonRevision: newRevision,
+    timestamp: new Date().toISOString(),
+  };
+  await db.add("lookup_audit", auditRecord);
+}
+
+// ── Roster ──
+
+export async function getRosterBySeason(seasonId: string): Promise<RosterEntry[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("roster", "bySeason", seasonId);
+}
+
+export async function getRosterEntry(seasonId: string, jerseyNumber: number): Promise<RosterEntry | undefined> {
+  const db = await getDB();
+  return db.get("roster", [seasonId, jerseyNumber]);
+}
+
+export async function addRosterEntry(seasonId: string, jerseyNumber: number, playerName: string): Promise<void> {
+  const db = await getDB();
+  const existing = await db.get("roster", [seasonId, jerseyNumber]);
+  if (existing) throw new Error(`Jersey #${jerseyNumber} already exists in roster`);
+
+  const newRevision = await incrementSeasonRevision(seasonId);
+
+  await db.put("roster", { seasonId, jerseyNumber, playerName } satisfies RosterEntry);
+
+  const auditRecord: Omit<RosterAuditRecord, "id"> = {
+    seasonId,
+    jerseyNumber,
+    playerName,
+    action: "add",
+    seasonRevision: newRevision,
+    timestamp: new Date().toISOString(),
+  };
+  await db.add("roster_audit", auditRecord);
+}
+
+export async function removeRosterEntry(seasonId: string, jerseyNumber: number): Promise<void> {
+  const db = await getDB();
+  const entry = await db.get("roster", [seasonId, jerseyNumber]) as RosterEntry | undefined;
+  if (!entry) return;
+
+  const newRevision = await incrementSeasonRevision(seasonId);
+
+  await db.delete("roster", [seasonId, jerseyNumber]);
+
+  const auditRecord: Omit<RosterAuditRecord, "id"> = {
+    seasonId,
+    jerseyNumber,
+    playerName: entry.playerName,
+    action: "remove",
+    seasonRevision: newRevision,
+    timestamp: new Date().toISOString(),
+  };
+  await db.add("roster_audit", auditRecord);
+}
+
+export async function updateRosterEntry(seasonId: string, jerseyNumber: number, playerName: string): Promise<void> {
+  const db = await getDB();
+  const existing = await db.get("roster", [seasonId, jerseyNumber]) as RosterEntry | undefined;
+  if (!existing) throw new Error(`Jersey #${jerseyNumber} not found in roster`);
+
+  const newRevision = await incrementSeasonRevision(seasonId);
+
+  await db.put("roster", { seasonId, jerseyNumber, playerName } satisfies RosterEntry);
+
+  const auditRecord: Omit<RosterAuditRecord, "id"> = {
+    seasonId,
+    jerseyNumber,
+    playerName,
+    action: "update",
+    seasonRevision: newRevision,
+    timestamp: new Date().toISOString(),
+  };
+  await db.add("roster_audit", auditRecord);
 }
 
 // ── Games ──
@@ -52,7 +282,6 @@ function getDB(): Promise<IDBPDatabase> {
 export async function createGame(meta: GameMeta): Promise<void> {
   const db = await getDB();
   await db.put("games", meta);
-  // Store current schema version snapshot
   await db.put("schema_versions", exportSchemaSnapshot());
 }
 
@@ -104,7 +333,6 @@ export async function commitPlay(
   const isOverwrite = existingPlay !== null;
   const action = isOverwrite ? "overwrite" : "commit";
 
-  // Compute changed fields
   const allFields = Object.keys(play) as (keyof PlayRecord)[];
   const fieldsChanged: string[] = [];
   const beforeValues: Record<string, unknown> = {};
@@ -121,10 +349,7 @@ export async function commitPlay(
     }
   }
 
-  // Compute canonical hash
   const snapshotHash = await computeSnapshotHash(play);
-
-  // Get next audit sequence
   const auditSeq = await getNextAuditSeq(db, play.gameId);
 
   const auditRecord: Omit<AuditRecord, "id"> = {
@@ -141,7 +366,6 @@ export async function commitPlay(
     snapshotHash,
   };
 
-  // Write play + audit in a transaction
   const tx = db.transaction(["plays", "audit"], "readwrite");
   await tx.objectStore("plays").put(play);
   await tx.objectStore("audit").add(auditRecord);
@@ -162,10 +386,30 @@ export async function getAuditByGame(gameId: string): Promise<AuditRecord[]> {
 export async function buildDebugExport(gameId: string) {
   const db = await getDB();
   const [gameMeta, plays, audit] = await Promise.all([
-    db.get("games", gameId),
+    db.get("games", gameId) as Promise<GameMeta | undefined>,
     getPlaysByGame(gameId),
     getAuditByGame(gameId),
   ]);
+
+  // Include season data if game has a seasonId
+  let seasonData = {};
+  if (gameMeta?.seasonId) {
+    const sid = gameMeta.seasonId;
+    const [season, lookups, lookupAudit, roster, rosterAudit] = await Promise.all([
+      db.get("seasons", sid),
+      getAllLookups(sid),
+      db.getAllFromIndex("lookup_audit", "bySeason", sid) as Promise<LookupAuditRecord[]>,
+      getRosterBySeason(sid),
+      db.getAllFromIndex("roster_audit", "bySeason", sid) as Promise<RosterAuditRecord[]>,
+    ]);
+    seasonData = {
+      season,
+      lookups,
+      lookupAudit: lookupAudit.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
+      roster: roster.sort((a, b) => a.jerseyNumber - b.jerseyNumber),
+      rosterAudit: rosterAudit.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
+    };
+  }
 
   return {
     exportType: "Debug / Inspection Export",
@@ -174,6 +418,7 @@ export async function buildDebugExport(gameId: string) {
     gameMeta,
     plays: plays.sort((a, b) => a.playNum - b.playNum),
     audit: audit.sort((a, b) => a.auditSeq - b.auditSeq),
+    ...seasonData,
   };
 }
 
