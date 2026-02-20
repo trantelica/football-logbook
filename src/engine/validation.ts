@@ -73,6 +73,10 @@ function validateField(
       if (fieldDef.name === "playNum" && num <= 0) {
         return `${fieldDef.label} must be greater than 0`;
       }
+      // Check allowedValues constraint for integer fields (e.g., qtr, dn)
+      if (fieldDef.allowedValues && !fieldDef.allowedValues.includes(String(num))) {
+        return `${fieldDef.label} must be one of: ${fieldDef.allowedValues.join(", ")}`;
+      }
       break;
     }
     case "enum": {

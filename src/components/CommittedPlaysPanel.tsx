@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
-import { playSchema } from "@/engine/schema";
+import { playSchema, QTR_DISPLAY } from "@/engine/schema";
 import type { PlayRecord } from "@/engine/types";
 import { cn } from "@/lib/utils";
 
@@ -87,5 +87,7 @@ function formatCellValue(play: PlayRecord, col: string): string {
   const val = (play as unknown as Record<string, unknown>)[col];
   if (val === null || val === undefined) return "—";
   if (typeof val === "boolean") return val ? "✓" : "—";
+  // Display qtr=5 as "OT"
+  if (col === "qtr") return QTR_DISPLAY[String(val)] ?? String(val);
   return String(val);
 }

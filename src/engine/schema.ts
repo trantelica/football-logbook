@@ -27,7 +27,10 @@ export interface FieldDefinition {
 export const ODK_VALUES = ["O", "D", "K", "S"] as const;
 export type ODK = (typeof ODK_VALUES)[number];
 
-export const QTR_VALUES = ["1", "2", "3", "4", "OT"] as const;
+/** qtr is stored as integer 1–5; value 5 represents Overtime */
+export const QTR_VALUES = ["1", "2", "3", "4", "5"] as const;
+/** Display labels for qtr dropdown (maps stored value → UI label) */
+export const QTR_DISPLAY: Record<string, string> = { "1": "1", "2": "2", "3": "3", "4": "4", "5": "OT" };
 export const DN_VALUES = ["1", "2", "3", "4"] as const;
 export const HASH_VALUES = ["L", "M", "R"] as const;
 
@@ -45,7 +48,7 @@ export const playSchema: readonly FieldDefinition[] = [
   {
     name: "qtr",
     label: "Quarter",
-    dataType: "enum",
+    dataType: "integer",
     allowedValues: QTR_VALUES,
     source: "COACH",
     defaultPolicy: "null",
@@ -83,7 +86,7 @@ export const playSchema: readonly FieldDefinition[] = [
   {
     name: "dn",
     label: "Down",
-    dataType: "enum",
+    dataType: "integer",
     allowedValues: DN_VALUES,
     source: "COACH",
     defaultPolicy: "null",

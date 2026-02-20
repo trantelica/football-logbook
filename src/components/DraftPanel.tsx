@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
-import { playSchema, SEGMENT_REQUIRED_FIELDS } from "@/engine/schema";
+import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY } from "@/engine/schema";
 import { cn } from "@/lib/utils";
 import { Eraser, Eye, Check, ArrowLeft } from "lucide-react";
 
@@ -80,7 +80,12 @@ export function DraftPanel() {
       error && "border-destructive"
     );
 
-    if (fieldDef.dataType === "enum" && fieldDef.allowedValues) {
+    if (fieldDef.allowedValues) {
+      // Render as dropdown for any field with constrained values (enum or integer with allowedValues)
+      const displayLabel = (v: string) => {
+        if (fieldName === "qtr") return QTR_DISPLAY[v] ?? v;
+        return v;
+      };
       return (
         <div key={fieldName} className={fieldClasses}>
           <Label className="text-xs font-medium text-muted-foreground">
@@ -88,7 +93,7 @@ export function DraftPanel() {
             {fieldDef.requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
           </Label>
           <Select
-            value={(value as string) ?? ""}
+            value={value != null ? String(value) : ""}
             onValueChange={(v) => updateField(fieldName, v)}
             disabled={isProposal}
           >
@@ -98,7 +103,7 @@ export function DraftPanel() {
             <SelectContent>
               {fieldDef.allowedValues.map((v) => (
                 <SelectItem key={v} value={v}>
-                  {v}
+                  {displayLabel(v)}
                 </SelectItem>
               ))}
             </SelectContent>
