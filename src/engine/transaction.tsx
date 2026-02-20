@@ -9,6 +9,7 @@ import type { CandidateData, PlayRecord, TransactionState, ValidationErrors } fr
 import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame } from "./db";
 import { useGameContext } from "./gameContext";
+import { playSchema } from "./schema";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -17,11 +18,13 @@ interface TransactionContextValue {
   inlineErrors: ValidationErrors;
   commitErrors: ValidationErrors;
   committedPlays: PlayRecord[];
-  existingPlay: PlayRecord | null; // for overwrite review
+  existingPlay: PlayRecord | null;
+  pendingNormalized: PlayRecord | null;
   
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
   reviewProposal: () => void;
+  backToEdit: () => void;
   commitProposal: () => Promise<boolean>;
   confirmOverwrite: () => Promise<boolean>;
   cancelOverwrite: () => void;
@@ -49,7 +52,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [committedPlays, setCommittedPlays] = useState<PlayRecord[]>([]);
   const [existingPlay, setExistingPlay] = useState<PlayRecord | null>(null);
   const [pendingNormalized, setPendingNormalized] = useState<PlayRecord | null>(null);
-  const activePass = 0; // Phase 1: Pass 0
+  const activePass = 0;
 
   // Reset on game change
   useEffect(() => {
@@ -82,7 +85,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setState("candidate");
       setCommitErrors({});
 
-      // Run inline validation on all touched fields
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
       setInlineErrors(validateInline(newCandidate, newTouched));
@@ -101,7 +103,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [gameId]);
 
   const reviewProposal = useCallback(() => {
-    // Run inline validation on all touched fields before promoting
     const errors = validateInline(candidate, touchedFields);
     setInlineErrors(errors);
     if (Object.keys(errors).length === 0) {
@@ -109,8 +110,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
   }, [candidate, touchedFields]);
 
+  const backToEdit = useCallback(() => {
+    if (state === "proposal") {
+      setState("candidate");
+      setCommitErrors({});
+    }
+  }, [state]);
+
   const commitProposal = useCallback(async (): Promise<boolean> => {
-    // Full commit-gate validation
+    // Guard: commit only from proposal state
+    if (state !== "proposal") return false;
+
     const result = validateCommitGate(candidate, activePass);
     if (!result.valid) {
       setCommitErrors(result.errors);
@@ -128,16 +138,28 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return false;
     }
 
-    // Commit
     await dbCommitPlay(normalized, null);
     const plays = await getPlaysByGame(gameId);
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [candidate, activePass, gameId, clearDraft]);
+  }, [candidate, activePass, gameId, clearDraft, state]);
 
   const confirmOverwrite = useCallback(async (): Promise<boolean> => {
     if (!pendingNormalized || !existingPlay) return false;
+
+    // No-op detection: compare normalized values field-by-field
+    const isNoop = playSchema.every((f) => {
+      const oldVal = (existingPlay as unknown as Record<string, unknown>)[f.name];
+      const newVal = (pendingNormalized as unknown as Record<string, unknown>)[f.name];
+      return String(oldVal ?? "") === String(newVal ?? "");
+    });
+
+    if (isNoop) {
+      setCommitErrors({ _noop: "No changes detected — overwrite blocked" });
+      return false;
+    }
+
     await dbCommitPlay(pendingNormalized, existingPlay);
     const plays = await getPlaysByGame(gameId);
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
@@ -184,9 +206,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         commitErrors,
         committedPlays,
         existingPlay,
+        pendingNormalized,
         updateField,
         clearDraft,
         reviewProposal,
+        backToEdit,
         commitProposal,
         confirmOverwrite,
         cancelOverwrite,

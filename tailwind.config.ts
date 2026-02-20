@@ -57,10 +57,15 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        draft: {
-          DEFAULT: "hsl(var(--draft))",
-          foreground: "hsl(var(--draft-foreground))",
-          muted: "hsl(var(--draft-muted))",
+        candidate: {
+          DEFAULT: "hsl(var(--candidate))",
+          foreground: "hsl(var(--candidate-foreground))",
+          muted: "hsl(var(--candidate-muted))",
+        },
+        proposal: {
+          DEFAULT: "hsl(var(--proposal))",
+          foreground: "hsl(var(--proposal-foreground))",
+          muted: "hsl(var(--proposal-muted))",
         },
         committed: {
           DEFAULT: "hsl(var(--committed))",

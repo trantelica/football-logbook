@@ -65,10 +65,11 @@ function validateField(
 
   switch (fieldDef.dataType) {
     case "integer": {
-      const num = Number(value);
-      if (!Number.isFinite(num) || !Number.isInteger(num)) {
+      const str = String(value).trim();
+      if (!/^-?\d+$/.test(str)) {
         return `${fieldDef.label} must be a whole number`;
       }
+      const num = Number(str);
       if (fieldDef.name === "playNum" && num <= 0) {
         return `${fieldDef.label} must be greater than 0`;
       }
@@ -88,7 +89,6 @@ function validateField(
       break;
     }
     case "string":
-      // No type validation needed for free-text strings
       break;
   }
 
@@ -185,24 +185,39 @@ export function validateCommitGate(
     return { valid: false, errors, normalizedPlay: null };
   }
 
-  // Build normalized PlayRecord
-  const normalizedPlay: PlayRecord = {
-    gameId: candidate.gameId,
-    playNum: playNumResult.value,
-    qtr: (candidate.qtr as string) || null,
-    odk: (candidate.odk as PlayRecord["odk"]) || null,
-    series: candidate.series != null && candidate.series !== "" ? Number(candidate.series) : null,
-    yardLn: candidate.yardLn != null && candidate.yardLn !== "" ? Number(candidate.yardLn) : null,
-    dn: (candidate.dn as string) || null,
-    dist: candidate.dist != null && candidate.dist !== "" ? Number(candidate.dist) : null,
-    hash: (candidate.hash as string) || null,
-    offForm: (candidate.offForm as string) || null,
-    offPlay: (candidate.offPlay as string) || null,
-    motion: (candidate.motion as string) || null,
-    result: (candidate.result as string) || null,
-    gainLoss: candidate.gainLoss != null && candidate.gainLoss !== "" ? Number(candidate.gainLoss) : null,
-    twoMin: candidate.twoMin === true || candidate.twoMin === "true" ? true : candidate.twoMin === false || candidate.twoMin === "false" ? false : null,
-  };
+  const normalizedPlay = normalizeToSchema(candidate, playNumResult.value);
 
   return { valid: true, errors: {}, normalizedPlay };
+}
+
+// ── Schema-Driven Normalization ──
+
+export function normalizeToSchema(candidate: CandidateData, playNum: number): PlayRecord {
+  const record: Record<string, unknown> = { gameId: candidate.gameId, playNum };
+  for (const fieldDef of playSchema) {
+    if (fieldDef.name === "playNum") continue;
+    const raw = (candidate as Record<string, unknown>)[fieldDef.name];
+    if (raw === null || raw === undefined || raw === "") {
+      record[fieldDef.name] = null;
+      continue;
+    }
+    switch (fieldDef.dataType) {
+      case "integer": {
+        const str = String(raw).trim();
+        if (!/^-?\d+$/.test(str)) { record[fieldDef.name] = null; break; }
+        record[fieldDef.name] = Number(str);
+        break;
+      }
+      case "enum":
+        record[fieldDef.name] = String(raw);
+        break;
+      case "boolean":
+        record[fieldDef.name] = raw === true || raw === "true";
+        break;
+      case "string":
+        record[fieldDef.name] = String(raw).trim() || null;
+        break;
+    }
+  }
+  return record as unknown as PlayRecord;
 }
