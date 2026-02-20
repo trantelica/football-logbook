@@ -13,8 +13,13 @@ import { computeSnapshotHash } from "./hash";
 const DB_NAME = "football-engine";
 const DB_VERSION = 2;
 
-/** Canonicalize a lookup value: trim + collapse internal spaces, preserve casing */
+/** Canonicalize a lookup value for comparison: trim + collapse spaces + lowercase */
 export function canonicalizeLookupValue(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** Normalize display value: trim + collapse spaces, preserve casing */
+export function normalizeLookupDisplay(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
@@ -145,14 +150,18 @@ export async function addLookupValue(seasonId: string, fieldName: string, rawVal
   const table = await db.get("lookups", [seasonId, fieldName]) as LookupTable | undefined;
   if (!table) throw new Error(`Lookup table not found: ${fieldName}`);
 
-  // Check duplicate using canonicalized comparison
-  if (table.values.some((v) => canonicalizeLookupValue(v) === value)) {
-    throw new Error(`"${value}" already exists in ${fieldName}`);
+  // Normalize display value (trim + collapse spaces, preserve casing)
+  const displayValue = normalizeLookupDisplay(rawValue);
+  const canonicalKey = canonicalizeLookupValue(rawValue);
+
+  // Check duplicate using case-insensitive canonical comparison
+  if (table.values.some((v) => canonicalizeLookupValue(v) === canonicalKey)) {
+    throw new Error(`"${displayValue}" already exists in ${fieldName}`);
   }
 
   const newRevision = await incrementSeasonRevision(seasonId);
 
-  table.values.push(value);
+  table.values.push(displayValue);
   table.updatedAt = new Date().toISOString();
   await db.put("lookups", table);
 
@@ -160,7 +169,7 @@ export async function addLookupValue(seasonId: string, fieldName: string, rawVal
     seasonId,
     fieldName,
     action: "add",
-    value,
+    value: displayValue,
     seasonRevision: newRevision,
     timestamp: new Date().toISOString(),
   };

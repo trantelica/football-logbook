@@ -10,6 +10,7 @@ import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { useLookup } from "@/engine/lookupContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY } from "@/engine/schema";
+import { canonicalizeLookupValue } from "@/engine/db";
 import { cn } from "@/lib/utils";
 import { Eraser, Eye, Check, ArrowLeft, Plus } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
@@ -66,6 +67,26 @@ export function DraftPanel() {
     return isSegment && !isMinimalField(field);
   }
 
+  // Check if a commit error is a lookup-not-recognized error
+  function isLookupCommitError(fieldName: string): boolean {
+    return !!(commitErrors[fieldName] && isLookupField(fieldName));
+  }
+
+  const handleAddLookupFromError = (fieldName: string) => {
+    const value = (candidate as Record<string, unknown>)[fieldName];
+    if (value == null || String(value).trim() === "") return;
+    const fieldDef = playSchema.find((f) => f.name === fieldName);
+    setConfirmDialog({
+      fieldName,
+      fieldLabel: fieldDef?.label ?? fieldName,
+      value: String(value).trim(),
+    });
+  };
+
+  const handleClearField = (fieldName: string) => {
+    updateField(fieldName, "");
+  };
+
   const borderClasses = isProposal
     ? "border-proposal bg-proposal-muted"
     : isDraft
@@ -95,22 +116,43 @@ export function DraftPanel() {
     // LOOKUP-sourced string fields → combobox
     if (isLookupField(fieldName) && fieldDef.dataType === "string") {
       return (
-        <LookupCombobox
-          key={fieldName}
-          fieldName={fieldName}
-          fieldLabel={fieldDef.label}
-          requiredAtCommit={fieldDef.requiredAtCommit}
-          value={value != null ? String(value) : ""}
-          onChange={(v) => updateField(fieldName, v)}
-          onRequestAdd={(v) =>
-            setConfirmDialog({ fieldName, fieldLabel: fieldDef.label, value: v })
-          }
-          lookupValues={getValues(fieldName)}
-          disabled={isProposal}
-          className={fieldClasses}
-          inputClassName={inputClasses}
-          error={error}
-        />
+        <div key={fieldName} className={fieldClasses}>
+          <LookupCombobox
+            fieldName={fieldName}
+            fieldLabel={fieldDef.label}
+            requiredAtCommit={fieldDef.requiredAtCommit}
+            value={value != null ? String(value) : ""}
+            onChange={(v) => updateField(fieldName, v)}
+            onRequestAdd={(v) =>
+              setConfirmDialog({ fieldName, fieldLabel: fieldDef.label, value: v })
+            }
+            lookupValues={getValues(fieldName)}
+            disabled={isProposal}
+            inputClassName={inputClasses}
+            error={error}
+          />
+          {isLookupCommitError(fieldName) && (
+            <div className="flex gap-1 mt-0.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-5 text-[10px] px-1.5 gap-0.5"
+                onClick={() => handleAddLookupFromError(fieldName)}
+              >
+                <Plus className="h-2.5 w-2.5" />
+                Add to lookup
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 text-[10px] px-1.5 text-destructive"
+                onClick={() => handleClearField(fieldName)}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -301,7 +343,6 @@ interface LookupComboboxProps {
   onRequestAdd: (value: string) => void;
   lookupValues: string[];
   disabled: boolean;
-  className: string;
   inputClassName: string;
   error?: string;
 }
@@ -315,24 +356,25 @@ function LookupCombobox({
   onRequestAdd,
   lookupValues,
   disabled,
-  className,
   inputClassName,
   error,
 }: LookupComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
+  const typedValue = search || value;
+  const typedCanonical = canonicalizeLookupValue(typedValue);
+
   const filtered = lookupValues.filter((v) =>
-    v.toLowerCase().includes((search || value).toLowerCase())
+    canonicalizeLookupValue(v).includes(typedCanonical)
   );
 
-  const typedValue = search || value;
   const isNovelValue =
     typedValue.trim() !== "" &&
-    !lookupValues.some((v) => v.toLowerCase() === typedValue.trim().toLowerCase());
+    !lookupValues.some((v) => canonicalizeLookupValue(v) === typedCanonical);
 
   return (
-    <div className={className}>
+    <>
       <Label className="text-xs font-medium text-muted-foreground">
         {fieldLabel}
         {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
@@ -341,10 +383,11 @@ function LookupCombobox({
         <PopoverTrigger asChild>
           <Input
             className={inputClassName}
-            value={value}
+            value={search || value}
             onChange={(e) => {
-              onChange(e.target.value);
-              setSearch(e.target.value);
+              const v = e.target.value;
+              setSearch(v);
+              onChange(v);
               if (!open) setOpen(true);
             }}
             onFocus={() => setOpen(true)}
@@ -378,6 +421,7 @@ function LookupCombobox({
                     value={`__add__${typedValue}`}
                     onSelect={() => {
                       onRequestAdd(typedValue.trim());
+                      setSearch("");
                       setOpen(false);
                     }}
                     className="text-xs gap-1"
@@ -392,6 +436,6 @@ function LookupCombobox({
         </PopoverContent>
       </Popover>
       {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+    </>
   );
 }
