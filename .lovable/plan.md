@@ -1,163 +1,244 @@
 
 
-# Implementation: Proposal-Gated Commit, Type Normalization, No-Op Overwrite Blocking
+# Phase 2: Lookup and Roster Governance — Implementation Plan
 
 ## Overview
-Three changes plus a visual color system update: (1) require Proposal review before Commit, (2) schema-driven type normalization with strict integer parsing, (3) block no-op overwrites, and (4) update color tokens from amber "draft" to neutral "candidate" + amber "proposal" + green "committed."
+
+Season-scoped vocabulary governance for three LOOKUP fields (`offForm`, `offPlay`, `motion`), a lightweight roster store (`jerseyNumber` + `playerName`), and full audit trail with `seasonRevision` counter. All committed plays remain denormalized. No scope creep into multi-pass, carry-forward, or personnel logic.
 
 ---
 
-## 1. Color System Update (Candidate = Neutral/Blue-Gray, Proposal = Amber)
+## Implementation Sequence
 
-### `src/index.css`
-Replace the `--draft` / `--draft-foreground` / `--draft-muted` / `--field-touched` tokens in both light and dark themes:
+The build is ordered to maintain a working application at each step. Engine layer first, then contexts, then UI.
 
-**Light mode:**
-- `--candidate: 215 14% 90%` (neutral blue-gray)
-- `--candidate-foreground: 220 20% 10%`
-- `--candidate-muted: 215 14% 96%`
-- `--proposal: 38 92% 50%` (amber — the old draft color)
-- `--proposal-foreground: 38 92% 14%`
-- `--proposal-muted: 38 60% 92%`
-- `--field-touched: 215 40% 92%` (neutral blue tint instead of amber)
+### Step 1: Types and Schema Updates
 
-**Dark mode:**
-- `--candidate: 220 16% 20%`
-- `--candidate-foreground: 210 20% 85%`
-- `--candidate-muted: 220 16% 12%`
-- `--proposal: 38 80% 50%`
-- `--proposal-foreground: 38 92% 95%`
-- `--proposal-muted: 38 40% 16%`
-- `--field-touched: 215 30% 18%`
+**`src/engine/types.ts`** — Add new types:
+- `SeasonMeta`: `seasonId`, `label`, `createdAt`, `seasonRevision`
+- `LookupTable`: `seasonId`, `fieldName`, `values: string[]`, `updatedAt`
+- `LookupAuditRecord`: `seasonId`, `fieldName`, `action` (add/remove), `value`, `seasonRevision`, `timestamp`
+- `RosterEntry`: `seasonId`, `jerseyNumber`, `playerName`
+- `RosterAuditRecord`: `seasonId`, `jerseyNumber`, `playerName`, `action` (add/remove/update), `seasonRevision`, `timestamp`
+- Add `seasonId: string` to `GameMeta`
 
-Committed tokens remain unchanged.
+**`src/engine/schema.ts`**:
+- Change `source` to `"LOOKUP"` for `offForm`, `offPlay`, `motion`
+- `result` stays `source: "COACH"` (fixed spec enum, not season-maintainable)
+- Bump `SCHEMA_VERSION` to `"2.0.0"`
 
-### `tailwind.config.ts`
-Replace `draft` color mapping with `candidate` and `proposal`:
+### Step 2: IndexedDB Layer
+
+**`src/engine/db.ts`** — Bump `DB_VERSION` to 2. Add five stores:
+
+| Store | KeyPath | Indexes |
+|-------|---------|---------|
+| `seasons` | `seasonId` | -- |
+| `lookups` | `[seasonId, fieldName]` | `bySeason` |
+| `lookup_audit` | auto-increment | `bySeason` |
+| `roster` | `[seasonId, jerseyNumber]` | `bySeason` |
+| `roster_audit` | auto-increment | `bySeason` |
+
+New functions:
+- **Seasons**: `createSeason`, `getAllSeasons`, `getSeason`, `incrementSeasonRevision`
+- **Lookups**: `getLookupTable`, `getAllLookups`, `addLookupValue`, `removeLookupValue`, `initDefaultLookups`
+- **Roster**: `getRosterBySeason`, `addRosterEntry`, `removeRosterEntry`, `updateRosterEntry`
+- **Debug export**: Include `seasons`, `lookups`, `lookup_audit`, `roster`, `roster_audit`
+
+Lookup canonicalization applied in `addLookupValue` and all comparison paths:
+- Trim leading/trailing whitespace
+- Collapse multiple internal spaces to single space
+- Preserve coach casing (no case normalization)
+- Comparisons use canonicalized forms
+
+Lookup removal safety (Option A): `removeLookupValue` queries the `plays` store for any committed play in the season using that value. If found, throw/return error. Caller handles the UI message.
+
+### Step 3: Season Context
+
+**`src/engine/seasonContext.tsx`** (new file):
+- State: `activeSeason`, `seasons` list
+- `createNewSeason(label)`: creates season, calls `initDefaultLookups(seasonId)`
+- `switchSeason(seasonId)`: with confirmation if draft is active (similar to game switch pattern)
+- `pendingSwitchSeason` / `confirmSeasonSwitch` / `cancelSeasonSwitch` for draft-clearing confirmation
+
+### Step 4: Lookup Context
+
+**`src/engine/lookupContext.tsx`** (new file):
+- Loads all lookup tables for `activeSeason.seasonId` on mount/season change
+- `getValues(fieldName): string[]`
+- `addValue(fieldName, value)`: canonicalizes, checks duplicate, adds, increments `seasonRevision`, writes audit
+- `removeValue(fieldName, value)`: checks committed plays for usage, blocks if found, otherwise removes + audits
+- `isLookupField(fieldName): boolean`
+
+### Step 5: Roster Context
+
+**`src/engine/rosterContext.tsx`** (new file):
+- Loads roster for `activeSeason.seasonId`
+- `roster: RosterEntry[]`
+- `addPlayer(jerseyNumber, playerName)`: increments `seasonRevision`, writes audit
+- `removePlayer(jerseyNumber)`: increments `seasonRevision`, writes audit
+- `updatePlayer(jerseyNumber, playerName)`: increments `seasonRevision`, writes audit
+- `getPlayer(jerseyNumber): RosterEntry | undefined`
+- No duplicate detection, no position logic, no 11-player enforcement
+
+### Step 6: Validation Engine Integration
+
+**`src/engine/validation.ts`**:
+- `validateCommitGate(candidate, activePass, lookups)` — new third parameter: `Map<string, string[]>` (fieldName to approved values)
+- For fields with `source === "LOOKUP"`: if lookup map has a non-empty array for that field and the canonicalized candidate value is not in it, error: `"{label} is not a recognized value"`
+- If lookup array is empty, accept any value (bootstrapping)
+- `validateInline(candidate, touchedFields, lookups)` — optional lookup map. For LOOKUP fields with non-empty table, soft warning if value not found
+
+### Step 7: Transaction Provider Update
+
+**`src/engine/transaction.tsx`**:
+- Import and consume `useLookup` context
+- Pass lookup map to `validateCommitGate` and `validateInline` calls
+- No other structural changes
+
+### Step 8: Game Context Update
+
+**`src/engine/gameContext.tsx`**:
+- `createNewGame(opponent, date, seasonId)` — requires `seasonId`
+- `GameMeta` now includes `seasonId`
+
+### Step 9: UI — Season Management in GameBar
+
+**`src/components/GameBar.tsx`**:
+- Add season selector dropdown before game selector
+- "New Season" button opens a dialog for entering season label
+- Display active season label
+- Season switch triggers draft-clearing confirmation (same pattern as game switch)
+
+**`src/components/NewGameDialog.tsx`**:
+- Add season selector dropdown (from available seasons)
+- If no seasons exist, show prompt to create one first
+- Game creation requires a selected season
+
+### Step 10: UI — Lookup Combobox in DraftPanel
+
+**`src/components/DraftPanel.tsx`**:
+- For fields where `fieldDef.source === "LOOKUP"`, render a combobox using `cmdk` (already installed)
+- Always use combobox UI, even when lookup table is empty (bootstrapping)
+- Empty state: show "No values yet. Type to add."
+- Dropdown shows approved values filtered by typed input
+- If typed value is not in the list, show "Add '{value}'?" option
+- Selecting "Add" triggers `LookupConfirmDialog`
+- Read-only in proposal state
+
+### Step 11: UI — Lookup Confirm Dialog
+
+**`src/components/LookupConfirmDialog.tsx`** (new file):
+- Modal: "Add '{value}' to {fieldLabel}?"
+- Confirm calls `lookupContext.addValue(fieldName, value)`
+- Cancel clears the field
+- After confirm, field retains the value and logging resumes
+
+### Step 12: UI — Lookup Management Panel
+
+**`src/components/LookupPanel.tsx`** (new file):
+- Collapsible panel below DraftPanel
+- One section per LOOKUP field (offForm, offPlay, motion)
+- Approved values shown as removable chips
+- Remove button: if value used in committed plays, show "Value used in committed plays. Removal blocked."
+- Text input to manually add values (uses same canonicalization + confirm flow)
+- Displays `seasonRevision` and `updatedAt` per field
+- Only visible when a season is active
+
+### Step 13: UI — Roster Management Panel
+
+**`src/components/RosterPanel.tsx`** (new file):
+- Collapsible panel
+- Table: jerseyNumber + playerName
+- Add row: jersey input + name input + Add button
+- Remove button per row
+- Only visible when a season is active
+
+### Step 14: Page Layout Update
+
+**`src/pages/Index.tsx`**:
+- Updated provider hierarchy:
+```text
+GameProvider
+  SeasonProvider
+    LookupProvider
+      RosterProvider
+        TransactionProvider
+          ...UI
 ```
-candidate: { DEFAULT, foreground, muted }
-proposal: { DEFAULT, foreground, muted }
-```
+- Add `LookupPanel` and `RosterPanel` to the main layout (collapsible, below DraftPanel)
 
 ---
 
-## 2. Schema-Driven Normalization in `src/engine/validation.ts`
+## Canonicalization Rules
 
-### Add `normalizeToSchema()` function
-Replace the manual field-by-field normalization block (lines 189-205) with a schema-driven loop:
-
-```typescript
-function normalizeToSchema(candidate: CandidateData, playNum: number): PlayRecord {
-  const record: Record<string, unknown> = { gameId: candidate.gameId, playNum };
-  for (const fieldDef of playSchema) {
-    if (fieldDef.name === "playNum") continue;
-    const raw = (candidate as Record<string, unknown>)[fieldDef.name];
-    if (raw === null || raw === undefined || raw === "") {
-      record[fieldDef.name] = null;
-      continue;
-    }
-    switch (fieldDef.dataType) {
-      case "integer": {
-        const str = String(raw).trim();
-        if (!/^-?\d+$/.test(str)) { record[fieldDef.name] = null; break; }
-        record[fieldDef.name] = Number(str);
-        break;
-      }
-      case "enum":
-        record[fieldDef.name] = String(raw);
-        break;
-      case "boolean":
-        record[fieldDef.name] = raw === true || raw === "true";
-        break;
-      case "string":
-        record[fieldDef.name] = String(raw).trim() || null;
-        break;
-    }
-  }
-  return record as unknown as PlayRecord;
-}
-```
-
-- Integer fields use strict regex `^-?\d+$` (allows negative for gainLoss, rejects decimals and non-numeric)
-- Leading zeros normalized via `Number("0012")` producing `12`
-- Normalization runs before hashing and persistence
-
-### Update `validateField` for integers
-Strengthen integer validation to reject decimals and non-numeric strings using the same strict regex pattern, ensuring inline validation matches commit-gate behavior.
+Applied consistently before add, before comparison, and before commit:
+1. Trim leading/trailing whitespace
+2. Collapse multiple internal spaces to a single space
+3. Preserve coach casing exactly (no uppercase/lowercase normalization)
 
 ---
 
-## 3. Proposal-Gated Commit in `src/engine/transaction.tsx`
+## Lookup Removal Safety (Phase 2: Option A)
 
-### Add `backToEdit` callback
-Sets state back to `"candidate"` from `"proposal"`.
-
-### Guard `commitProposal`
-Add early return `if (state !== "proposal") return false` at the top of `commitProposal`.
-
-### Expose `backToEdit` in context
-Add to `TransactionContextValue` interface and provider value.
+When removing a lookup value:
+1. Query all committed plays in the season where that field equals the value
+2. If any exist: block removal, show message "Value used in committed plays. Removal blocked."
+3. If none: proceed with removal, increment `seasonRevision`, write audit
 
 ---
 
-## 4. DraftPanel UI Updates in `src/components/DraftPanel.tsx`
+## Bootstrapping Behavior
 
-### State-aware border colors
-- `state === "candidate"` uses `border-candidate bg-candidate-muted`
-- `state === "proposal"` uses `border-proposal bg-proposal-muted`
-
-### Read-only fields in proposal state
-Add `disabled={isProposal}` to all Input, Select, and Switch components.
-
-### Button flow
-- **Candidate state**: Show "Review Proposal" button only. No Commit button.
-- **Proposal state**: Show "Back to Edit" button (returns to candidate) and "Commit" button (amber/proposal themed). Hide "Review Proposal."
-- "Clear Draft" always available.
-
-### Header text
-- Candidate: "Draft Entry"
-- Proposal: "Proposal Review"
-
-### Segment banner
-Update background color class from `bg-draft/20` to state-aware: `bg-candidate/20` or `bg-proposal/20`.
+- Empty lookup tables are permissive (accept any value at commit-gate)
+- Combobox UI is always used (no degradation to plain input)
+- Empty state shows: "No values yet. Type to add."
+- Normal "Add '{value}'?" flow applies from the very first entry
+- Bootstrapping applies only at season creation, not game creation
 
 ---
 
-## 5. No-Op Overwrite Blocking
+## Determinism Guardrails
 
-### `src/engine/transaction.tsx` (`confirmOverwrite`)
-Before calling `dbCommitPlay`, compare `pendingNormalized` against `existingPlay` field-by-field using normalized values. If all fields match, set a commit error `{ _noop: "No changes detected — overwrite blocked" }` and return false.
-
-### `src/components/OverwriteReview.tsx`
-- Compare using `pendingNormalized` (from context) instead of raw `candidate` to ensure normalized value comparison
-- When `changedFields.length === 0`, disable the "Confirm Overwrite" button
-- Add `pendingNormalized` to the transaction context interface so OverwriteReview can access it
-
-### `src/engine/transaction.tsx` (context)
-Expose `pendingNormalized` in the context value so OverwriteReview can diff normalized values against `existingPlay`.
+- Committed plays remain denormalized (lookup edits never rewrite history)
+- Season switch clears Candidate/Proposal state with confirmation dialog
+- No silent lookup mutations (all changes require explicit user action)
+- Debug export includes: `seasons`, `lookups`, `lookup_audit`, `roster`, `roster_audit`
+- `seasonRevision` is monotonic, audit-only, does not create new seasons
 
 ---
 
-## 6. StatusBar + Other References
+## Files Summary
 
-### `src/components/StatusBar.tsx`
-- Update the RYG indicator: candidate state uses `bg-candidate` (neutral), proposal uses `bg-proposal` (amber)
-- Update state labels if needed
-
-### `src/components/OverwriteReview.tsx`
-- Replace `bg-draft` / `text-draft` references with `bg-proposal` / `text-proposal`
+| File | Action | Description |
+|------|--------|-------------|
+| `src/engine/types.ts` | Modify | Add SeasonMeta, LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord; add seasonId to GameMeta |
+| `src/engine/schema.ts` | Modify | offForm/offPlay/motion source to LOOKUP; bump to 2.0.0 |
+| `src/engine/db.ts` | Modify | DB_VERSION 2; 5 new stores; CRUD functions; canonicalization; removal safety; debug export |
+| `src/engine/seasonContext.tsx` | Create | Season state management provider |
+| `src/engine/lookupContext.tsx` | Create | Lookup table state, add/remove with canonicalization and audit |
+| `src/engine/rosterContext.tsx` | Create | Roster state, add/remove/update with audit |
+| `src/engine/validation.ts` | Modify | Lookup membership check in commit-gate and inline validation |
+| `src/engine/transaction.tsx` | Modify | Pass lookup map to validation calls |
+| `src/engine/gameContext.tsx` | Modify | createNewGame accepts seasonId |
+| `src/engine/export.ts` | Modify | Include season data in debug export |
+| `src/components/DraftPanel.tsx` | Modify | Combobox for LOOKUP fields with "Add new?" flow |
+| `src/components/LookupConfirmDialog.tsx` | Create | Confirmation dialog for adding lookup values |
+| `src/components/LookupPanel.tsx` | Create | Collapsible lookup management UI |
+| `src/components/RosterPanel.tsx` | Create | Collapsible roster management UI |
+| `src/components/GameBar.tsx` | Modify | Season selector, season switch confirmation |
+| `src/components/NewGameDialog.tsx` | Modify | Season selection required for game creation |
+| `src/pages/Index.tsx` | Modify | Provider hierarchy; add LookupPanel and RosterPanel |
 
 ---
 
-## Files Changed
+## Out of Scope (Confirmed)
 
-| File | Changes |
-|------|---------|
-| `src/index.css` | Replace draft tokens with candidate + proposal tokens |
-| `tailwind.config.ts` | Replace `draft` color with `candidate` + `proposal` |
-| `src/engine/validation.ts` | Add `normalizeToSchema()`, strengthen integer validation |
-| `src/engine/transaction.tsx` | Add `backToEdit`, guard commit on proposal state, expose `pendingNormalized`, add no-op detection |
-| `src/components/DraftPanel.tsx` | Proposal-gated commit UI, state-aware colors, read-only in proposal, button flow |
-| `src/components/OverwriteReview.tsx` | Use normalized values for diff, disable confirm on no-op, update color classes |
-| `src/components/StatusBar.tsx` | Update indicator colors for candidate vs proposal |
+- Pass-aware activation
+- Carry-forward / predict / process logic
+- Roster validation rules (duplicates, positions, 11-player)
+- Personnel constraints / grading
+- Rapid entry UX / keyboard shortcuts
+- Audit viewer UI
+- `result` as LOOKUP (remains fixed spec enum)
 
