@@ -2,9 +2,10 @@ import React from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { Button } from "@/components/ui/button";
-import { downloadDebugJSON, downloadPlaysCSV } from "@/engine/export";
+import { downloadDebugJSON, downloadPlaysCSV, copyDebugJSON } from "@/engine/export";
 import { cn } from "@/lib/utils";
-import { Download } from "lucide-react";
+import { Download, Clipboard } from "lucide-react";
+import { toast } from "sonner";
 
 const STATE_LABELS: Record<string, string> = {
   idle: "No Game",
@@ -63,6 +64,22 @@ export function StatusBar() {
             >
               <Download className="h-3 w-3" />
               JSON
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 gap-1 text-xs"
+              onClick={async () => {
+                try {
+                  await copyDebugJSON(activeGame.gameId);
+                  toast.success("Debug JSON copied to clipboard");
+                } catch {
+                  toast.error("Failed to copy to clipboard");
+                }
+              }}
+            >
+              <Clipboard className="h-3 w-3" />
+              Copy
             </Button>
             <Button
               size="sm"
