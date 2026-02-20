@@ -10,6 +10,7 @@ import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
+import type { LookupTable } from "./types";
 import { playSchema } from "./schema";
 
 interface TransactionContextValue {
@@ -43,7 +44,7 @@ function emptyCandidate(gameId: string): CandidateData {
 
 export function TransactionProvider({ children }: { children: React.ReactNode }) {
   const { activeGame, setHasDraft } = useGameContext();
-  const { getLookupMap } = useLookup();
+  const { getLookupMap, lookupTables } = useLookup();
   const gameId = activeGame?.gameId ?? "";
 
   const [state, setState] = useState<TransactionState>("idle");
@@ -79,6 +80,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     const isDirty = touchedFields.size > 0;
     setHasDraft(isDirty);
   }, [touchedFields, setHasDraft]);
+
+  // Revalidate inline errors when lookupMap changes (e.g. after adding a new lookup value)
+  useEffect(() => {
+    if (touchedFields.size > 0) {
+      setInlineErrors(validateInline(candidate, touchedFields, getLookupMap()));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookupTables]);
 
   const updateField = useCallback(
     (fieldName: string, value: unknown) => {
