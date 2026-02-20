@@ -10,7 +10,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { useTransaction } from "@/engine/transaction";
-import { playSchema } from "@/engine/schema";
+import { playSchema, QTR_DISPLAY } from "@/engine/schema";
 
 export function OverwriteReview() {
   const { state, existingPlay, pendingNormalized, confirmOverwrite, cancelOverwrite } =
@@ -49,18 +49,19 @@ export function OverwriteReview() {
           {changedFields.map((f) => {
             const oldVal = (existingPlay as unknown as Record<string, unknown>)[f.name];
             const newVal = (pendingNormalized as unknown as Record<string, unknown>)[f.name];
+            const fmt = (v: unknown) => {
+              if (v == null) return "—";
+              if (f.name === "qtr") return QTR_DISPLAY[String(v)] ?? String(v);
+              return String(v);
+            };
             return (
               <div
                 key={f.name}
                 className="grid grid-cols-3 gap-2 text-xs font-mono py-0.5"
               >
                 <span className="text-muted-foreground">{f.label}</span>
-                <span className="text-destructive/70">
-                  {oldVal != null ? String(oldVal) : "—"}
-                </span>
-                <span className="text-committed">
-                  {newVal != null ? String(newVal) : "—"}
-                </span>
+                <span className="text-destructive/70">{fmt(oldVal)}</span>
+                <span className="text-committed">{fmt(newVal)}</span>
               </div>
             );
           })}
