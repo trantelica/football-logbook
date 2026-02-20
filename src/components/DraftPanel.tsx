@@ -4,8 +4,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { useLookup } from "@/engine/lookupContext";
@@ -332,7 +330,7 @@ export function DraftPanel() {
   );
 }
 
-// ── Lookup Combobox Sub-Component ──
+// ── Lookup Combobox Sub-Component (simple input + dropdown, iPad-safe) ──
 
 interface LookupComboboxProps {
   fieldName: string;
@@ -361,81 +359,95 @@ function LookupCombobox({
 }: LookupComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
 
-  const typedValue = search || value;
-  const typedCanonical = canonicalizeLookupValue(typedValue);
+  const displayValue = search !== "" ? search : value;
+  const typedCanonical = canonicalizeLookupValue(displayValue);
 
-  const filtered = lookupValues.filter((v) =>
-    canonicalizeLookupValue(v).includes(typedCanonical)
-  );
+  const filtered = displayValue.trim() === ""
+    ? lookupValues
+    : lookupValues.filter((v) =>
+        canonicalizeLookupValue(v).includes(typedCanonical)
+      );
 
   const isNovelValue =
-    typedValue.trim() !== "" &&
+    displayValue.trim() !== "" &&
     !lookupValues.some((v) => canonicalizeLookupValue(v) === typedCanonical);
 
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, [open]);
+
   return (
-    <>
+    <div ref={wrapperRef} className="relative">
       <Label className="text-xs font-medium text-muted-foreground">
         {fieldLabel}
         {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
       </Label>
-      <Popover open={open && !disabled} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Input
-            className={inputClassName}
-            value={search || value}
-            onChange={(e) => {
-              const v = e.target.value;
-              setSearch(v);
-              onChange(v);
-              if (!open) setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            placeholder={lookupValues.length === 0 ? "No values yet. Type to add." : "—"}
-            disabled={disabled}
-          />
-        </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <Command>
-            <CommandList>
-              {filtered.length === 0 && !isNovelValue && (
-                <CommandEmpty className="text-xs py-2 text-center">No matching values.</CommandEmpty>
-              )}
-              <CommandGroup>
-                {filtered.map((v) => (
-                  <CommandItem
-                    key={v}
-                    value={v}
-                    onSelect={() => {
-                      onChange(v);
-                      setSearch("");
-                      setOpen(false);
-                    }}
-                    className="text-xs font-mono"
-                  >
-                    {v}
-                  </CommandItem>
-                ))}
-                {isNovelValue && (
-                  <CommandItem
-                    value={`__add__${typedValue}`}
-                    onSelect={() => {
-                      onRequestAdd(typedValue.trim());
-                      setSearch("");
-                      setOpen(false);
-                    }}
-                    className="text-xs gap-1"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add "{typedValue.trim()}"
-                  </CommandItem>
-                )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <Input
+        className={inputClassName}
+        value={displayValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          setSearch(v);
+          onChange(v);
+          if (!open) setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={lookupValues.length === 0 ? "No values yet. Type to add." : "—"}
+        disabled={disabled}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+      />
+      {open && !disabled && (filtered.length > 0 || isNovelValue) && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-[180px] overflow-y-auto">
+          {filtered.map((v) => (
+            <button
+              key={v}
+              type="button"
+              className="w-full text-left px-2 py-1.5 text-xs font-mono hover:bg-accent cursor-pointer"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(v);
+                setSearch("");
+                setOpen(false);
+              }}
+            >
+              {v}
+            </button>
+          ))}
+          {isNovelValue && (
+            <button
+              type="button"
+              className="w-full text-left px-2 py-1.5 text-xs hover:bg-accent cursor-pointer flex items-center gap-1 text-primary font-medium"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onRequestAdd(displayValue.trim());
+                setSearch("");
+                setOpen(false);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+              Add &ldquo;{displayValue.trim()}&rdquo;
+            </button>
+          )}
+        </div>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
-    </>
+    </div>
   );
 }

@@ -13,18 +13,24 @@ export function RosterPanel() {
   const [open, setOpen] = useState(false);
   const [newJersey, setNewJersey] = useState("");
   const [newName, setNewName] = useState("");
+  const [addError, setAddError] = useState("");
 
   if (!activeSeason) return null;
+
 
   const handleAdd = async () => {
     const num = parseInt(newJersey, 10);
     if (isNaN(num) || num < 0 || !newName.trim()) return;
+    setAddError("");
     try {
       await addPlayer(num, newName.trim());
       setNewJersey("");
       setNewName("");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to add player");
+      const msg = err instanceof Error ? err.message : "Failed to add player";
+      setAddError(msg);
+      setNewJersey("");
+      setNewName("");
     }
   };
 
@@ -69,31 +75,36 @@ export function RosterPanel() {
           ))}
         </div>
 
-        <div className="flex gap-1">
-          <Input
-            className="h-7 text-xs w-16"
-            placeholder="#"
-            value={newJersey}
-            onChange={(e) => setNewJersey(e.target.value)}
-            inputMode="numeric"
-          />
-          <Input
-            className="h-7 text-xs flex-1"
-            placeholder="Player name…"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-            }}
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 w-7 p-0"
-            onClick={handleAdd}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
+        <div className="space-y-1">
+          <div className="flex gap-1">
+            <Input
+              className="h-7 text-xs w-16"
+              placeholder="#"
+              value={newJersey}
+              onChange={(e) => { setNewJersey(e.target.value); setAddError(""); }}
+              inputMode="numeric"
+            />
+            <Input
+              className="h-7 text-xs flex-1"
+              placeholder="Player name…"
+              value={newName}
+              onChange={(e) => { setNewName(e.target.value); setAddError(""); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd();
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 w-7 p-0"
+              onClick={handleAdd}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          {addError && (
+            <p className="text-[11px] text-destructive px-0.5">{addError}</p>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>

@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { downloadDebugJSON, downloadPlaysCSV, copyDebugJSON } from "@/engine/export";
 import { cn } from "@/lib/utils";
 import { Download, Clipboard } from "lucide-react";
@@ -65,22 +67,7 @@ export function StatusBar() {
               <Download className="h-3 w-3" />
               JSON
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 gap-1 text-xs"
-              onClick={async () => {
-                try {
-                  await copyDebugJSON(activeGame.gameId);
-                  toast.success("Debug JSON copied to clipboard");
-                } catch {
-                  toast.error("Failed to copy to clipboard");
-                }
-              }}
-            >
-              <Clipboard className="h-3 w-3" />
-              Copy
-            </Button>
+            <CopyDebugButton gameId={activeGame.gameId} />
             <Button
               size="sm"
               variant="ghost"
@@ -95,5 +82,75 @@ export function StatusBar() {
         </>
       )}
     </footer>
+  );
+}
+
+// ── Copy Debug Button with clipboard fallback ──
+
+function CopyDebugButton({ gameId }: { gameId: string }) {
+  const [fallbackOpen, setFallbackOpen] = useState(false);
+  const [jsonContent, setJsonContent] = useState("");
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const handleCopy = async () => {
+    try {
+      await copyDebugJSON(gameId);
+      toast.success("Debug JSON copied to clipboard");
+    } catch {
+      // Clipboard API failed (iPad) — show fallback modal
+      try {
+        const { buildDebugExport } = await import("@/engine/db");
+        const data = await buildDebugExport(gameId);
+        setJsonContent(JSON.stringify(data, null, 2));
+        setFallbackOpen(true);
+      } catch {
+        toast.error("Failed to generate debug export");
+      }
+    }
+  };
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 gap-1 text-xs"
+        onClick={handleCopy}
+      >
+        <Clipboard className="h-3 w-3" />
+        Copy
+      </Button>
+      <Dialog open={fallbackOpen} onOpenChange={setFallbackOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Debug JSON</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            ref={textareaRef}
+            readOnly
+            value={jsonContent}
+            className="flex-1 min-h-[300px] font-mono text-[10px] leading-tight"
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                textareaRef.current?.select();
+              }}
+            >
+              Select All
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setFallbackOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
