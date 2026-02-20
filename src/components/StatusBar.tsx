@@ -26,9 +26,11 @@ export function StatusBar() {
     ? "bg-muted-foreground"
     : errorCount > 0
       ? "bg-destructive"
-      : state === "candidate" || state === "proposal"
-        ? "bg-draft"
-        : "bg-committed";
+      : state === "proposal"
+        ? "bg-proposal"
+        : state === "candidate"
+          ? "bg-candidate"
+          : "bg-committed";
 
   return (
     <footer className="flex items-center gap-3 border-t bg-card px-4 py-1.5 text-xs text-muted-foreground">

@@ -11,30 +11,32 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useTransaction } from "@/engine/transaction";
 import { playSchema } from "@/engine/schema";
-import type { PlayRecord } from "@/engine/types";
 
 export function OverwriteReview() {
-  const { state, existingPlay, candidate, confirmOverwrite, cancelOverwrite } =
+  const { state, existingPlay, pendingNormalized, confirmOverwrite, cancelOverwrite } =
     useTransaction();
 
-  if (state !== "overwrite-review" || !existingPlay) return null;
+  if (state !== "overwrite-review" || !existingPlay || !pendingNormalized) return null;
 
   const changedFields = playSchema.filter((f) => {
     const oldVal = (existingPlay as unknown as Record<string, unknown>)[f.name];
-    const newVal = (candidate as Record<string, unknown>)[f.name];
+    const newVal = (pendingNormalized as unknown as Record<string, unknown>)[f.name];
     return String(oldVal ?? "") !== String(newVal ?? "");
   });
+
+  const isNoop = changedFields.length === 0;
 
   return (
     <AlertDialog open>
       <AlertDialogContent className="max-w-lg">
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-draft">
+          <AlertDialogTitle className="text-proposal">
             Overwrite Play #{existingPlay.playNum}?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            A committed play already exists for this play number. Review the
-            changes below before confirming.
+            {isNoop
+              ? "No differences detected between the existing and proposed values. Overwrite is blocked."
+              : "A committed play already exists for this play number. Review the changes below before confirming."}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -46,7 +48,7 @@ export function OverwriteReview() {
           </div>
           {changedFields.map((f) => {
             const oldVal = (existingPlay as unknown as Record<string, unknown>)[f.name];
-            const newVal = (candidate as Record<string, unknown>)[f.name];
+            const newVal = (pendingNormalized as unknown as Record<string, unknown>)[f.name];
             return (
               <div
                 key={f.name}
@@ -62,7 +64,7 @@ export function OverwriteReview() {
               </div>
             );
           })}
-          {changedFields.length === 0 && (
+          {isNoop && (
             <p className="text-xs text-muted-foreground py-2">
               No field differences detected.
             </p>
@@ -73,7 +75,8 @@ export function OverwriteReview() {
           <AlertDialogCancel onClick={cancelOverwrite}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={confirmOverwrite}
-            className="bg-draft text-draft-foreground hover:bg-draft/90"
+            disabled={isNoop}
+            className="bg-proposal text-proposal-foreground hover:bg-proposal/90 disabled:opacity-50"
           >
             Confirm Overwrite
           </AlertDialogAction>

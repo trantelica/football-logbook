@@ -6,9 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
-import { playSchema, ODK_VALUES, QTR_VALUES, DN_VALUES, HASH_VALUES, SEGMENT_REQUIRED_FIELDS } from "@/engine/schema";
+import { playSchema, SEGMENT_REQUIRED_FIELDS } from "@/engine/schema";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft } from "lucide-react";
 
 export function DraftPanel() {
   const { activeGame } = useGameContext();
@@ -21,6 +21,7 @@ export function DraftPanel() {
     updateField,
     clearDraft,
     reviewProposal,
+    backToEdit,
     commitProposal,
   } = useTransaction();
 
@@ -53,6 +54,12 @@ export function DraftPanel() {
     return isSegment && !isMinimalField(field);
   }
 
+  const borderClasses = isProposal
+    ? "border-proposal bg-proposal-muted"
+    : isDraft
+      ? "border-candidate bg-candidate-muted"
+      : "border-border";
+
   const renderField = (fieldName: string) => {
     const fieldDef = playSchema.find((f) => f.name === fieldName);
     if (!fieldDef) return null;
@@ -73,7 +80,6 @@ export function DraftPanel() {
       error && "border-destructive"
     );
 
-    // Enum fields render as Select
     if (fieldDef.dataType === "enum" && fieldDef.allowedValues) {
       return (
         <div key={fieldName} className={fieldClasses}>
@@ -84,6 +90,7 @@ export function DraftPanel() {
           <Select
             value={(value as string) ?? ""}
             onValueChange={(v) => updateField(fieldName, v)}
+            disabled={isProposal}
           >
             <SelectTrigger className={inputClasses}>
               <SelectValue placeholder="—" />
@@ -101,13 +108,13 @@ export function DraftPanel() {
       );
     }
 
-    // Boolean fields render as Switch
     if (fieldDef.dataType === "boolean") {
       return (
         <div key={fieldName} className={cn(fieldClasses, "flex items-center gap-2 pt-5")}>
           <Switch
             checked={value === true || value === "true"}
             onCheckedChange={(checked) => updateField(fieldName, checked)}
+            disabled={isProposal}
           />
           <Label className="text-xs font-medium text-muted-foreground">
             {fieldDef.label}
@@ -116,7 +123,6 @@ export function DraftPanel() {
       );
     }
 
-    // Integer and string fields render as Input
     return (
       <div key={fieldName} className={fieldClasses}>
         <Label className="text-xs font-medium text-muted-foreground">
@@ -125,11 +131,12 @@ export function DraftPanel() {
         </Label>
         <Input
           className={inputClasses}
-          type={fieldDef.dataType === "integer" ? "text" : "text"}
+          type="text"
           inputMode={fieldDef.dataType === "integer" ? "numeric" : "text"}
           value={value != null ? String(value) : ""}
           onChange={(e) => updateField(fieldName, e.target.value)}
           placeholder="—"
+          disabled={isProposal}
         />
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
@@ -140,7 +147,7 @@ export function DraftPanel() {
     <div
       className={cn(
         "rounded-lg border-2 p-4 space-y-4",
-        isDraft ? "border-draft bg-draft-muted" : "border-border"
+        borderClasses
       )}
     >
       <div className="flex items-center justify-between">
@@ -161,8 +168,19 @@ export function DraftPanel() {
       </div>
 
       {isSegment && (
-        <div className="text-xs text-draft-foreground bg-draft/20 rounded px-2 py-1">
+        <div className={cn(
+          "text-xs rounded px-2 py-1",
+          isProposal
+            ? "text-proposal-foreground bg-proposal/20"
+            : "text-candidate-foreground bg-candidate/20"
+        )}>
           Segment row (ODK=S): Only Play #, Quarter, and ODK are required.
+        </div>
+      )}
+
+      {commitErrors._noop && (
+        <div className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">
+          {commitErrors._noop}
         </div>
       )}
 
@@ -170,7 +188,7 @@ export function DraftPanel() {
         {playSchema.map((f) => renderField(f.name))}
       </div>
 
-      <div className="flex gap-2 pt-2 border-t border-draft/30">
+      <div className="flex gap-2 pt-2 border-t border-border/30">
         {!isProposal && (
           <Button
             size="sm"
@@ -183,15 +201,27 @@ export function DraftPanel() {
             Review Proposal
           </Button>
         )}
-        <Button
-          size="sm"
-          className="gap-1 bg-committed text-committed-foreground hover:bg-committed/90"
-          onClick={commitProposal}
-          disabled={touchedFields.size === 0}
-        >
-          <Check className="h-3.5 w-3.5" />
-          Commit
-        </Button>
+        {isProposal && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={backToEdit}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to Edit
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
+              onClick={commitProposal}
+            >
+              <Check className="h-3.5 w-3.5" />
+              Commit
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
