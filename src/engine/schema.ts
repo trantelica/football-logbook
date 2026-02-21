@@ -51,8 +51,10 @@ export const RESULT_VALUES = [
 
 /** Play Type enum for offPlay dependent attribute */
 export const PLAY_TYPE_VALUES = [
-  "Run", "Pass", "Screen", "Play Action", "RPO",
-  "Draw", "Option", "QB Sneak", "Trick",
+  "2 Pt.", "2 Pt. Defend", "Extra Pt.", "Extra Pt. Block",
+  "Fake FG", "Fake Punt", "FG", "FG Block",
+  "KO", "KO Rec", "Onside Kick", "Onside Kick Rec",
+  "Pass", "Punt", "Punt Rec", "Run",
 ] as const;
 
 /** Dependent attribute definitions for lookup fields — collected at add-time */
