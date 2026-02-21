@@ -307,12 +307,13 @@ export function DraftPanel() {
       {confirmDialog && (
         <LookupConfirmDialog
           open
+          fieldName={confirmDialog.fieldName}
           fieldLabel={confirmDialog.fieldLabel}
           value={confirmDialog.value}
-          onConfirm={async () => {
+          onConfirm={async (attributes) => {
             const { fieldName, value } = confirmDialog;
             try {
-              await addValue(fieldName, value);
+              await addValue(fieldName, value, attributes);
               updateField(fieldName, value);
             } catch (err: unknown) {
               toast.error(err instanceof Error ? err.message : "Failed to add value");

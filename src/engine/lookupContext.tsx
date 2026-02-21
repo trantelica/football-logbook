@@ -19,7 +19,7 @@ interface LookupContextValue {
   lookupTables: LookupTable[];
   getValues: (fieldName: string) => string[];
   getLookupMap: () => Map<string, string[]>;
-  addValue: (fieldName: string, value: string) => Promise<void>;
+  addValue: (fieldName: string, value: string, attributes?: Record<string, string>) => Promise<void>;
   removeValue: (fieldName: string, value: string) => Promise<void>;
   isLookupField: (fieldName: string) => boolean;
   /** Check if a canonicalized value exists in a lookup table */
@@ -71,9 +71,9 @@ export function LookupProvider({ children }: { children: React.ReactNode }) {
   }, [lookupTables]);
 
   const addValue = useCallback(
-    async (fieldName: string, value: string) => {
+    async (fieldName: string, value: string, attributes?: Record<string, string>) => {
       if (!seasonId) return;
-      await dbAddLookupValue(seasonId, fieldName, value);
+      await dbAddLookupValue(seasonId, fieldName, value, attributes);
       await reload();
     },
     [seasonId, reload]
