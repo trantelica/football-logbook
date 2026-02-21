@@ -6,15 +6,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { useLookup } from "@/engine/lookupContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY } from "@/engine/schema";
 import { canonicalizeLookupValue } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { toast } from "sonner";
+
+const WORKFLOW_STAGES = [
+  { value: "0", label: "Game Setup", pass: 0, enabled: true },
+  { value: "1", label: "Basic Play Data", pass: 1, enabled: true },
+  { value: "2", label: "Manage Personnel", pass: 2, enabled: false },
+  { value: "3", label: "Enter Grades", pass: 3, enabled: false },
+] as const;
 
 export function DraftPanel() {
   const { activeGame } = useGameContext();
@@ -35,6 +43,9 @@ export function DraftPanel() {
     scaffoldedWarning,
     deselectSlot,
     dismissScaffoldWarning,
+    activePass,
+    setActivePass,
+    commitAndNext,
   } = useTransaction();
   const { getValues, isLookupField, addValue } = useLookup();
 
@@ -52,12 +63,48 @@ export function DraftPanel() {
     );
   }
 
-  // Slot mode: no slot selected → show idle message
+  // Workflow Stage Selector — always visible when game is active
+  const stageSelector = (
+    <div className="mb-4">
+      <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block">
+        Workflow Stage
+      </Label>
+      <ToggleGroup
+        type="single"
+        value={String(activePass)}
+        onValueChange={(val) => {
+          if (val) setActivePass(Number(val));
+        }}
+        size="sm"
+        className="justify-start flex-wrap"
+      >
+        {WORKFLOW_STAGES.map((stage) => (
+          <ToggleGroupItem
+            key={stage.value}
+            value={stage.value}
+            disabled={!stage.enabled}
+            className={cn(
+              "text-xs px-3 h-7 font-medium",
+              !stage.enabled && "opacity-50 cursor-not-allowed"
+            )}
+            title={!stage.enabled ? "Coming soon" : undefined}
+          >
+            {stage.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  );
+
+  // Slot mode: no slot selected → show idle message with stage selector
   if (isSlotMode && selectedSlotNum === null) {
     return (
-      <div className="rounded-lg border-2 border-muted p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-        <MousePointerClick className="h-8 w-8 opacity-50" />
-        <p className="text-sm font-medium">Select a slot from the grid below to begin editing.</p>
+      <div className="space-y-0">
+        {stageSelector}
+        <div className="rounded-lg border-2 border-muted p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+          <MousePointerClick className="h-8 w-8 opacity-50" />
+          <p className="text-sm font-medium">Select a slot from the grid below to begin editing.</p>
+        </div>
       </div>
     );
   }
@@ -83,9 +130,15 @@ export function DraftPanel() {
     return isSegment && !isMinimalField(field);
   }
 
-  // Check if a commit error is a lookup-not-recognized error
   function isLookupCommitError(fieldName: string): boolean {
     return !!(commitErrors[fieldName] && isLookupField(fieldName));
+  }
+
+  /** Check if a field is outside the current workflow stage */
+  function isFieldLockedByStage(fieldName: string): boolean {
+    const fieldDef = playSchema.find((f) => f.name === fieldName);
+    if (!fieldDef) return false;
+    return fieldDef.defaultPassEntry > activePass;
   }
 
   const handleAddLookupFromError = (fieldName: string) => {
@@ -109,7 +162,6 @@ export function DraftPanel() {
       ? "border-candidate bg-candidate-muted"
       : "border-border";
 
-  // Committed field check for slot mode
   const slotCommittedFields = isSlotMode && selectedSlotNum !== null
     ? new Set(slotMetaMap.get(selectedSlotNum)?.committedFields ?? [])
     : new Set<string>();
@@ -161,10 +213,12 @@ export function DraftPanel() {
     const error = getError(fieldName);
     const touched = isTouched(fieldName);
     const deemphasized = isDeemphasized(fieldName);
+    const stageLocked = isFieldLockedByStage(fieldName);
 
     const fieldClasses = cn(
       "space-y-1",
-      deemphasized && "opacity-40"
+      deemphasized && "opacity-40",
+      stageLocked && "opacity-50"
     );
 
     const inputClasses = cn(
@@ -172,6 +226,13 @@ export function DraftPanel() {
       touched && !error && "bg-field-touched",
       error && "border-destructive"
     );
+
+    const isDisabled = isProposal || stageLocked;
+
+    // Stage-locked label hint
+    const stageLockLabel = stageLocked ? (
+      <span className="text-[10px] text-muted-foreground italic block">Not editable in this stage</span>
+    ) : null;
 
     // LOOKUP-sourced string fields → combobox
     if (isLookupField(fieldName) && fieldDef.dataType === "string") {
@@ -187,11 +248,12 @@ export function DraftPanel() {
               setConfirmDialog({ fieldName, fieldLabel: fieldDef.label, value: v })
             }
             lookupValues={getValues(fieldName)}
-            disabled={isProposal}
+            disabled={isDisabled}
             inputClassName={inputClasses}
             error={error}
           />
-          {isLookupCommitError(fieldName) && (
+          {stageLockLabel}
+          {isLookupCommitError(fieldName) && !stageLocked && (
             <div className="flex gap-1 mt-0.5">
               <Button
                 size="sm"
@@ -227,7 +289,7 @@ export function DraftPanel() {
           <Select
             value={value != null ? String(value) : ""}
             onValueChange={(v) => updateField(fieldName, v)}
-            disabled={isProposal}
+            disabled={isDisabled}
           >
             <SelectTrigger className={inputClasses}>
               <SelectValue placeholder="—" />
@@ -240,6 +302,7 @@ export function DraftPanel() {
               ))}
             </SelectContent>
           </Select>
+          {stageLockLabel}
           {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
       );
@@ -251,9 +314,10 @@ export function DraftPanel() {
           <Switch
             checked={value === true || value === "true"}
             onCheckedChange={(checked) => updateField(fieldName, checked)}
-            disabled={isProposal}
+            disabled={isDisabled}
           />
           {renderFieldLabel(fieldName, fieldDef.label, false)}
+          {stageLockLabel}
         </div>
       );
     }
@@ -268,15 +332,24 @@ export function DraftPanel() {
           value={value != null ? String(value) : ""}
           onChange={(e) => updateField(fieldName, e.target.value)}
           placeholder="—"
-          disabled={isProposal}
+          disabled={isDisabled}
         />
+        {stageLockLabel}
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     );
   };
 
+  const handleCommitAndNext = async () => {
+    const result = await commitAndNext();
+    if (result.committed && !result.hasNext) {
+      toast("End of filtered list.");
+    }
+  };
+
   return (
     <>
+      {stageSelector}
       <div
         className={cn(
           "rounded-lg border-2 p-4 space-y-4",
@@ -386,6 +459,16 @@ export function DraftPanel() {
                 <Check className="h-3.5 w-3.5" />
                 Commit
               </Button>
+              {isSlotMode && (
+                <Button
+                  size="sm"
+                  className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
+                  onClick={handleCommitAndNext}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  Commit & Next
+                </Button>
+              )}
             </>
           )}
         </div>
