@@ -20,7 +20,19 @@ export interface PlayRecord {
   motion: string | null;
   result: string | null;
   gainLoss: number | null;
-  twoMin: boolean | null;
+  twoMin: string | null;
+  // Phase 4 Pass 1 fields
+  rusher: number | null;
+  passer: number | null;
+  receiver: number | null;
+  penalty: string | null;
+  penYards: number | null;
+  eff: string | null;
+  offStrength: string | null;
+  personnel: string | null;
+  playType: string | null;
+  playDir: string | null;
+  motionDir: string | null;
 }
 
 /** Candidate/draft data — all fields optional except gameId */
@@ -149,4 +161,14 @@ export interface GameAuditRecord {
   schemaVersion: string;
   dbVersion: number;
   details: Record<string, unknown>;
+}
+
+/** Raw input provenance record */
+export interface RawInputRecord {
+  gameId: string;
+  playNum: number;
+  rawInputText: string;
+  rawInputCreatedAt: string;
+  rawInputSource: "manual";
+  candidatePatch: Record<string, unknown>;
 }

@@ -105,7 +105,8 @@ function validateLookupField(
   lookups: Map<string, string[]> | undefined,
   mode: "error" | "warning"
 ): string | null {
-  if (fieldDef.source !== "LOOKUP") return null;
+  // Only validate fields with lookupMode "season"
+  if (fieldDef.lookupMode !== "season") return null;
   if (value === null || value === undefined || value === "") return null;
   if (!lookups) return null;
 
@@ -119,6 +120,27 @@ function validateLookupField(
       return `${fieldDef.label} is not a recognized value`;
     }
     return `${fieldDef.label} is not in the lookup table`;
+  }
+  return null;
+}
+
+// ── Actor Roster Validation ──
+
+const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver"]);
+
+function validateActorField(
+  fieldDef: FieldDefinition,
+  value: unknown,
+  rosterNumbers?: Set<number>
+): string | null {
+  if (!ACTOR_FIELDS.has(fieldDef.name)) return null;
+  if (value === null || value === undefined || value === "") return null;
+  if (!rosterNumbers) return null;
+
+  const num = Number(value);
+  if (!Number.isInteger(num) || num <= 0) return null; // type validation handles this
+  if (!rosterNumbers.has(num)) {
+    return `Jersey #${num} not found in roster`;
   }
   return null;
 }
@@ -172,7 +194,8 @@ export interface CommitGateResult {
 export function validateCommitGate(
   candidate: CandidateData,
   activePass: number,
-  lookups?: Map<string, string[]>
+  lookups?: Map<string, string[]>,
+  rosterNumbers?: Set<number>
 ): CommitGateResult {
   const errors: ValidationErrors = {};
 
@@ -220,10 +243,17 @@ export function validateCommitGate(
       continue;
     }
 
-    // Lookup membership check (blocking at commit)
+    // Lookup membership check (blocking at commit) — only for lookupMode "season"
     const lookupError = validateLookupField(fieldDef, value, lookups, "error");
     if (lookupError) {
       errors[fieldDef.name] = lookupError;
+      continue;
+    }
+
+    // Actor roster check
+    const actorError = validateActorField(fieldDef, value, rosterNumbers);
+    if (actorError) {
+      errors[fieldDef.name] = actorError;
     }
   }
 

@@ -24,6 +24,8 @@ interface LookupContextValue {
   isLookupField: (fieldName: string) => boolean;
   /** Check if a canonicalized value exists in a lookup table */
   hasValue: (fieldName: string, value: string) => boolean;
+  /** Get entry attributes for a specific value in a lookup table */
+  getEntryAttributes: (fieldName: string, value: string) => Record<string, string> | undefined;
   loading: boolean;
 }
 
@@ -102,6 +104,16 @@ export function LookupProvider({ children }: { children: React.ReactNode }) {
     [getValues]
   );
 
+  const getEntryAttributes = useCallback(
+    (fieldName: string, value: string): Record<string, string> | undefined => {
+      const table = lookupTables.find((t) => t.fieldName === fieldName);
+      if (!table?.entryAttributes) return undefined;
+      const canonical = canonicalizeLookupValue(value);
+      return table.entryAttributes[canonical];
+    },
+    [lookupTables]
+  );
+
   return (
     <LookupContext.Provider
       value={{
@@ -112,6 +124,7 @@ export function LookupProvider({ children }: { children: React.ReactNode }) {
         removeValue,
         isLookupField,
         hasValue,
+        getEntryAttributes,
         loading,
       }}
     >

@@ -88,10 +88,11 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
   };
 
   const addOdkBlock = () => {
-    setOdkBlocks((prev) => [
-      ...prev,
-      { odk: "O", startPlay: 1, endPlay: 1 },
-    ]);
+    setOdkBlocks((prev) => {
+      const lastBlock = prev[prev.length - 1];
+      const nextStart = lastBlock ? lastBlock.endPlay + 1 : 1;
+      return [...prev, { odk: "O", startPlay: nextStart, endPlay: nextStart }];
+    });
   };
 
   const removeOdkBlock = (index: number) => {

@@ -161,6 +161,17 @@ export function createSlots(
       result: null,
       gainLoss: null,
       twoMin: null,
+      rusher: null,
+      passer: null,
+      receiver: null,
+      penalty: null,
+      penYards: null,
+      eff: null,
+      offStrength: null,
+      personnel: null,
+      playType: null,
+      playDir: null,
+      motionDir: null,
     });
 
     seededFieldsPerSlot.set(i, seeded);

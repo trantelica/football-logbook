@@ -3,20 +3,20 @@
  * 
  * Database: football-engine
  * Stores: games, plays, audit, schema_versions, seasons, lookups, lookup_audit,
- *         roster, roster_audit, game_init, slot_meta, game_audit
+ *         roster, roster_audit, game_init, slot_meta, game_audit, raw_input
  */
 
 import { openDB, type IDBPDatabase } from "idb";
 import type {
   PlayRecord, GameMeta, AuditRecord, SeasonMeta,
   LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord,
-  GameInitConfig, SlotMeta, GameAuditRecord,
+  GameInitConfig, SlotMeta, GameAuditRecord, RawInputRecord,
 } from "./types";
-import { SCHEMA_VERSION, exportSchemaSnapshot } from "./schema";
+import { SCHEMA_VERSION, exportSchemaSnapshot, playSchema } from "./schema";
 import { computeSnapshotHash } from "./hash";
 
 const DB_NAME = "football-engine";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 /** Canonicalize a lookup value for comparison: trim + collapse spaces + lowercase */
 export function canonicalizeLookupValue(value: string): string {
@@ -102,6 +102,11 @@ function getDB(): Promise<IDBPDatabase> {
             autoIncrement: true,
           });
           gameAuditStore.createIndex("byGame", "gameId");
+        }
+        // Phase 4: Raw input provenance store
+        if (!db.objectStoreNames.contains("raw_input")) {
+          const rawStore = db.createObjectStore("raw_input", { keyPath: ["gameId", "playNum"] });
+          rawStore.createIndex("byGame", "gameId");
         }
       },
     });
@@ -483,6 +488,23 @@ export async function getGameAudits(gameId: string): Promise<GameAuditRecord[]> 
   return db.getAllFromIndex("game_audit", "byGame", gameId);
 }
 
+// ── Phase 4: Raw Input ──
+
+export async function saveRawInput(record: RawInputRecord): Promise<void> {
+  const db = await getDB();
+  await db.put("raw_input", record);
+}
+
+export async function getRawInput(gameId: string, playNum: number): Promise<RawInputRecord | undefined> {
+  const db = await getDB();
+  return db.get("raw_input", [gameId, playNum]);
+}
+
+export async function getRawInputsByGame(gameId: string): Promise<RawInputRecord[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("raw_input", "byGame", gameId);
+}
+
 // ── Debug Export ──
 
 export async function buildDebugExport(gameId: string) {
@@ -516,6 +538,9 @@ export async function buildDebugExport(gameId: string) {
     };
   }
 
+  // Include raw input provenance
+  const rawInputs = await getRawInputsByGame(gameId);
+
   return {
     exportType: "Debug / Inspection Export",
     exportedAt: new Date().toISOString(),
@@ -527,19 +552,37 @@ export async function buildDebugExport(gameId: string) {
     slotMeta: slotMetas.sort((a, b) => a.playNum - b.playNum),
     audit: audit.sort((a, b) => a.auditSeq - b.auditSeq),
     gameAudit: gameAudits.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
+    rawInputs: rawInputs.sort((a, b) => a.playNum - b.playNum),
     ...seasonData,
   };
 }
 
-/** Convert plays to CSV string */
+// ── CSV Export (Hudl-ready) ──
+
+function escapeCSV(value: string): string {
+  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+    return '"' + value.replace(/"/g, '""') + '"';
+  }
+  return value;
+}
+
+/** Convert plays to Hudl-ready CSV with PDR Output Labels and stable column order */
 export function playsToCSV(plays: PlayRecord[]): string {
   if (plays.length === 0) return "";
-  const headers = Object.keys(plays[0]);
+
+  const columns = playSchema.map((f) => ({
+    key: f.name,
+    label: f.outputLabel ?? f.label,
+  }));
+
+  const headers = columns.map((c) => escapeCSV(c.label));
   const rows = plays.map((p) =>
-    headers.map((h) => {
-      const val = (p as unknown as Record<string, unknown>)[h];
-      return val === null || val === undefined ? "" : String(val);
+    columns.map((c) => {
+      const val = (p as unknown as Record<string, unknown>)[c.key];
+      if (val === null || val === undefined) return "";
+      return escapeCSV(String(val));
     }).join(",")
   );
+
   return [headers.join(","), ...rows].join("\n");
 }
