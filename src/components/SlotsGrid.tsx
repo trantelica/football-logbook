@@ -21,7 +21,7 @@ import type { PlayRecord, SlotMeta } from "@/engine/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-const VISIBLE_COLUMNS = ["playNum", "qtr", "odk", "series", "dn", "dist", "yardLn", "offForm", "offPlay", "result", "gainLoss"];
+const VISIBLE_COLUMNS = ["playNum", "qtr", "odk", "series", "dn", "dist", "yardLn", "offForm", "offPlay", "result", "gainLoss", "penalty", "eff"];
 
 const ODK_FILTER_OPTIONS = ["ALL", "O", "D", "K"] as const;
 

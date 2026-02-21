@@ -3,18 +3,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { useLookup } from "@/engine/lookupContext";
-import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY } from "@/engine/schema";
+import { useRoster } from "@/engine/rosterContext";
+import { useRawInput } from "@/engine/rawInputContext";
+import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
 import { canonicalizeLookupValue } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
+import { ActorCombobox } from "./ActorCombobox";
 import { toast } from "sonner";
 
 const WORKFLOW_STAGES = [
@@ -23,6 +27,16 @@ const WORKFLOW_STAGES = [
   { value: "2", label: "Manage Personnel", pass: 2, enabled: false },
   { value: "3", label: "Enter Grades", pass: 3, enabled: false },
 ] as const;
+
+/** Map of parent lookup fields → dependent fields to auto-populate */
+const DEPENDENT_FIELD_MAP: Record<string, string[]> = {
+  offForm: ["offStrength", "personnel"],
+  offPlay: ["playType", "playDir"],
+  motion: ["motionDir"],
+};
+
+/** Actor fields backed by roster */
+const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver"]);
 
 export function DraftPanel() {
   const { activeGame } = useGameContext();
@@ -47,13 +61,18 @@ export function DraftPanel() {
     setActivePass,
     commitAndNext,
   } = useTransaction();
-  const { getValues, isLookupField, addValue } = useLookup();
+  const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
+  const { roster, addPlayer } = useRoster();
+  const { saveInput } = useRawInput();
 
   const [confirmDialog, setConfirmDialog] = useState<{
     fieldName: string;
     fieldLabel: string;
     value: string;
   } | null>(null);
+
+  const [rawInputText, setRawInputText] = useState("");
+  const [rawInputOpen, setRawInputOpen] = useState(false);
 
   if (!activeGame) {
     return (
@@ -154,6 +173,36 @@ export function DraftPanel() {
 
   const handleClearField = (fieldName: string) => {
     updateField(fieldName, "");
+    // Clear dependents if this is a parent lookup field
+    const deps = DEPENDENT_FIELD_MAP[fieldName];
+    if (deps) {
+      for (const dep of deps) updateField(dep, "");
+    }
+  };
+
+  /** Handle lookup field selection with dependent auto-population */
+  const handleLookupSelect = (fieldName: string, value: string) => {
+    updateField(fieldName, value);
+    // Auto-populate dependent fields from entryAttributes
+    const deps = DEPENDENT_FIELD_MAP[fieldName];
+    if (deps && value) {
+      const attrs = getEntryAttributes(fieldName, value);
+      if (attrs) {
+        for (const dep of deps) {
+          if (attrs[dep]) updateField(dep, attrs[dep]);
+        }
+      }
+    }
+  };
+
+  /** Handle penalty selection with penYards auto-population */
+  const handlePenaltyChange = (value: string) => {
+    updateField("penalty", value);
+    if (value && PENALTY_YARDS_MAP[value] !== undefined) {
+      updateField("penYards", String(PENALTY_YARDS_MAP[value]));
+    } else if (!value) {
+      updateField("penYards", "");
+    }
   };
 
   const borderClasses = isProposal
@@ -184,6 +233,18 @@ export function DraftPanel() {
       {required && <span className="text-destructive ml-0.5">*</span>}
     </Label>
   );
+
+  const committedDot = (fieldName: string) =>
+    isFieldCommitted(fieldName) ? (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+          </TooltipTrigger>
+          <TooltipContent><p>Committed</p></TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    ) : null;
 
   const renderField = (fieldName: string) => {
     // Slot mode: playNum is read-only badge
@@ -234,7 +295,40 @@ export function DraftPanel() {
       <span className="text-[10px] text-muted-foreground italic block">Not editable in this stage</span>
     ) : null;
 
-    // LOOKUP-sourced string fields → combobox
+    // Actor fields → ActorCombobox
+    if (ACTOR_FIELDS.has(fieldName)) {
+      return (
+        <div key={fieldName} className={fieldClasses}>
+          <ActorCombobox
+            fieldLabel={fieldDef.label}
+            requiredAtCommit={fieldDef.requiredAtCommit}
+            value={value != null ? String(value) : ""}
+            onChange={(v) => updateField(fieldName, v)}
+            roster={roster}
+            addPlayer={addPlayer}
+            disabled={isDisabled}
+            inputClassName={inputClasses}
+            error={error}
+            committedDot={committedDot(fieldName)}
+          />
+          {stageLockLabel}
+          {commitErrors[fieldName] && (
+            <div className="flex gap-1 mt-0.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 text-[10px] px-1.5 text-destructive"
+                onClick={() => handleClearField(fieldName)}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // LOOKUP-sourced string fields → combobox with dependent auto-population
     if (isLookupField(fieldName) && fieldDef.dataType === "string") {
       return (
         <div key={fieldName} className={fieldClasses}>
@@ -243,7 +337,7 @@ export function DraftPanel() {
             fieldLabel={fieldDef.label}
             requiredAtCommit={fieldDef.requiredAtCommit}
             value={value != null ? String(value) : ""}
-            onChange={(v) => updateField(fieldName, v)}
+            onChange={(v) => handleLookupSelect(fieldName, v)}
             onRequestAdd={(v) =>
               setConfirmDialog({ fieldName, fieldLabel: fieldDef.label, value: v })
             }
@@ -278,6 +372,33 @@ export function DraftPanel() {
       );
     }
 
+    // Penalty field: special handler for penYards auto-population
+    if (fieldName === "penalty" && fieldDef.allowedValues) {
+      return (
+        <div key={fieldName} className={fieldClasses}>
+          {renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
+          <Select
+            value={value != null ? String(value) : ""}
+            onValueChange={handlePenaltyChange}
+            disabled={isDisabled}
+          >
+            <SelectTrigger className={inputClasses}>
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {fieldDef.allowedValues.map((v) => (
+                <SelectItem key={v} value={v}>
+                  {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {stageLockLabel}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      );
+    }
+
     if (fieldDef.allowedValues) {
       const displayLabel = (v: string) => {
         if (fieldName === "qtr") return QTR_DISPLAY[v] ?? v;
@@ -308,20 +429,6 @@ export function DraftPanel() {
       );
     }
 
-    if (fieldDef.dataType === "boolean") {
-      return (
-        <div key={fieldName} className={cn(fieldClasses, "flex items-center gap-2 pt-5")}>
-          <Switch
-            checked={value === true || value === "true"}
-            onCheckedChange={(checked) => updateField(fieldName, checked)}
-            disabled={isDisabled}
-          />
-          {renderFieldLabel(fieldName, fieldDef.label, false)}
-          {stageLockLabel}
-        </div>
-      );
-    }
-
     return (
       <div key={fieldName} className={fieldClasses}>
         {renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
@@ -347,9 +454,81 @@ export function DraftPanel() {
     }
   };
 
+  const handleParseAndApply = async () => {
+    if (!rawInputText.trim() || selectedSlotNum === null) return;
+    const result = await saveInput(selectedSlotNum, rawInputText.trim());
+    // Apply patch fields to candidate
+    for (const [key, val] of Object.entries(result.patch)) {
+      updateField(key, val);
+    }
+    // Report unrecognized/ambiguous
+    const issues = result.report.filter((r) => r.status !== "matched");
+    if (issues.length > 0) {
+      const msgs = issues.map((i) => `${i.anchor}: ${i.status} ("${i.rawValue}")`);
+      toast.warning(`Parse issues: ${msgs.join("; ")}`);
+    } else if (Object.keys(result.patch).length > 0) {
+      toast.success(`Applied ${Object.keys(result.patch).length} field(s) from raw input`);
+    } else {
+      toast("No anchors recognized in input.");
+    }
+    setRawInputText("");
+  };
+
   return (
     <>
       {stageSelector}
+
+      {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
+      {activePass >= 1 && selectedSlotNum !== null && (
+        <Collapsible open={rawInputOpen} onOpenChange={setRawInputOpen} className="mb-3">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 mb-1">
+              <Terminal className="h-3.5 w-3.5" />
+              Raw Input
+              <ChevronDown className={cn("h-3 w-3 transition-transform", rawInputOpen && "rotate-180")} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="rounded-lg border border-border/50 p-3 space-y-2 bg-muted/30">
+              <Textarea
+                className="text-xs font-mono h-16 resize-none"
+                placeholder="e.g. DN 2 DIST 6 FORM Trips Rt RESULT Rush GN/LS 4"
+                value={rawInputText}
+                onChange={(e) => setRawInputText(e.target.value)}
+                disabled={isProposal}
+              />
+              <div className="flex items-center justify-between">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleParseAndApply}
+                  disabled={!rawInputText.trim() || isProposal}
+                >
+                  <Terminal className="h-3 w-3" />
+                  Parse &amp; Apply
+                </Button>
+                <Collapsible>
+                  <CollapsibleTrigger className="text-[10px] text-muted-foreground hover:text-foreground underline">
+                    Grammar help
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <pre className="text-[10px] text-muted-foreground mt-1 bg-muted/50 rounded p-2 font-mono whitespace-pre-wrap">
+{`Anchors (case-insensitive):
+DN 2 DIST 6 YARD -35 HASH L
+FORM Trips Rt PLAY 26 Punch MOTION Jet
+RESULT Rush GN/LS 4
+RUSHER 22 PASSER 7 RECEIVER 11
+PENALTY O-Holding EFF Y 2MIN N`}
+                    </pre>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
       <div
         className={cn(
           "rounded-lg border-2 p-4 space-y-4",
@@ -484,10 +663,10 @@ export function DraftPanel() {
             const { fieldName, value } = confirmDialog;
             try {
               await addValue(fieldName, value, attributes);
-              updateField(fieldName, value);
+              handleLookupSelect(fieldName, value);
             } catch (err: unknown) {
               toast.error(err instanceof Error ? err.message : "Failed to add value");
-              updateField(fieldName, "");
+              updateField(confirmDialog.fieldName, "");
             }
             setConfirmDialog(null);
           }}

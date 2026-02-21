@@ -12,6 +12,7 @@ import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
+import { useRoster } from "./rosterContext";
 import { playSchema, getFieldDef } from "./schema";
 
 interface TransactionContextValue {
@@ -63,7 +64,13 @@ const SCAFFOLDED_FIELDS = new Set(["odk", "series", "qtr"]);
 export function TransactionProvider({ children }: { children: React.ReactNode }) {
   const { activeGame, setHasDraft, isSlotMode: gameIsSlotMode } = useGameContext();
   const { getLookupMap, lookupTables } = useLookup();
+  const { roster } = useRoster();
   const gameId = activeGame?.gameId ?? "";
+
+  const rosterNumbers = React.useMemo(
+    () => new Set(roster.map((r) => r.jerseyNumber)),
+    [roster]
+  );
 
   const [state, setState] = useState<TransactionState>("idle");
   const [candidate, setCandidate] = useState<CandidateData>(emptyCandidate(gameId));
@@ -188,7 +195,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     if (isSlotMode && selectedSlotNum !== null) {
       // Slot-mode commit: field-level commit state
-      const result = validateCommitGate(candidate, activePass, getLookupMap());
+      const result = validateCommitGate(candidate, activePass, getLookupMap(), rosterNumbers);
       if (!result.valid) {
         setCommitErrors(result.errors);
         return false;
@@ -251,7 +258,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
 
     // Legacy mode commit
-    const result = validateCommitGate(candidate, activePass, getLookupMap());
+    const result = validateCommitGate(candidate, activePass, getLookupMap(), rosterNumbers);
     if (!result.valid) {
       setCommitErrors(result.errors);
       return false;
@@ -272,7 +279,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays]);
+  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays, rosterNumbers]);
 
   const confirmOverwrite = useCallback(async (): Promise<boolean> => {
     if (!pendingNormalized || !existingPlay) return false;
