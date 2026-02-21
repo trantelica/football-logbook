@@ -4,6 +4,7 @@
  * Manages Candidate → Proposal → Commit lifecycle with two-tier validation.
  * Phase 3: Supports slot-based editing with field-level commit state.
  * Phase 4: Workflow stage selector, ODK filter, Commit & Next.
+ * Phase 5A: Deterministic prediction integration.
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
@@ -14,11 +15,14 @@ import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
 import { useRoster } from "./rosterContext";
 import { playSchema, getFieldDef } from "./schema";
+import { computePrediction } from "./prediction";
 
 interface TransactionContextValue {
   state: TransactionState;
   candidate: CandidateData;
   touchedFields: Set<string>;
+  predictedFields: Set<string>;
+  predictionExplanations: string[];
   inlineErrors: ValidationErrors;
   commitErrors: ValidationErrors;
   committedPlays: PlayRecord[];
@@ -84,10 +88,16 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [slotMetaMap, setSlotMetaMap] = useState<Map<number, SlotMeta>>(new Map());
   const [scaffoldedWarning, setScaffoldedWarning] = useState<string | null>(null);
   
+  // Phase 5A: Prediction state (ephemeral, never persisted)
+  const [predictedFields, setPredictedFields] = useState<Set<string>>(new Set());
+  const [predictionExplanations, setPredictionExplanations] = useState<string[]>([]);
+
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePass] = useState<number>(1);
   // Phase 4: ODK filter (display-only, no persistence)
   const [odkFilter, setOdkFilter] = useState<string>("ALL");
+
+  const fieldSize = activeGame?.fieldSize ?? 80;
 
   const isSlotMode = gameIsSlotMode;
 
@@ -102,6 +112,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPendingNormalized(null);
     setSelectedSlotNum(null);
     setScaffoldedWarning(null);
+    setPredictedFields(new Set());
+    setPredictionExplanations([]);
     setActivePass(1);
     setOdkFilter("ALL");
     if (gameId) {
@@ -153,6 +165,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       setCandidate((prev) => ({ ...prev, [fieldName]: value }));
       setTouchedFields((prev) => new Set(prev).add(fieldName));
+      // If editing a predicted field, move it from predicted to touched
+      setPredictedFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
       setState("candidate");
       setCommitErrors({});
 
@@ -166,6 +187,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const clearDraft = useCallback(() => {
     setCandidate(emptyCandidate(gameId));
     setTouchedFields(new Set());
+    setPredictedFields(new Set());
+    setPredictionExplanations([]);
     setInlineErrors({});
     setCommitErrors({});
     setState(gameId ? (isSlotMode ? "idle" : "candidate") : "idle");
@@ -354,21 +377,48 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       if (!slot) return;
 
       const newCandidate: CandidateData = { ...slot };
+      
+      // Phase 5A: Run prediction from playNum - 1
+      const prevPlay = committedPlays.find((p) => p.playNum === playNum - 1) ?? null;
+      const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100);
+      
+      const newPredicted = new Set<string>();
+      if (prediction.eligible) {
+        // Write predicted values into candidate only if the slot doesn't already have them committed
+        const meta = slotMetaMap.get(playNum);
+        const committedFieldSet = new Set(meta?.committedFields ?? []);
+        
+        for (const [field, val] of Object.entries({ yardLn: prediction.yardLn, dn: prediction.dn, dist: prediction.dist })) {
+          if (val !== null && !committedFieldSet.has(field)) {
+            // Only predict if the current slot value is empty/null
+            const currentVal = (newCandidate as Record<string, unknown>)[field];
+            if (currentVal === null || currentVal === undefined || currentVal === "") {
+              (newCandidate as Record<string, unknown>)[field] = val;
+              newPredicted.add(field);
+            }
+          }
+        }
+      }
+      
       setCandidate(newCandidate);
       setSelectedSlotNum(playNum);
       setTouchedFields(new Set());
+      setPredictedFields(newPredicted);
+      setPredictionExplanations(prediction.explanations);
       setInlineErrors({});
       setCommitErrors({});
       setScaffoldedWarning(null);
       setState("candidate");
     },
-    [committedPlays]
+    [committedPlays, fieldSize, slotMetaMap]
   );
 
   const deselectSlot = useCallback(() => {
     setSelectedSlotNum(null);
     setCandidate(emptyCandidate(gameId));
     setTouchedFields(new Set());
+    setPredictedFields(new Set());
+    setPredictionExplanations([]);
     setInlineErrors({});
     setCommitErrors({});
     setScaffoldedWarning(null);
@@ -425,6 +475,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         state,
         candidate,
         touchedFields,
+        predictedFields,
+        predictionExplanations,
         inlineErrors,
         commitErrors,
         committedPlays,
