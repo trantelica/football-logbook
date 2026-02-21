@@ -50,6 +50,12 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Release History
+
+### Phase 2 — Lookup and Roster Governance ✅ (2026-02-21)
+
+Season-scoped vocabulary governance for `offForm`, `offPlay`, and `motion` with dependent attribute capture, commit-gate enforcement, canonicalized matching, roster store, full audit trail, and monotonic `seasonRevision`. Schema v2.0.0 / DB v2. See `.lovable/plan.md` for full specification.
+
 ## What technologies are used for this project?
 
 This project is built with:
