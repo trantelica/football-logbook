@@ -1,6 +1,7 @@
 /**
  * Slots Grid — Displays all pre-created slots for an initialized game.
  * Shows slot state (seeded, partial, committed) and allows slot selection.
+ * Phase 4: ODK filter toggle for display-only filtering.
  */
 
 import React from "react";
@@ -12,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { playSchema, QTR_DISPLAY } from "@/engine/schema";
@@ -21,14 +23,21 @@ import { Badge } from "@/components/ui/badge";
 
 const VISIBLE_COLUMNS = ["playNum", "qtr", "odk", "series", "dn", "dist", "yardLn", "offForm", "offPlay", "result", "gainLoss"];
 
+const ODK_FILTER_OPTIONS = ["ALL", "O", "D", "K"] as const;
+
+const ODK_FILTER_LABELS: Record<string, string> = {
+  ALL: "All",
+  O: "Offensive",
+  D: "Defensive",
+  K: "Kicking",
+};
+
 function getSlotStatus(meta: SlotMeta | undefined): "seeded" | "partial" | "complete" {
   if (!meta) return "seeded";
   const committed = new Set(meta.committedFields);
-  // "complete" if all key data fields are committed
   const keyFields = ["qtr", "odk", "dn", "dist", "offForm", "offPlay", "result"];
   const filledCount = keyFields.filter((f) => committed.has(f)).length;
   if (filledCount >= keyFields.length) return "complete";
-  // "partial" if more than just seeded fields
   const seededDefault = new Set(["playNum", "qtr", "odk", "series"]);
   const hasExtra = meta.committedFields.some((f) => !seededDefault.has(f));
   if (hasExtra) return "partial";
@@ -37,7 +46,7 @@ function getSlotStatus(meta: SlotMeta | undefined): "seeded" | "partial" | "comp
 
 export function SlotsGrid() {
   const { activeGame } = useGameContext();
-  const { committedPlays, selectSlot, selectedSlotNum, slotMetaMap } = useTransaction();
+  const { committedPlays, selectSlot, selectedSlotNum, slotMetaMap, odkFilter, setOdkFilter } = useTransaction();
 
   if (!activeGame) return null;
 
@@ -54,11 +63,19 @@ export function SlotsGrid() {
     );
   }
 
+  const filteredPlays = odkFilter === "ALL"
+    ? committedPlays
+    : committedPlays.filter((p) => p.odk === odkFilter);
+
+  const headerLabel = odkFilter === "ALL"
+    ? `Play Slots (${committedPlays.length})`
+    : `${ODK_FILTER_LABELS[odkFilter] ?? odkFilter} Plays (${filteredPlays.length} of ${committedPlays.length})`;
+
   return (
     <div className="rounded-lg border-2 border-committed/30 bg-committed-muted p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-committed">
-          Play Slots ({committedPlays.length})
+          {headerLabel}
         </h2>
         <div className="flex gap-2 text-[10px]">
           <Badge variant="outline" className="gap-1 font-normal">
@@ -75,6 +92,28 @@ export function SlotsGrid() {
           </Badge>
         </div>
       </div>
+
+      {/* ODK Filter Toggle */}
+      <div className="mb-3">
+        <ToggleGroup
+          type="single"
+          value={odkFilter}
+          onValueChange={(val) => { if (val) setOdkFilter(val); }}
+          size="sm"
+          className="justify-start"
+        >
+          {ODK_FILTER_OPTIONS.map((opt) => (
+            <ToggleGroupItem
+              key={opt}
+              value={opt}
+              className="text-xs px-3 h-7 font-medium"
+            >
+              {opt}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+
       <div className="overflow-auto max-h-[400px]">
         <Table>
           <TableHeader>
@@ -96,7 +135,7 @@ export function SlotsGrid() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {committedPlays.map((play) => {
+            {filteredPlays.map((play) => {
               const meta = slotMetaMap.get(play.playNum);
               const status = getSlotStatus(meta);
               const isSelected = selectedSlotNum === play.playNum;

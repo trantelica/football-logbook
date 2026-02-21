@@ -3,16 +3,16 @@
  * 
  * Manages Candidate → Proposal → Commit lifecycle with two-tier validation.
  * Phase 3: Supports slot-based editing with field-level commit state.
+ * Phase 4: Workflow stage selector, ODK filter, Commit & Next.
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { CandidateData, PlayRecord, TransactionState, ValidationErrors, SlotMeta } from "./types";
-import { validateInline, validateCommitGate, normalizeToSchema, parsePlayNum } from "./validation";
-import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, addGameAudit } from "./db";
+import { validateInline, validateCommitGate } from "./validation";
+import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
-import type { LookupTable } from "./types";
-import { playSchema, SCHEMA_VERSION } from "./schema";
+import { playSchema, getFieldDef } from "./schema";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -30,6 +30,12 @@ interface TransactionContextValue {
   isSlotMode: boolean;
   scaffoldedWarning: string | null;
   
+  // Phase 4: Workflow stage & ODK filter
+  activePass: number;
+  setActivePass: (pass: number) => void;
+  odkFilter: string;
+  setOdkFilter: (filter: string) => void;
+  
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
   reviewProposal: () => void;
@@ -42,8 +48,7 @@ interface TransactionContextValue {
   selectSlot: (playNum: number) => void;
   deselectSlot: () => void;
   dismissScaffoldWarning: () => void;
-  
-  activePass: number;
+  commitAndNext: () => Promise<{ committed: boolean; hasNext: boolean }>;
 }
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
@@ -56,7 +61,7 @@ function emptyCandidate(gameId: string): CandidateData {
 const SCAFFOLDED_FIELDS = new Set(["odk", "series", "qtr"]);
 
 export function TransactionProvider({ children }: { children: React.ReactNode }) {
-  const { activeGame, setHasDraft, isSlotMode: gameIsSlotMode, gameInitConfig } = useGameContext();
+  const { activeGame, setHasDraft, isSlotMode: gameIsSlotMode } = useGameContext();
   const { getLookupMap, lookupTables } = useLookup();
   const gameId = activeGame?.gameId ?? "";
 
@@ -71,7 +76,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [selectedSlotNum, setSelectedSlotNum] = useState<number | null>(null);
   const [slotMetaMap, setSlotMetaMap] = useState<Map<number, SlotMeta>>(new Map());
   const [scaffoldedWarning, setScaffoldedWarning] = useState<string | null>(null);
-  const activePass = 0;
+  
+  // Phase 4: activePass as state (default 1 = "Basic Play Data")
+  const [activePass, setActivePass] = useState<number>(1);
+  // Phase 4: ODK filter (display-only, no persistence)
+  const [odkFilter, setOdkFilter] = useState<string>("ALL");
 
   const isSlotMode = gameIsSlotMode;
 
@@ -86,6 +95,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPendingNormalized(null);
     setSelectedSlotNum(null);
     setScaffoldedWarning(null);
+    setActivePass(1);
+    setOdkFilter("ALL");
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
@@ -117,6 +128,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   const updateField = useCallback(
     (fieldName: string, value: unknown) => {
+      // Stage-based field locking: reject updates for fields outside active pass
+      const fieldDef = getFieldDef(fieldName);
+      if (fieldDef && fieldDef.defaultPassEntry > activePass) {
+        return; // Read-only at this stage
+      }
+
       // Scaffolded field warning check (slot mode only)
       if (isSlotMode && selectedSlotNum !== null && SCAFFOLDED_FIELDS.has(fieldName)) {
         const meta = slotMetaMap.get(selectedSlotNum);
@@ -136,7 +153,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       const newCandidate = { ...candidate, [fieldName]: value };
       setInlineErrors(validateInline(newCandidate, newTouched, getLookupMap()));
     },
-    [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap]
+    [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
   );
 
   const clearDraft = useCallback(() => {
@@ -190,7 +207,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           if (fieldName === "playNum" || fieldName === "gameId") continue;
           const oldVal = (existingSlot as unknown as Record<string, unknown>)[fieldName];
           const newVal = (normalized as unknown as Record<string, unknown>)[fieldName];
-          // Normalize comparison
           const oldStr = oldVal === null || oldVal === undefined ? "" : String(oldVal);
           const newStr = newVal === null || newVal === undefined ? "" : String(newVal);
           if (oldStr !== newStr) {
@@ -200,7 +216,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
 
       if (overwriteFields.length > 0) {
-        // Trigger overwrite review for committed field changes
         setExistingPlay(existingSlot ?? null);
         setPendingNormalized(normalized);
         setState("overwrite-review");
@@ -210,7 +225,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // No committed field changes — direct commit
       await dbCommitPlay(normalized, existingSlot ?? null);
 
-      // Update slot meta: all non-null fields are now committed
       const newCommittedFields = new Set(committedFields);
       for (const f of playSchema) {
         const val = (normalized as unknown as Record<string, unknown>)[f.name];
@@ -276,7 +290,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     await dbCommitPlay(pendingNormalized, existingPlay);
 
-    // Update slot meta in slot mode
     if (isSlotMode && selectedSlotNum !== null) {
       const meta = slotMetaMap.get(selectedSlotNum);
       const newCommittedFields = new Set(meta?.committedFields ?? []);
@@ -333,7 +346,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       const slot = committedPlays.find((p) => p.playNum === playNum);
       if (!slot) return;
 
-      // Load slot data into candidate
       const newCandidate: CandidateData = { ...slot };
       setCandidate(newCandidate);
       setSelectedSlotNum(playNum);
@@ -370,6 +382,36 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setSlotMetaMap(map);
   }, [gameId]);
 
+  // Phase 4: Commit & Next — advances to next slot in filtered scaffold list
+  const commitAndNext = useCallback(async (): Promise<{ committed: boolean; hasNext: boolean }> => {
+    if (state !== "proposal") {
+      return { committed: false, hasNext: false };
+    }
+
+    // Snapshot current state before commit (clearDraft resets selectedSlotNum)
+    const currentSlotNum = selectedSlotNum;
+    const currentPlays = [...committedPlays];
+
+    const success = await commitProposal();
+    if (!success) {
+      return { committed: false, hasNext: false };
+    }
+
+    // Build filtered list from snapshot
+    const filteredList = odkFilter === "ALL"
+      ? currentPlays
+      : currentPlays.filter((p) => p.odk === odkFilter);
+    
+    const currentIdx = filteredList.findIndex((p) => p.playNum === currentSlotNum);
+    if (currentIdx >= 0 && currentIdx < filteredList.length - 1) {
+      selectSlot(filteredList[currentIdx + 1].playNum);
+      return { committed: true, hasNext: true };
+    }
+
+    // No next slot — already deselected by clearDraft
+    return { committed: true, hasNext: false };
+  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot]);
+
   return (
     <TransactionContext.Provider
       value={{
@@ -385,6 +427,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         slotMetaMap,
         isSlotMode,
         scaffoldedWarning,
+        activePass,
+        setActivePass,
+        odkFilter,
+        setOdkFilter,
         updateField,
         clearDraft,
         reviewProposal,
@@ -397,7 +443,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         selectSlot,
         deselectSlot,
         dismissScaffoldWarning,
-        activePass,
+        commitAndNext,
       }}
     >
       {children}
