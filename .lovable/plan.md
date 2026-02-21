@@ -1,244 +1,93 @@
 
 
-# Phase 2: Lookup and Roster Governance — Implementation Plan
+# Phase 3 UI Wiring — Implementation (3 Files Only)
 
-## Overview
+## Deviation Record
+DB v2 to v3 upgrade is approved and already present in the repo. No further DB/schema changes in this implementation.
 
-Season-scoped vocabulary governance for three LOOKUP fields (`offForm`, `offPlay`, `motion`), a lightweight roster store (`jerseyNumber` + `playerName`), and full audit trail with `seasonRevision` counter. All committed plays remain denormalized. No scope creep into multi-pass, carry-forward, or personnel logic.
-
----
-
-## Implementation Sequence
-
-The build is ordered to maintain a working application at each step. Engine layer first, then contexts, then UI.
-
-### Step 1: Types and Schema Updates
-
-**`src/engine/types.ts`** — Add new types:
-- `SeasonMeta`: `seasonId`, `label`, `createdAt`, `seasonRevision`
-- `LookupTable`: `seasonId`, `fieldName`, `values: string[]`, `updatedAt`
-- `LookupAuditRecord`: `seasonId`, `fieldName`, `action` (add/remove), `value`, `seasonRevision`, `timestamp`
-- `RosterEntry`: `seasonId`, `jerseyNumber`, `playerName`
-- `RosterAuditRecord`: `seasonId`, `jerseyNumber`, `playerName`, `action` (add/remove/update), `seasonRevision`, `timestamp`
-- Add `seasonId: string` to `GameMeta`
-
-**`src/engine/schema.ts`**:
-- Change `source` to `"LOOKUP"` for `offForm`, `offPlay`, `motion`
-- `result` stays `source: "COACH"` (fixed spec enum, not season-maintainable)
-- Bump `SCHEMA_VERSION` to `"2.0.0"`
-
-### Step 2: IndexedDB Layer
-
-**`src/engine/db.ts`** — Bump `DB_VERSION` to 2. Add five stores:
-
-| Store | KeyPath | Indexes |
-|-------|---------|---------|
-| `seasons` | `seasonId` | -- |
-| `lookups` | `[seasonId, fieldName]` | `bySeason` |
-| `lookup_audit` | auto-increment | `bySeason` |
-| `roster` | `[seasonId, jerseyNumber]` | `bySeason` |
-| `roster_audit` | auto-increment | `bySeason` |
-
-New functions:
-- **Seasons**: `createSeason`, `getAllSeasons`, `getSeason`, `incrementSeasonRevision`
-- **Lookups**: `getLookupTable`, `getAllLookups`, `addLookupValue`, `removeLookupValue`, `initDefaultLookups`
-- **Roster**: `getRosterBySeason`, `addRosterEntry`, `removeRosterEntry`, `updateRosterEntry`
-- **Debug export**: Include `seasons`, `lookups`, `lookup_audit`, `roster`, `roster_audit`
-
-Lookup canonicalization applied in `addLookupValue` and all comparison paths:
-- Trim leading/trailing whitespace
-- Collapse multiple internal spaces to single space
-- Preserve coach casing (no case normalization)
-- Comparisons use canonicalized forms
-
-Lookup removal safety (Option A): `removeLookupValue` queries the `plays` store for any committed play in the season using that value. If found, throw/return error. Caller handles the UI message.
-
-### Step 3: Season Context
-
-**`src/engine/seasonContext.tsx`** (new file):
-- State: `activeSeason`, `seasons` list
-- `createNewSeason(label)`: creates season, calls `initDefaultLookups(seasonId)`
-- `switchSeason(seasonId)`: with confirmation if draft is active (similar to game switch pattern)
-- `pendingSwitchSeason` / `confirmSeasonSwitch` / `cancelSeasonSwitch` for draft-clearing confirmation
-
-### Step 4: Lookup Context
-
-**`src/engine/lookupContext.tsx`** (new file):
-- Loads all lookup tables for `activeSeason.seasonId` on mount/season change
-- `getValues(fieldName): string[]`
-- `addValue(fieldName, value)`: canonicalizes, checks duplicate, adds, increments `seasonRevision`, writes audit
-- `removeValue(fieldName, value)`: checks committed plays for usage, blocks if found, otherwise removes + audits
-- `isLookupField(fieldName): boolean`
-
-### Step 5: Roster Context
-
-**`src/engine/rosterContext.tsx`** (new file):
-- Loads roster for `activeSeason.seasonId`
-- `roster: RosterEntry[]`
-- `addPlayer(jerseyNumber, playerName)`: increments `seasonRevision`, writes audit
-- `removePlayer(jerseyNumber)`: increments `seasonRevision`, writes audit
-- `updatePlayer(jerseyNumber, playerName)`: increments `seasonRevision`, writes audit
-- `getPlayer(jerseyNumber): RosterEntry | undefined`
-- No duplicate detection, no position logic, no 11-player enforcement
-
-### Step 6: Validation Engine Integration
-
-**`src/engine/validation.ts`**:
-- `validateCommitGate(candidate, activePass, lookups)` — new third parameter: `Map<string, string[]>` (fieldName to approved values)
-- For fields with `source === "LOOKUP"`: if lookup map has a non-empty array for that field and the canonicalized candidate value is not in it, error: `"{label} is not a recognized value"`
-- If lookup array is empty, accept any value (bootstrapping)
-- `validateInline(candidate, touchedFields, lookups)` — optional lookup map. For LOOKUP fields with non-empty table, soft warning if value not found
-
-### Step 7: Transaction Provider Update
-
-**`src/engine/transaction.tsx`**:
-- Import and consume `useLookup` context
-- Pass lookup map to `validateCommitGate` and `validateInline` calls
-- No other structural changes
-
-### Step 8: Game Context Update
-
-**`src/engine/gameContext.tsx`**:
-- `createNewGame(opponent, date, seasonId)` — requires `seasonId`
-- `GameMeta` now includes `seasonId`
-
-### Step 9: UI — Season Management in GameBar
-
-**`src/components/GameBar.tsx`**:
-- Add season selector dropdown before game selector
-- "New Season" button opens a dialog for entering season label
-- Display active season label
-- Season switch triggers draft-clearing confirmation (same pattern as game switch)
-
-**`src/components/NewGameDialog.tsx`**:
-- Add season selector dropdown (from available seasons)
-- If no seasons exist, show prompt to create one first
-- Game creation requires a selected season
-
-### Step 10: UI — Lookup Combobox in DraftPanel
-
-**`src/components/DraftPanel.tsx`**:
-- For fields where `fieldDef.source === "LOOKUP"`, render a combobox using `cmdk` (already installed)
-- Always use combobox UI, even when lookup table is empty (bootstrapping)
-- Empty state: show "No values yet. Type to add."
-- Dropdown shows approved values filtered by typed input
-- If typed value is not in the list, show "Add '{value}'?" option
-- Selecting "Add" triggers `LookupConfirmDialog`
-- Read-only in proposal state
-
-### Step 11: UI — Lookup Confirm Dialog
-
-**`src/components/LookupConfirmDialog.tsx`** (new file):
-- Modal: "Add '{value}' to {fieldLabel}?"
-- Confirm calls `lookupContext.addValue(fieldName, value)`
-- Cancel clears the field
-- After confirm, field retains the value and logging resumes
-
-### Step 12: UI — Lookup Management Panel
-
-**`src/components/LookupPanel.tsx`** (new file):
-- Collapsible panel below DraftPanel
-- One section per LOOKUP field (offForm, offPlay, motion)
-- Approved values shown as removable chips
-- Remove button: if value used in committed plays, show "Value used in committed plays. Removal blocked."
-- Text input to manually add values (uses same canonicalization + confirm flow)
-- Displays `seasonRevision` and `updatedAt` per field
-- Only visible when a season is active
-
-### Step 13: UI — Roster Management Panel
-
-**`src/components/RosterPanel.tsx`** (new file):
-- Collapsible panel
-- Table: jerseyNumber + playerName
-- Add row: jersey input + name input + Add button
-- Remove button per row
-- Only visible when a season is active
-
-### Step 14: Page Layout Update
-
-**`src/pages/Index.tsx`**:
-- Updated provider hierarchy:
-```text
-GameProvider
-  SeasonProvider
-    LookupProvider
-      RosterProvider
-        TransactionProvider
-          ...UI
-```
-- Add `LookupPanel` and `RosterPanel` to the main layout (collapsible, below DraftPanel)
+## Scope
+Three files modified. No engine, schema, or DB changes. No new files created.
 
 ---
 
-## Canonicalization Rules
+## 1. GameBar.tsx
 
-Applied consistently before add, before comparison, and before commit:
-1. Trim leading/trailing whitespace
-2. Collapse multiple internal spaces to a single space
-3. Preserve coach casing exactly (no uppercase/lowercase normalization)
+**Add** `startGameOpen` state and import `StartGameDialog`.
 
----
+**Keep** `newGameOpen` state and `NewGameDialog` import (legacy path preserved).
 
-## Lookup Removal Safety (Phase 2: Option A)
+**Replace button layout** inside the `activeSeason` block (lines 119-127):
+- Primary button: "Start Game" with a play/flag icon, `variant="default"`, opens `StartGameDialog`
+- Secondary button: "Legacy New Game" with `variant="ghost"`, smaller text, opens `NewGameDialog`
 
-When removing a lookup value:
-1. Query all committed plays in the season where that field equals the value
-2. If any exist: block removal, show message "Value used in committed plays. Removal blocked."
-3. If none: proceed with removal, increment `seasonRevision`, write audit
+**Render** both `<StartGameDialog>` and `<NewGameDialog>` at the bottom of the component.
+
+No other changes to GameBar.
 
 ---
 
-## Bootstrapping Behavior
+## 2. Index.tsx
 
-- Empty lookup tables are permissive (accept any value at commit-gate)
-- Combobox UI is always used (no degradation to plain input)
-- Empty state shows: "No values yet. Type to add."
-- Normal "Add '{value}'?" flow applies from the very first entry
-- Bootstrapping applies only at season creation, not game creation
+**Import** `SlotsGrid` from `@/components/SlotsGrid`.
 
----
+**Insert** `<SlotsGrid />` between `<DraftPanel />` and `<LookupPanel />` in the main content area.
 
-## Determinism Guardrails
-
-- Committed plays remain denormalized (lookup edits never rewrite history)
-- Season switch clears Candidate/Proposal state with confirmation dialog
-- No silent lookup mutations (all changes require explicit user action)
-- Debug export includes: `seasons`, `lookups`, `lookup_audit`, `roster`, `roster_audit`
-- `seasonRevision` is monotonic, audit-only, does not create new seasons
+The component self-gates (returns null when no active game or no committed plays), so no conditional wrapper needed.
 
 ---
 
-## Files Summary
+## 3. DraftPanel.tsx
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/engine/types.ts` | Modify | Add SeasonMeta, LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord; add seasonId to GameMeta |
-| `src/engine/schema.ts` | Modify | offForm/offPlay/motion source to LOOKUP; bump to 2.0.0 |
-| `src/engine/db.ts` | Modify | DB_VERSION 2; 5 new stores; CRUD functions; canonicalization; removal safety; debug export |
-| `src/engine/seasonContext.tsx` | Create | Season state management provider |
-| `src/engine/lookupContext.tsx` | Create | Lookup table state, add/remove with canonicalization and audit |
-| `src/engine/rosterContext.tsx` | Create | Roster state, add/remove/update with audit |
-| `src/engine/validation.ts` | Modify | Lookup membership check in commit-gate and inline validation |
-| `src/engine/transaction.tsx` | Modify | Pass lookup map to validation calls |
-| `src/engine/gameContext.tsx` | Modify | createNewGame accepts seasonId |
-| `src/engine/export.ts` | Modify | Include season data in debug export |
-| `src/components/DraftPanel.tsx` | Modify | Combobox for LOOKUP fields with "Add new?" flow |
-| `src/components/LookupConfirmDialog.tsx` | Create | Confirmation dialog for adding lookup values |
-| `src/components/LookupPanel.tsx` | Create | Collapsible lookup management UI |
-| `src/components/RosterPanel.tsx` | Create | Collapsible roster management UI |
-| `src/components/GameBar.tsx` | Modify | Season selector, season switch confirmation |
-| `src/components/NewGameDialog.tsx` | Modify | Season selection required for game creation |
-| `src/pages/Index.tsx` | Modify | Provider hierarchy; add LookupPanel and RosterPanel |
+**Import** additional values from `useTransaction()`:
+- `selectedSlotNum`, `deselectSlot`, `scaffoldedWarning`, `dismissScaffoldWarning`, `isSlotMode`, `slotMetaMap`
+
+**Import** `Lock`, `X` icons from lucide-react. Import `Badge` from ui/badge. Import `Tooltip` components.
+
+**Add three behavior branches** before the existing form rendering:
+
+### Branch A: Slot mode, no slot selected
+When `isSlotMode && selectedSlotNum === null`, render a centered message:
+> "Select a slot from the grid below to begin editing."
+
+Return early (do not render the form).
+
+### Branch B: Slot mode, slot selected
+Modifications to existing form:
+
+1. **Header**: Change title to `"Draft Entry — Slot #X"` with a Lock icon. Add a "Deselect Slot" ghost button next to "Clear Draft".
+
+2. **playNum field**: Skip rendering the normal input for `playNum`. Instead, render a read-only display:
+   - A `Badge` showing `"Play #X"` with a Lock icon and a tooltip reading "Slot-owned — immutable"
+
+3. **Scaffolded warning banner**: When `scaffoldedWarning` is non-null, render an amber banner:
+   > "Changing this value may create inconsistency with seeded structure. Downstream plays are not changed automatically."
+   
+   With an X dismiss button that calls `dismissScaffoldWarning()`.
+
+4. **Committed-field indicators**: For each field label, check if `slotMetaMap.get(selectedSlotNum)?.committedFields` includes the field name. If so, render a small blue dot (neutral color per constraint) with a tooltip reading "Committed".
+
+### Branch C: Legacy mode (non-slot)
+No changes to existing behavior. The current form renders exactly as before.
+
+**Technical detail for committed-field indicator**:
+- A 6px blue circle (`bg-blue-500`) rendered inline before the label text
+- Wrapped in a Tooltip with content "Committed"
+- Only shown when the field is in the committed fields list
+- Blue chosen as neutral color (not green) per user constraint
 
 ---
 
-## Out of Scope (Confirmed)
+## Files NOT Changed
+- All `src/engine/*` files
+- `src/components/StartGameDialog.tsx`
+- `src/components/SlotsGrid.tsx`
+- `src/components/NewGameDialog.tsx`
+- All other files
 
-- Pass-aware activation
-- Carry-forward / predict / process logic
-- Roster validation rules (duplicates, positions, 11-player)
-- Personnel constraints / grading
-- Rapid entry UX / keyboard shortcuts
-- Audit viewer UI
-- `result` as LOOKUP (remains fixed spec enum)
+## Test Walkthrough (Post-Implementation)
+1. Create season, click "Start Game", fill wizard, confirm -- slots grid appears with seeded QTR/ODK/SERIES
+2. Click a slot row -- DraftPanel updates to show "Slot #X", playNum locked, deselect button visible
+3. Fill an empty field (e.g. offForm) and commit -- no overwrite prompt
+4. Edit a committed field to a different value and commit -- overwrite confirmation dialog appears, audit event written
+5. Edit a scaffolded field (odk, qtr, series) on a committed slot -- amber warning banner appears with explicit text about downstream plays not being changed automatically
 
