@@ -110,3 +110,43 @@ export type TransactionState =
 
 /** Validation error map: fieldName → error message */
 export type ValidationErrors = Record<string, string>;
+
+/** ODK block for game initialization */
+export interface ODKBlock {
+  odk: string; // "O" | "D" | "K" | "S"
+  startPlay: number;
+  endPlay: number;
+}
+
+/** Quarter-to-first-play mapping: "1" → playNum, "2" → playNum, etc. */
+export type QuarterMapping = Record<string, number>;
+
+/** Game initialization configuration (Pass 0) */
+export interface GameInitConfig {
+  gameId: string;
+  totalPlays: number;
+  quarterStarts: QuarterMapping;
+  odkBlocks: ODKBlock[];
+  schemaVersion: string;
+  dbVersion: number;
+  timestamp: string;
+}
+
+/** Per-slot metadata tracking field commit state */
+export interface SlotMeta {
+  gameId: string;
+  playNum: number;
+  /** Field names that have been committed (seeded fields start committed) */
+  committedFields: string[];
+}
+
+/** Game-level audit record */
+export interface GameAuditRecord {
+  id?: number;
+  gameId: string;
+  timestamp: string;
+  action: "init" | "scaffold-recalc";
+  schemaVersion: string;
+  dbVersion: number;
+  details: Record<string, unknown>;
+}
