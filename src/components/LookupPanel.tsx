@@ -10,7 +10,8 @@ import { ChevronDown, ChevronRight, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 
-const LOOKUP_FIELDS = playSchema.filter((f) => f.source === "LOOKUP");
+/** Only season-governed lookup fields appear in Lookup Management UI */
+const LOOKUP_FIELDS = playSchema.filter((f) => f.lookupMode === "season");
 
 export function LookupPanel() {
   const { activeSeason } = useSeason();
