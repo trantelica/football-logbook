@@ -23,7 +23,8 @@ import { Label } from "@/components/ui/label";
 import { useGameContext } from "@/engine/gameContext";
 import { useSeason } from "@/engine/seasonContext";
 import { NewGameDialog } from "./NewGameDialog";
-import { Plus, CalendarDays } from "lucide-react";
+import { StartGameDialog } from "./StartGameDialog";
+import { Plus, CalendarDays, Flag } from "lucide-react";
 
 export function GameBar() {
   const {
@@ -46,6 +47,7 @@ export function GameBar() {
   } = useSeason();
 
   const [newGameOpen, setNewGameOpen] = useState(false);
+  const [startGameOpen, setStartGameOpen] = useState(false);
   const [newSeasonOpen, setNewSeasonOpen] = useState(false);
   const [newSeasonLabel, setNewSeasonLabel] = useState("");
 
@@ -118,12 +120,21 @@ export function GameBar() {
 
             <Button
               size="sm"
-              variant="outline"
+              variant="default"
               className="h-8 gap-1"
+              onClick={() => setStartGameOpen(true)}
+            >
+              <Flag className="h-3.5 w-3.5" />
+              Start Game
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-xs text-muted-foreground"
               onClick={() => setNewGameOpen(true)}
             >
-              <Plus className="h-3.5 w-3.5" />
-              New Game
+              <Plus className="h-3 w-3" />
+              Legacy New Game
             </Button>
           </>
         )}
@@ -136,6 +147,7 @@ export function GameBar() {
       </header>
 
       <NewGameDialog open={newGameOpen} onOpenChange={setNewGameOpen} />
+      <StartGameDialog open={startGameOpen} onOpenChange={setStartGameOpen} />
 
       {/* New Season Dialog */}
       <Dialog open={newSeasonOpen} onOpenChange={setNewSeasonOpen}>

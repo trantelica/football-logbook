@@ -5,6 +5,7 @@ import { RosterProvider } from "@/engine/rosterContext";
 import { TransactionProvider } from "@/engine/transaction";
 import { GameBar } from "@/components/GameBar";
 import { DraftPanel } from "@/components/DraftPanel";
+import { SlotsGrid } from "@/components/SlotsGrid";
 import { CommittedPlaysPanel } from "@/components/CommittedPlaysPanel";
 import { OverwriteReview } from "@/components/OverwriteReview";
 import { StatusBar } from "@/components/StatusBar";
@@ -23,6 +24,7 @@ const Index = () => {
 
                 <main className="flex-1 overflow-auto p-4 space-y-4">
                   <DraftPanel />
+                  <SlotsGrid />
                   <LookupPanel />
                   <RosterPanel />
                   <CommittedPlaysPanel />

@@ -4,13 +4,15 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { useLookup } from "@/engine/lookupContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY } from "@/engine/schema";
 import { canonicalizeLookupValue } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { toast } from "sonner";
 
@@ -27,6 +29,12 @@ export function DraftPanel() {
     reviewProposal,
     backToEdit,
     commitProposal,
+    selectedSlotNum,
+    slotMetaMap,
+    isSlotMode,
+    scaffoldedWarning,
+    deselectSlot,
+    dismissScaffoldWarning,
   } = useTransaction();
   const { getValues, isLookupField, addValue } = useLookup();
 
@@ -40,6 +48,16 @@ export function DraftPanel() {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         Create or select a game to begin logging plays.
+      </div>
+    );
+  }
+
+  // Slot mode: no slot selected → show idle message
+  if (isSlotMode && selectedSlotNum === null) {
+    return (
+      <div className="rounded-lg border-2 border-muted p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+        <MousePointerClick className="h-8 w-8 opacity-50" />
+        <p className="text-sm font-medium">Select a slot from the grid below to begin editing.</p>
       </div>
     );
   }
@@ -91,7 +109,51 @@ export function DraftPanel() {
       ? "border-candidate bg-candidate-muted"
       : "border-border";
 
+  // Committed field check for slot mode
+  const slotCommittedFields = isSlotMode && selectedSlotNum !== null
+    ? new Set(slotMetaMap.get(selectedSlotNum)?.committedFields ?? [])
+    : new Set<string>();
+
+  const isFieldCommitted = (fieldName: string) => slotCommittedFields.has(fieldName);
+
+  const renderFieldLabel = (fieldName: string, label: string, required: boolean) => (
+    <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+      {isFieldCommitted(fieldName) && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent><p>Committed</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {label}
+      {required && <span className="text-destructive ml-0.5">*</span>}
+    </Label>
+  );
+
   const renderField = (fieldName: string) => {
+    // Slot mode: playNum is read-only badge
+    if (isSlotMode && selectedSlotNum !== null && fieldName === "playNum") {
+      return (
+        <div key={fieldName} className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">Play #</Label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="secondary" className="gap-1 font-mono text-sm h-8 px-3 flex items-center w-fit">
+                  <Lock className="h-3 w-3" />
+                  Play #{selectedSlotNum}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent><p>Slot-owned — immutable</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      );
+    }
+
     const fieldDef = playSchema.find((f) => f.name === fieldName);
     if (!fieldDef) return null;
 
@@ -161,10 +223,7 @@ export function DraftPanel() {
       };
       return (
         <div key={fieldName} className={fieldClasses}>
-          <Label className="text-xs font-medium text-muted-foreground">
-            {fieldDef.label}
-            {fieldDef.requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
-          </Label>
+          {renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
           <Select
             value={value != null ? String(value) : ""}
             onValueChange={(v) => updateField(fieldName, v)}
@@ -194,19 +253,14 @@ export function DraftPanel() {
             onCheckedChange={(checked) => updateField(fieldName, checked)}
             disabled={isProposal}
           />
-          <Label className="text-xs font-medium text-muted-foreground">
-            {fieldDef.label}
-          </Label>
+          {renderFieldLabel(fieldName, fieldDef.label, false)}
         </div>
       );
     }
 
     return (
       <div key={fieldName} className={fieldClasses}>
-        <Label className="text-xs font-medium text-muted-foreground">
-          {fieldDef.label}
-          {fieldDef.requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
-        </Label>
+        {renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
         <Input
           className={inputClasses}
           type="text"
@@ -230,10 +284,26 @@ export function DraftPanel() {
         )}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide">
+          <h2 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2">
             {isProposal ? "Proposal Review" : "Draft Entry"}
+            {isSlotMode && selectedSlotNum !== null && (
+              <span className="flex items-center gap-1 text-xs font-mono normal-case text-muted-foreground">
+                <Lock className="h-3 w-3" /> Slot #{selectedSlotNum}
+              </span>
+            )}
           </h2>
           <div className="flex gap-2">
+            {isSlotMode && selectedSlotNum !== null && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 text-xs"
+                onClick={deselectSlot}
+              >
+                <X className="h-3 w-3" />
+                Deselect Slot
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -245,6 +315,23 @@ export function DraftPanel() {
             </Button>
           </div>
         </div>
+
+        {/* Scaffolded warning banner */}
+        {scaffoldedWarning && (
+          <div className="flex items-start gap-2 text-xs rounded px-3 py-2 bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+            <span className="flex-1">
+              Changing this value may create inconsistency with seeded structure. Downstream plays are not changed automatically.
+            </span>
+            <button
+              type="button"
+              onClick={dismissScaffoldWarning}
+              className="shrink-0 hover:opacity-70"
+              aria-label="Dismiss warning"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {isSegment && (
           <div className={cn(
