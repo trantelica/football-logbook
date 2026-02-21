@@ -34,6 +34,48 @@ export const QTR_DISPLAY: Record<string, string> = { "1": "1", "2": "2", "3": "3
 export const DN_VALUES = ["1", "2", "3", "4"] as const;
 export const HASH_VALUES = ["L", "M", "R"] as const;
 
+/** Fixed Result enum — Section 8 allowed values (no user-add flow) */
+export const RESULT_VALUES = [
+  "1st DN", "Batted Down", "Block", "Blocked", "COP",
+  "Complete", "Complete, Fumble", "Complete, TD",
+  "Def TD", "Downed", "Dropped", "Fair Catch",
+  "Fumble", "Fumble, Def TD", "Good",
+  "Incomplete", "Interception", "Interception, Def TD", "Interception, Fumble",
+  "No Good", "No Good, Def TD", "Offsetting Penalties", "Out of Bounds",
+  "Penalty", "Penalty, Safety", "Return",
+  "Rush", "Rush, Safety", "Rush, TD",
+  "Sack", "Sack, Fumble", "Sack, Fumble, Def TD", "Sack, Safety",
+  "Safety", "Scramble", "Scramble, TD", "TD",
+  "Timeout", "Tipped", "Touchback",
+] as const;
+
+/** Play Type enum for offPlay dependent attribute */
+export const PLAY_TYPE_VALUES = [
+  "Run", "Pass", "Screen", "Play Action", "RPO",
+  "Draw", "Option", "QB Sneak", "Trick",
+] as const;
+
+/** Dependent attribute definitions for lookup fields — collected at add-time */
+export interface LookupAttrDef {
+  name: string;
+  label: string;
+  allowedValues: readonly string[];
+}
+
+export const LOOKUP_DEPENDENT_ATTRS: Record<string, LookupAttrDef[]> = {
+  offForm: [
+    { name: "offStrength", label: "Strength", allowedValues: ["L", "BAL", "R"] },
+    { name: "personnel", label: "Personnel", allowedValues: ["11", "12", "13", "21", "22", "23", "31", "32", "41", "50"] },
+  ],
+  offPlay: [
+    { name: "playType", label: "Play Type", allowedValues: PLAY_TYPE_VALUES },
+    { name: "playDir", label: "Play Dir", allowedValues: ["L", "M", "R"] },
+  ],
+  motion: [
+    { name: "motionDir", label: "Motion Dir", allowedValues: ["L", "R"] },
+  ],
+};
+
 /** Phase 1 field scope — the canonical schema contract */
 export const playSchema: readonly FieldDefinition[] = [
   {
@@ -142,7 +184,8 @@ export const playSchema: readonly FieldDefinition[] = [
   {
     name: "result",
     label: "Result",
-    dataType: "string",
+    dataType: "enum",
+    allowedValues: RESULT_VALUES,
     source: "COACH",
     defaultPolicy: "null",
     defaultPassEntry: 0,

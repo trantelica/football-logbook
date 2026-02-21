@@ -52,6 +52,8 @@ export interface LookupTable {
   fieldName: string; // "offForm" | "offPlay" | "motion"
   values: string[]; // ordered approved values
   updatedAt: string; // ISO 8601
+  /** Dependent attributes per entry: canonical(value) → { attrName: attrValue } */
+  entryAttributes?: Record<string, Record<string, string>>;
 }
 
 /** Append-only audit record for lookup mutations */

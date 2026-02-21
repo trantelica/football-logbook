@@ -142,7 +142,12 @@ export async function initDefaultLookups(seasonId: string, lookupFields: string[
   await tx.done;
 }
 
-export async function addLookupValue(seasonId: string, fieldName: string, rawValue: string): Promise<void> {
+export async function addLookupValue(
+  seasonId: string,
+  fieldName: string,
+  rawValue: string,
+  attributes?: Record<string, string>
+): Promise<void> {
   const value = canonicalizeLookupValue(rawValue);
   if (!value) throw new Error("Value cannot be empty");
 
@@ -150,11 +155,9 @@ export async function addLookupValue(seasonId: string, fieldName: string, rawVal
   const table = await db.get("lookups", [seasonId, fieldName]) as LookupTable | undefined;
   if (!table) throw new Error(`Lookup table not found: ${fieldName}`);
 
-  // Normalize display value (trim + collapse spaces, preserve casing)
   const displayValue = normalizeLookupDisplay(rawValue);
   const canonicalKey = canonicalizeLookupValue(rawValue);
 
-  // Check duplicate using case-insensitive canonical comparison
   if (table.values.some((v) => canonicalizeLookupValue(v) === canonicalKey)) {
     throw new Error(`"${displayValue}" already exists in ${fieldName}`);
   }
@@ -163,6 +166,13 @@ export async function addLookupValue(seasonId: string, fieldName: string, rawVal
 
   table.values.push(displayValue);
   table.updatedAt = new Date().toISOString();
+
+  // Store dependent attributes if provided
+  if (attributes && Object.keys(attributes).length > 0) {
+    if (!table.entryAttributes) table.entryAttributes = {};
+    table.entryAttributes[canonicalKey] = attributes;
+  }
+
   await db.put("lookups", table);
 
   const auditRecord: Omit<LookupAuditRecord, "id"> = {
