@@ -48,6 +48,8 @@ export interface GameMeta {
   date: string; // YYYY-MM-DD
   createdAt: string; // ISO 8601
   schemaVersion: string;
+  /** Field size for yardline prediction (80 or 100). Default 80. Immutable after creation. */
+  fieldSize?: 80 | 100;
 }
 
 /** Season metadata */

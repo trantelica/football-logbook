@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
   const [opponent, setOpponent] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [totalPlays, setTotalPlays] = useState("");
+  const [fieldSize, setFieldSize] = useState<"80" | "100">("80");
   const [q1Start, setQ1Start] = useState("1");
   const [q2Start, setQ2Start] = useState("");
   const [q3Start, setQ3Start] = useState("");
@@ -49,6 +51,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
     setOpponent("");
     setDate(new Date().toISOString().slice(0, 10));
     setTotalPlays("");
+    setFieldSize("80");
     setQ1Start("1");
     setQ2Start("");
     setQ3Start("");
@@ -76,7 +79,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
 
     setSubmitting(true);
     try {
-      await initializeGame(opponent.trim(), date, n, quarterStarts, odkBlocks);
+      await initializeGame(opponent.trim(), date, n, quarterStarts, odkBlocks, Number(fieldSize) as 80 | 100);
       toast.success(`Game initialized: ${n} slots created`);
       resetForm();
       onOpenChange(false);
@@ -164,6 +167,26 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
                   placeholder="e.g. 80"
                   className="h-8 text-sm w-32"
                 />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Field Size *</Label>
+                <ToggleGroup
+                  type="single"
+                  value={fieldSize}
+                  onValueChange={(val) => { if (val) setFieldSize(val as "80" | "100"); }}
+                  size="sm"
+                  className="justify-start"
+                >
+                  <ToggleGroupItem value="80" className="text-xs px-3 h-7 font-medium">
+                    80 yards
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="100" className="text-xs px-3 h-7 font-medium">
+                    100 yards
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <p className="text-[10px] text-muted-foreground">
+                  Used for yardline prediction. Immutable after creation.
+                </p>
               </div>
             </fieldset>
 

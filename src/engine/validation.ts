@@ -257,6 +257,18 @@ export function validateCommitGate(
     }
   }
 
+  // 5. Incomplete pass + non-zero GN/LS check (Phase 5A)
+  if (!errors.result && !errors.gainLoss) {
+    const resultVal = (candidate as Record<string, unknown>).result;
+    const glVal = (candidate as Record<string, unknown>).gainLoss;
+    if (
+      resultVal != null && String(resultVal) === "Incomplete" &&
+      glVal != null && glVal !== "" && Number(glVal) !== 0
+    ) {
+      errors.gainLoss = "Incomplete pass cannot have non-zero gain/loss";
+    }
+  }
+
   if (Object.keys(errors).length > 0) {
     return { valid: false, errors, normalizedPlay: null };
   }

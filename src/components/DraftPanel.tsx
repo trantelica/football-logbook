@@ -16,7 +16,7 @@ import { useRawInput } from "@/engine/rawInputContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
 import { canonicalizeLookupValue } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
@@ -45,6 +45,8 @@ export function DraftPanel() {
     state,
     candidate,
     touchedFields,
+    predictedFields,
+    predictionExplanations,
     inlineErrors,
     commitErrors,
     updateField,
@@ -148,6 +150,10 @@ export function DraftPanel() {
     return touchedFields.has(field);
   }
 
+  function isPredicted(field: string) {
+    return predictedFields.has(field);
+  }
+
   function isMinimalField(field: string) {
     return (SEGMENT_REQUIRED_FIELDS as readonly string[]).includes(field) || field === "playNum";
   }
@@ -226,13 +232,26 @@ export function DraftPanel() {
 
   const renderFieldLabel = (fieldName: string, label: string, required: boolean) => (
     <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-      {isFieldCommitted(fieldName) && (
+      {isFieldCommitted(fieldName) && !isPredicted(fieldName) && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
             </TooltipTrigger>
             <TooltipContent><p>Committed</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {isPredicted(fieldName) && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                <Sparkles className="h-2.5 w-2.5" />
+                Pred
+              </span>
+            </TooltipTrigger>
+            <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
@@ -289,9 +308,11 @@ export function DraftPanel() {
       stageLocked && "opacity-50"
     );
 
+    const predicted = isPredicted(fieldName);
     const inputClasses = cn(
       "h-8 text-sm font-mono",
-      touched && !error && "bg-field-touched",
+      predicted && !touched && !error && "bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700",
+      touched && !error && !predicted && "bg-field-touched",
       error && "border-destructive"
     );
 
@@ -635,6 +656,18 @@ PENALTY O-Holding EFF Y 2MIN N`}
             >
               <X className="h-3.5 w-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* Prediction explanation banner */}
+        {predictionExplanations.length > 0 && (
+          <div className="flex items-start gap-2 text-xs rounded px-3 py-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-0.5">
+              {predictionExplanations.map((exp, i) => (
+                <p key={i}>{exp}</p>
+              ))}
+            </div>
           </div>
         )}
 

@@ -34,7 +34,8 @@ interface GameContextValue {
     date: string,
     totalPlays: number,
     quarterStarts: QuarterMapping,
-    odkBlocks: ODKBlock[]
+    odkBlocks: ODKBlock[],
+    fieldSize?: 80 | 100
   ) => Promise<GameMeta>;
   switchGame: (gameId: string) => void;
   pendingSwitch: string | null;
@@ -111,7 +112,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       date: string,
       totalPlays: number,
       quarterStarts: QuarterMapping,
-      odkBlocks: ODKBlock[]
+      odkBlocks: ODKBlock[],
+      fieldSize: 80 | 100 = 80
     ): Promise<GameMeta> => {
       if (!seasonId) throw new Error("No active season");
 
@@ -132,6 +134,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         date,
         createdAt: now,
         schemaVersion: SCHEMA_VERSION,
+        fieldSize,
       };
       await dbCreateGame(meta);
 
