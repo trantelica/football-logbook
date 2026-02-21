@@ -2,16 +2,17 @@
  * Football Engine — Transaction State Machine Provider
  * 
  * Manages Candidate → Proposal → Commit lifecycle with two-tier validation.
+ * Phase 3: Supports slot-based editing with field-level commit state.
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import type { CandidateData, PlayRecord, TransactionState, ValidationErrors } from "./types";
-import { validateInline, validateCommitGate } from "./validation";
-import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame } from "./db";
+import type { CandidateData, PlayRecord, TransactionState, ValidationErrors, SlotMeta } from "./types";
+import { validateInline, validateCommitGate, normalizeToSchema, parsePlayNum } from "./validation";
+import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, addGameAudit } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
 import type { LookupTable } from "./types";
-import { playSchema } from "./schema";
+import { playSchema, SCHEMA_VERSION } from "./schema";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -23,6 +24,12 @@ interface TransactionContextValue {
   existingPlay: PlayRecord | null;
   pendingNormalized: PlayRecord | null;
   
+  // Slot mode
+  selectedSlotNum: number | null;
+  slotMetaMap: Map<number, SlotMeta>;
+  isSlotMode: boolean;
+  scaffoldedWarning: string | null;
+  
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
   reviewProposal: () => void;
@@ -32,6 +39,9 @@ interface TransactionContextValue {
   cancelOverwrite: () => void;
   loadPlayForOverwrite: (play: PlayRecord) => void;
   refreshCommittedPlays: () => Promise<void>;
+  selectSlot: (playNum: number) => void;
+  deselectSlot: () => void;
+  dismissScaffoldWarning: () => void;
   
   activePass: number;
 }
@@ -42,8 +52,11 @@ function emptyCandidate(gameId: string): CandidateData {
   return { gameId };
 }
 
+/** Fields that are scaffolded (seeded at init) and should warn on edit */
+const SCAFFOLDED_FIELDS = new Set(["odk", "series", "qtr"]);
+
 export function TransactionProvider({ children }: { children: React.ReactNode }) {
-  const { activeGame, setHasDraft } = useGameContext();
+  const { activeGame, setHasDraft, isSlotMode: gameIsSlotMode, gameInitConfig } = useGameContext();
   const { getLookupMap, lookupTables } = useLookup();
   const gameId = activeGame?.gameId ?? "";
 
@@ -55,7 +68,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [committedPlays, setCommittedPlays] = useState<PlayRecord[]>([]);
   const [existingPlay, setExistingPlay] = useState<PlayRecord | null>(null);
   const [pendingNormalized, setPendingNormalized] = useState<PlayRecord | null>(null);
+  const [selectedSlotNum, setSelectedSlotNum] = useState<number | null>(null);
+  const [slotMetaMap, setSlotMetaMap] = useState<Map<number, SlotMeta>>(new Map());
+  const [scaffoldedWarning, setScaffoldedWarning] = useState<string | null>(null);
   const activePass = 0;
+
+  const isSlotMode = gameIsSlotMode;
 
   // Reset on game change
   useEffect(() => {
@@ -63,17 +81,25 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setTouchedFields(new Set());
     setInlineErrors({});
     setCommitErrors({});
-    setState(gameId ? "candidate" : "idle");
+    setState(gameId ? (gameIsSlotMode ? "idle" : "candidate") : "idle");
     setExistingPlay(null);
     setPendingNormalized(null);
+    setSelectedSlotNum(null);
+    setScaffoldedWarning(null);
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
       );
+      getAllSlotMetaForGame(gameId).then((metas) => {
+        const map = new Map<number, SlotMeta>();
+        for (const m of metas) map.set(m.playNum, m);
+        setSlotMetaMap(map);
+      });
     } else {
       setCommittedPlays([]);
+      setSlotMetaMap(new Map());
     }
-  }, [gameId]);
+  }, [gameId, gameIsSlotMode]);
 
   // Track draft status
   useEffect(() => {
@@ -81,7 +107,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setHasDraft(isDirty);
   }, [touchedFields, setHasDraft]);
 
-  // Revalidate inline errors when lookupMap changes (e.g. after adding a new lookup value)
+  // Revalidate inline errors when lookupMap changes
   useEffect(() => {
     if (touchedFields.size > 0) {
       setInlineErrors(validateInline(candidate, touchedFields, getLookupMap()));
@@ -91,6 +117,16 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   const updateField = useCallback(
     (fieldName: string, value: unknown) => {
+      // Scaffolded field warning check (slot mode only)
+      if (isSlotMode && selectedSlotNum !== null && SCAFFOLDED_FIELDS.has(fieldName)) {
+        const meta = slotMetaMap.get(selectedSlotNum);
+        if (meta && meta.committedFields.includes(fieldName)) {
+          setScaffoldedWarning(
+            "Changing this value may create inconsistency with seeded structure."
+          );
+        }
+      }
+
       setCandidate((prev) => ({ ...prev, [fieldName]: value }));
       setTouchedFields((prev) => new Set(prev).add(fieldName));
       setState("candidate");
@@ -100,7 +136,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       const newCandidate = { ...candidate, [fieldName]: value };
       setInlineErrors(validateInline(newCandidate, newTouched, getLookupMap()));
     },
-    [candidate, touchedFields, getLookupMap]
+    [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap]
   );
 
   const clearDraft = useCallback(() => {
@@ -108,10 +144,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setTouchedFields(new Set());
     setInlineErrors({});
     setCommitErrors({});
-    setState(gameId ? "candidate" : "idle");
+    setState(gameId ? (isSlotMode ? "idle" : "candidate") : "idle");
     setExistingPlay(null);
     setPendingNormalized(null);
-  }, [gameId]);
+    setSelectedSlotNum(null);
+    setScaffoldedWarning(null);
+  }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
     const errors = validateInline(candidate, touchedFields, getLookupMap());
@@ -131,6 +169,74 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const commitProposal = useCallback(async (): Promise<boolean> => {
     if (state !== "proposal") return false;
 
+    if (isSlotMode && selectedSlotNum !== null) {
+      // Slot-mode commit: field-level commit state
+      const result = validateCommitGate(candidate, activePass, getLookupMap());
+      if (!result.valid) {
+        setCommitErrors(result.errors);
+        return false;
+      }
+
+      const normalized = result.normalizedPlay!;
+      const meta = slotMetaMap.get(selectedSlotNum);
+      const committedFields = meta?.committedFields ?? [];
+
+      // Check if any committed fields have changed values
+      const existingSlot = committedPlays.find((p) => p.playNum === selectedSlotNum);
+      const overwriteFields: string[] = [];
+
+      if (existingSlot) {
+        for (const fieldName of committedFields) {
+          if (fieldName === "playNum" || fieldName === "gameId") continue;
+          const oldVal = (existingSlot as unknown as Record<string, unknown>)[fieldName];
+          const newVal = (normalized as unknown as Record<string, unknown>)[fieldName];
+          // Normalize comparison
+          const oldStr = oldVal === null || oldVal === undefined ? "" : String(oldVal);
+          const newStr = newVal === null || newVal === undefined ? "" : String(newVal);
+          if (oldStr !== newStr) {
+            overwriteFields.push(fieldName);
+          }
+        }
+      }
+
+      if (overwriteFields.length > 0) {
+        // Trigger overwrite review for committed field changes
+        setExistingPlay(existingSlot ?? null);
+        setPendingNormalized(normalized);
+        setState("overwrite-review");
+        return false;
+      }
+
+      // No committed field changes — direct commit
+      await dbCommitPlay(normalized, existingSlot ?? null);
+
+      // Update slot meta: all non-null fields are now committed
+      const newCommittedFields = new Set(committedFields);
+      for (const f of playSchema) {
+        const val = (normalized as unknown as Record<string, unknown>)[f.name];
+        if (val !== null && val !== undefined) {
+          newCommittedFields.add(f.name);
+        }
+      }
+      const updatedMeta: SlotMeta = {
+        gameId,
+        playNum: selectedSlotNum,
+        committedFields: Array.from(newCommittedFields),
+      };
+      await saveSlotMeta(updatedMeta);
+
+      const plays = await getPlaysByGame(gameId);
+      setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
+      setSlotMetaMap((prev) => {
+        const next = new Map(prev);
+        next.set(selectedSlotNum, updatedMeta);
+        return next;
+      });
+      clearDraft();
+      return true;
+    }
+
+    // Legacy mode commit
     const result = validateCommitGate(candidate, activePass, getLookupMap());
     if (!result.valid) {
       setCommitErrors(result.errors);
@@ -152,7 +258,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap]);
+  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays]);
 
   const confirmOverwrite = useCallback(async (): Promise<boolean> => {
     if (!pendingNormalized || !existingPlay) return false;
@@ -169,11 +275,35 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
 
     await dbCommitPlay(pendingNormalized, existingPlay);
+
+    // Update slot meta in slot mode
+    if (isSlotMode && selectedSlotNum !== null) {
+      const meta = slotMetaMap.get(selectedSlotNum);
+      const newCommittedFields = new Set(meta?.committedFields ?? []);
+      for (const f of playSchema) {
+        const val = (pendingNormalized as unknown as Record<string, unknown>)[f.name];
+        if (val !== null && val !== undefined) {
+          newCommittedFields.add(f.name);
+        }
+      }
+      const updatedMeta: SlotMeta = {
+        gameId,
+        playNum: selectedSlotNum,
+        committedFields: Array.from(newCommittedFields),
+      };
+      await saveSlotMeta(updatedMeta);
+      setSlotMetaMap((prev) => {
+        const next = new Map(prev);
+        next.set(selectedSlotNum, updatedMeta);
+        return next;
+      });
+    }
+
     const plays = await getPlaysByGame(gameId);
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [pendingNormalized, existingPlay, gameId, clearDraft]);
+  }, [pendingNormalized, existingPlay, gameId, clearDraft, isSlotMode, selectedSlotNum, slotMetaMap]);
 
   const cancelOverwrite = useCallback(() => {
     setState("proposal");
@@ -198,10 +328,46 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     []
   );
 
+  const selectSlot = useCallback(
+    (playNum: number) => {
+      const slot = committedPlays.find((p) => p.playNum === playNum);
+      if (!slot) return;
+
+      // Load slot data into candidate
+      const newCandidate: CandidateData = { ...slot };
+      setCandidate(newCandidate);
+      setSelectedSlotNum(playNum);
+      setTouchedFields(new Set());
+      setInlineErrors({});
+      setCommitErrors({});
+      setScaffoldedWarning(null);
+      setState("candidate");
+    },
+    [committedPlays]
+  );
+
+  const deselectSlot = useCallback(() => {
+    setSelectedSlotNum(null);
+    setCandidate(emptyCandidate(gameId));
+    setTouchedFields(new Set());
+    setInlineErrors({});
+    setCommitErrors({});
+    setScaffoldedWarning(null);
+    setState(gameId ? "idle" : "idle");
+  }, [gameId]);
+
+  const dismissScaffoldWarning = useCallback(() => {
+    setScaffoldedWarning(null);
+  }, []);
+
   const refreshCommittedPlays = useCallback(async () => {
     if (!gameId) return;
     const plays = await getPlaysByGame(gameId);
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
+    const metas = await getAllSlotMetaForGame(gameId);
+    const map = new Map<number, SlotMeta>();
+    for (const m of metas) map.set(m.playNum, m);
+    setSlotMetaMap(map);
   }, [gameId]);
 
   return (
@@ -215,6 +381,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         committedPlays,
         existingPlay,
         pendingNormalized,
+        selectedSlotNum,
+        slotMetaMap,
+        isSlotMode,
+        scaffoldedWarning,
         updateField,
         clearDraft,
         reviewProposal,
@@ -224,6 +394,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         cancelOverwrite,
         loadPlayForOverwrite,
         refreshCommittedPlays,
+        selectSlot,
+        deselectSlot,
+        dismissScaffoldWarning,
         activePass,
       }}
     >

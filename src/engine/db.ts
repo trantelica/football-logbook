@@ -2,16 +2,21 @@
  * Football Engine — IndexedDB Persistence Layer
  * 
  * Database: football-engine
- * Stores: games, plays, audit, schema_versions, seasons, lookups, lookup_audit, roster, roster_audit
+ * Stores: games, plays, audit, schema_versions, seasons, lookups, lookup_audit,
+ *         roster, roster_audit, game_init, slot_meta, game_audit
  */
 
 import { openDB, type IDBPDatabase } from "idb";
-import type { PlayRecord, GameMeta, AuditRecord, SeasonMeta, LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord } from "./types";
+import type {
+  PlayRecord, GameMeta, AuditRecord, SeasonMeta,
+  LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord,
+  GameInitConfig, SlotMeta, GameAuditRecord,
+} from "./types";
 import { SCHEMA_VERSION, exportSchemaSnapshot } from "./schema";
 import { computeSnapshotHash } from "./hash";
 
 const DB_NAME = "football-engine";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /** Canonicalize a lookup value for comparison: trim + collapse spaces + lowercase */
 export function canonicalizeLookupValue(value: string): string {
@@ -80,6 +85,23 @@ function getDB(): Promise<IDBPDatabase> {
             autoIncrement: true,
           });
           rosterAuditStore.createIndex("bySeason", "seasonId");
+        }
+        // Phase 3: Game init config store
+        if (!db.objectStoreNames.contains("game_init")) {
+          db.createObjectStore("game_init", { keyPath: "gameId" });
+        }
+        // Phase 3: Slot metadata store (field commit state)
+        if (!db.objectStoreNames.contains("slot_meta")) {
+          const slotMetaStore = db.createObjectStore("slot_meta", { keyPath: ["gameId", "playNum"] });
+          slotMetaStore.createIndex("byGame", "gameId");
+        }
+        // Phase 3: Game-level audit store
+        if (!db.objectStoreNames.contains("game_audit")) {
+          const gameAuditStore = db.createObjectStore("game_audit", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          gameAuditStore.createIndex("byGame", "gameId");
         }
       },
     });
@@ -400,14 +422,78 @@ export async function getAuditByGame(gameId: string): Promise<AuditRecord[]> {
   return db.getAllFromIndex("audit", "byGame", gameId);
 }
 
+// ── Phase 3: Game Init ──
+
+export async function saveGameInit(config: GameInitConfig): Promise<void> {
+  const db = await getDB();
+  await db.put("game_init", config);
+}
+
+export async function getGameInit(gameId: string): Promise<GameInitConfig | undefined> {
+  const db = await getDB();
+  return db.get("game_init", gameId);
+}
+
+// ── Phase 3: Slot Meta ──
+
+export async function saveSlotMeta(meta: SlotMeta): Promise<void> {
+  const db = await getDB();
+  await db.put("slot_meta", meta);
+}
+
+export async function getSlotMeta(gameId: string, playNum: number): Promise<SlotMeta | undefined> {
+  const db = await getDB();
+  return db.get("slot_meta", [gameId, playNum]);
+}
+
+export async function getAllSlotMetaForGame(gameId: string): Promise<SlotMeta[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("slot_meta", "byGame", gameId);
+}
+
+/** Batch-save slots and their metadata in a single transaction */
+export async function putSlotsBatch(
+  slots: PlayRecord[],
+  slotMetas: SlotMeta[]
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(["plays", "slot_meta"], "readwrite");
+  const playStore = tx.objectStore("plays");
+  const metaStore = tx.objectStore("slot_meta");
+
+  for (const slot of slots) {
+    await playStore.put(slot);
+  }
+  for (const meta of slotMetas) {
+    await metaStore.put(meta);
+  }
+
+  await tx.done;
+}
+
+// ── Phase 3: Game Audit ──
+
+export async function addGameAudit(record: Omit<GameAuditRecord, "id">): Promise<void> {
+  const db = await getDB();
+  await db.add("game_audit", record);
+}
+
+export async function getGameAudits(gameId: string): Promise<GameAuditRecord[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("game_audit", "byGame", gameId);
+}
+
 // ── Debug Export ──
 
 export async function buildDebugExport(gameId: string) {
   const db = await getDB();
-  const [gameMeta, plays, audit] = await Promise.all([
+  const [gameMeta, plays, audit, gameInit, slotMetas, gameAudits] = await Promise.all([
     db.get("games", gameId) as Promise<GameMeta | undefined>,
     getPlaysByGame(gameId),
     getAuditByGame(gameId),
+    getGameInit(gameId),
+    getAllSlotMetaForGame(gameId),
+    getGameAudits(gameId),
   ]);
 
   // Include season data if game has a seasonId
@@ -434,9 +520,13 @@ export async function buildDebugExport(gameId: string) {
     exportType: "Debug / Inspection Export",
     exportedAt: new Date().toISOString(),
     schemaVersion: SCHEMA_VERSION,
+    dbVersion: DB_VERSION,
     gameMeta,
+    gameInit: gameInit ?? null,
     plays: plays.sort((a, b) => a.playNum - b.playNum),
+    slotMeta: slotMetas.sort((a, b) => a.playNum - b.playNum),
     audit: audit.sort((a, b) => a.auditSeq - b.auditSeq),
+    gameAudit: gameAudits.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
     ...seasonData,
   };
 }
