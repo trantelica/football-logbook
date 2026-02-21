@@ -18,6 +18,7 @@ import { canonicalizeLookupValue } from "@/engine/db";
 import { cn } from "@/lib/utils";
 import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
+import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
 import { toast } from "sonner";
 
@@ -73,6 +74,12 @@ export function DraftPanel() {
 
   const [rawInputText, setRawInputText] = useState("");
   const [rawInputOpen, setRawInputOpen] = useState(false);
+  const [collisionState, setCollisionState] = useState<{
+    collisions: Collision[];
+    nonCollisionPatch: Record<string, unknown>;
+    fullPatch: Record<string, unknown>;
+    report: { anchor: string; rawValue: string; status: string; matchedValue?: string }[];
+  } | null>(null);
 
   if (!activeGame) {
     return (
@@ -457,20 +464,66 @@ export function DraftPanel() {
   const handleParseAndApply = async () => {
     if (!rawInputText.trim() || selectedSlotNum === null) return;
     const result = await saveInput(selectedSlotNum, rawInputText.trim());
-    // Apply patch fields to candidate
-    for (const [key, val] of Object.entries(result.patch)) {
-      updateField(key, val);
-    }
+
     // Report unrecognized/ambiguous
     const issues = result.report.filter((r) => r.status !== "matched");
     if (issues.length > 0) {
       const msgs = issues.map((i) => `${i.anchor}: ${i.status} ("${i.rawValue}")`);
       toast.warning(`Parse issues: ${msgs.join("; ")}`);
-    } else if (Object.keys(result.patch).length > 0) {
-      toast.success(`Applied ${Object.keys(result.patch).length} field(s) from raw input`);
-    } else {
-      toast("No anchors recognized in input.");
     }
+
+    if (Object.keys(result.patch).length === 0) {
+      toast("No anchors recognized in input.");
+      setRawInputText("");
+      return;
+    }
+
+    // Detect collisions: fields that already have a non-empty value in the candidate
+    const collisions: Collision[] = [];
+    const nonCollisionPatch: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(result.patch)) {
+      const current = (candidate as Record<string, unknown>)[key];
+      const hasExisting = current !== null && current !== undefined && current !== "";
+      if (hasExisting && String(current) !== String(val)) {
+        collisions.push({ fieldName: key, currentValue: current, proposedValue: val });
+      } else {
+        nonCollisionPatch[key] = val;
+      }
+    }
+
+    if (collisions.length > 0) {
+      // Show collision dialog — non-colliding fields are NOT applied yet
+      setCollisionState({
+        collisions,
+        nonCollisionPatch,
+        fullPatch: result.patch,
+        report: result.report,
+      });
+    } else {
+      // No collisions — apply all
+      for (const [key, val] of Object.entries(result.patch)) {
+        updateField(key, val);
+      }
+      toast.success(`Applied ${Object.keys(result.patch).length} field(s) from raw input`);
+      setRawInputText("");
+    }
+  };
+
+  const handleCollisionConfirm = (selectedFields: Set<string>) => {
+    if (!collisionState) return;
+    // Apply non-colliding fields
+    for (const [key, val] of Object.entries(collisionState.nonCollisionPatch)) {
+      updateField(key, val);
+    }
+    // Apply selected collision fields
+    for (const c of collisionState.collisions) {
+      if (selectedFields.has(c.fieldName)) {
+        updateField(c.fieldName, c.proposedValue);
+      }
+    }
+    const applied = Object.keys(collisionState.nonCollisionPatch).length + selectedFields.size;
+    toast.success(`Applied ${applied} field(s) from raw input`);
+    setCollisionState(null);
     setRawInputText("");
   };
 
@@ -674,6 +727,16 @@ PENALTY O-Holding EFF Y 2MIN N`}
             updateField(confirmDialog.fieldName, "");
             setConfirmDialog(null);
           }}
+        />
+      )}
+
+      {collisionState && (
+        <RawInputCollisionDialog
+          open
+          collisions={collisionState.collisions}
+          nonCollisionCount={Object.keys(collisionState.nonCollisionPatch).length}
+          onConfirm={handleCollisionConfirm}
+          onCancel={() => setCollisionState(null)}
         />
       )}
     </>

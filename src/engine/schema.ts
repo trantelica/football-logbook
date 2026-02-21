@@ -331,7 +331,7 @@ export const playSchema: readonly FieldDefinition[] = [
   },
   {
     name: "eff",
-    label: "Efficiency",
+    label: "Effective",
     outputLabel: "EFF",
     dataType: "enum",
     allowedValues: EFF_VALUES,
