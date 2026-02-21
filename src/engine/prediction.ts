@@ -139,7 +139,8 @@ export function computePrediction(
   const predictedYardLn = idxToYardLn(newIdx, fieldSize);
 
   // Distance to goal from new position (higher idx = closer to opponent goal)
-  const distToGoal = maxIdx - newIdx;
+  // +1 because idx=maxIdx is the 1-yard line, not the goal line itself
+  const distToGoal = maxIdx - newIdx + 1;
 
   // Step 2: Down/Distance prediction
   let predictedDn: number;

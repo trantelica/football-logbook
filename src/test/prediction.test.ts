@@ -189,6 +189,38 @@ describe("4th Down — Never produces DN > 4", () => {
   });
 });
 
+describe("Goal Line — distToGoal correctness", () => {
+  it("predicts dist=1 at opponent 1-yard line after first down", () => {
+    // At opponent 2 (idx=78), gain 10 => idx=88 → clamped to 79, yardLn=1
+    // distToGoal = 79 - 79 + 1 = 1
+    const play = makePlay({ yardLn: 2, dn: "1", dist: 10, gainLoss: 10, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+    expect(r.dn).toBe(1);
+    expect(r.dist).toBe(1); // only 1 yard to goal
+  });
+
+  it("predicts dist=2 at opponent 2-yard line after first down", () => {
+    // At opponent 5 (idx=75), gain 5 => idx=80 → clamped to 79... no
+    // Actually: at own -30 (idx=30), gain 48 => idx=78, yardLn=80-78=2
+    // distToGoal = 79 - 78 + 1 = 2
+    const play = makePlay({ yardLn: -30, dn: "1", dist: 10, gainLoss: 48, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+    expect(r.dn).toBe(1);
+    expect(r.dist).toBe(2);
+  });
+
+  it("100-yard field: dist=1 at opponent 1", () => {
+    // At opponent 5 (idx=95), gain 10 => idx=105 → clamped to 99, yardLn=1
+    // distToGoal = 99 - 99 + 1 = 1
+    const play = makePlay({ yardLn: 5, dn: "1", dist: 10, gainLoss: 10, result: "Rush" });
+    const r = computePrediction(play, "O", 100);
+    expect(r.eligible).toBe(true);
+    expect(r.dist).toBe(1);
+  });
+});
+
 describe("Edge Cases", () => {
   it("clamps at own end zone (idx < 1)", () => {
     // At own -2 (idx=2), loss -5 => idx=-3 → clamped to 1
