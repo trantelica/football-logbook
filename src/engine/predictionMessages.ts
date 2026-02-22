@@ -53,6 +53,10 @@ export function toCoachMessage(technical: string, prevPlayNum: number): CoachMes
   if (technical.includes("4th down turnover assumed")) {
     return { coach: "Auto-fill suggestion: Assuming possession changed after 4th down.", technical };
   }
+  if (technical.includes("quarter changed")) {
+    // Extract quarter info from the technical string
+    return { coach: technical, technical };
+  }
 
   // Fallback: pass through unchanged
   return { coach: technical, technical };

@@ -17,6 +17,8 @@ import { useRoster } from "./rosterContext";
 import { playSchema, getFieldDef } from "./schema";
 import { computePrediction } from "./prediction";
 import { toCoachMessages, type CoachMessage } from "./predictionMessages";
+import { computeEff } from "./eff";
+import { runCommitQC } from "./commitQC";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -42,6 +44,11 @@ interface TransactionContextValue {
   setActivePass: (pass: number) => void;
   odkFilter: string;
   setOdkFilter: (filter: string) => void;
+
+  // Phase 5C: TD correction dialog state
+  tdCorrectionPending: { correctedResult: string } | null;
+  confirmTDCorrection: () => Promise<boolean>;
+  cancelTDCorrection: () => void;
   
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
@@ -89,6 +96,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [selectedSlotNum, setSelectedSlotNum] = useState<number | null>(null);
   const [slotMetaMap, setSlotMetaMap] = useState<Map<number, SlotMeta>>(new Map());
   const [scaffoldedWarning, setScaffoldedWarning] = useState<string | null>(null);
+
+  // Phase 5C: TD correction dialog state
+  const [tdCorrectionPending, setTdCorrectionPending] = useState<{ correctedResult: string; normalizedPlay: PlayRecord; existingSlot: PlayRecord | null } | null>(null);
   
   // Phase 5A: Prediction state (ephemeral, never persisted)
   const [predictedFields, setPredictedFields] = useState<Set<string>>(new Set());
@@ -230,6 +240,43 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
 
       const normalized = result.normalizedPlay!;
+
+      // Phase 5C: Compute EFF at commit time
+      const effValue = computeEff({
+        result: normalized.result,
+        gainLoss: normalized.gainLoss,
+        dn: normalized.dn != null ? Number(normalized.dn) : null,
+        dist: normalized.dist,
+        penalty: normalized.penalty,
+      });
+      if (effValue !== null) {
+        (normalized as unknown as Record<string, unknown>).eff = effValue;
+      }
+
+      // Phase 5C: Commit-gate QC — gainLoss limiting + TD correction
+      const qc = runCommitQC(normalized.yardLn, normalized.gainLoss, normalized.result, fieldSize as 80 | 100);
+      if (qc.gainLossMessage) {
+        (normalized as unknown as Record<string, unknown>).gainLoss = qc.adjustedGainLoss;
+        // Recompute EFF with adjusted gainLoss
+        const effRecomputed = computeEff({
+          result: normalized.result,
+          gainLoss: qc.adjustedGainLoss,
+          dn: normalized.dn != null ? Number(normalized.dn) : null,
+          dist: normalized.dist,
+          penalty: normalized.penalty,
+        });
+        if (effRecomputed !== null) {
+          (normalized as unknown as Record<string, unknown>).eff = effRecomputed;
+        }
+      }
+
+      // Phase 5C: TD labeling correction — block commit and show dialog
+      if (qc.correctedResult) {
+        const existingSlot = committedPlays.find((p) => p.playNum === selectedSlotNum) ?? null;
+        setTdCorrectionPending({ correctedResult: qc.correctedResult, normalizedPlay: normalized, existingSlot });
+        return false;
+      }
+
       const meta = slotMetaMap.get(selectedSlotNum);
       const committedFields = meta?.committedFields ?? [];
 
@@ -385,7 +432,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       
       // Phase 5A: Load prevPlay from IndexedDB to avoid stale state
       const prevPlay = await getPlay(gameId, playNum - 1);
-      const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100);
+
+      // Phase 5C: Quarter boundary check
+      let quarterChanged: { prevQtr: string; currQtr: string } | undefined;
+      if (prevPlay && prevPlay.qtr && slot.qtr && prevPlay.qtr !== slot.qtr) {
+        quarterChanged = { prevQtr: String(prevPlay.qtr), currQtr: String(slot.qtr) };
+      }
+
+      const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, quarterChanged);
       
       const newPredicted = new Set<string>();
       if (prediction.eligible) {
@@ -432,6 +486,61 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   const dismissScaffoldWarning = useCallback(() => {
     setScaffoldedWarning(null);
+  }, []);
+
+  // Phase 5C: TD correction confirmation
+  const confirmTDCorrection = useCallback(async (): Promise<boolean> => {
+    if (!tdCorrectionPending) return false;
+    const { correctedResult, normalizedPlay, existingSlot } = tdCorrectionPending;
+    
+    // Apply corrected result
+    const corrected = { ...normalizedPlay, result: correctedResult } as PlayRecord;
+    
+    // Recompute EFF with corrected result
+    const effValue = computeEff({
+      result: correctedResult,
+      gainLoss: corrected.gainLoss,
+      dn: corrected.dn != null ? Number(corrected.dn) : null,
+      dist: corrected.dist,
+      penalty: corrected.penalty,
+    });
+    if (effValue !== null) {
+      (corrected as unknown as Record<string, unknown>).eff = effValue;
+    }
+
+    await dbCommitPlay(corrected, existingSlot);
+
+    if (selectedSlotNum !== null) {
+      const meta = slotMetaMap.get(selectedSlotNum);
+      const newCommittedFields = new Set(meta?.committedFields ?? []);
+      for (const f of playSchema) {
+        const val = (corrected as unknown as Record<string, unknown>)[f.name];
+        if (val !== null && val !== undefined) {
+          newCommittedFields.add(f.name);
+        }
+      }
+      const updatedMeta: SlotMeta = {
+        gameId,
+        playNum: selectedSlotNum,
+        committedFields: Array.from(newCommittedFields),
+      };
+      await saveSlotMeta(updatedMeta);
+      setSlotMetaMap((prev) => {
+        const next = new Map(prev);
+        next.set(selectedSlotNum, updatedMeta);
+        return next;
+      });
+    }
+
+    const plays = await getPlaysByGame(gameId);
+    setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
+    setTdCorrectionPending(null);
+    clearDraft();
+    return true;
+  }, [tdCorrectionPending, selectedSlotNum, slotMetaMap, gameId, clearDraft]);
+
+  const cancelTDCorrection = useCallback(() => {
+    setTdCorrectionPending(null);
   }, []);
 
   const refreshCommittedPlays = useCallback(async () => {
@@ -516,6 +625,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         deselectSlot,
         dismissScaffoldWarning,
         commitAndNext,
+        tdCorrectionPending: tdCorrectionPending ? { correctedResult: tdCorrectionPending.correctedResult } : null,
+        confirmTDCorrection,
+        cancelTDCorrection,
       }}
     >
       {children}
