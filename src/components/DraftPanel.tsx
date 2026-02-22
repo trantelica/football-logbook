@@ -65,6 +65,7 @@ export function DraftPanel() {
     activePass,
     setActivePass,
     commitAndNext,
+    adjustments,
     tdCorrectionPending,
     confirmTDCorrection,
     cancelTDCorrection,
@@ -703,6 +704,15 @@ PENALTY O-Holding EFF Y 2MIN N`}
           <PredictionBanner coachMessages={predictionCoachMessages} technicalExplanations={predictionExplanations} />
         )}
 
+        {/* Adjustment banner — shown in proposal state when normalization changed values */}
+        {isProposal && adjustments.length > 0 && (
+          <div className="flex flex-col gap-0.5 text-xs rounded px-3 py-2 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+            {adjustments.map((msg, i) => (
+              <p key={i}>{msg}</p>
+            ))}
+          </div>
+        )}
+
         {isSegment && (
           <div className={cn(
             "text-xs rounded px-2 py-1",
@@ -715,7 +725,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
         )}
 
         {commitErrors._noop && (
-          <div className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">
+          <div className="text-xs text-muted-foreground bg-muted rounded px-2 py-1">
             {commitErrors._noop}
           </div>
         )}
