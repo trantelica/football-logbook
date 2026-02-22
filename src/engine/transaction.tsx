@@ -32,6 +32,8 @@ interface TransactionContextValue {
   committedPlays: PlayRecord[];
   existingPlay: PlayRecord | null;
   pendingNormalized: PlayRecord | null;
+  /** Coach-facing adjustment messages from review normalization */
+  adjustments: string[];
   
   // Slot mode
   selectedSlotNum: number | null;
@@ -100,6 +102,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 5C: TD correction dialog state
   const [tdCorrectionPending, setTdCorrectionPending] = useState<{ correctedResult: string; normalizedPlay: PlayRecord; existingSlot: PlayRecord | null } | null>(null);
   
+  // Adjustment tracking: coach-facing messages for review normalization
+  const [adjustments, setAdjustments] = useState<string[]>([]);
+  
   // Phase 5A: Prediction state (ephemeral, never persisted)
   const [predictedFields, setPredictedFields] = useState<Set<string>>(new Set());
   const [predictionExplanations, setPredictionExplanations] = useState<string[]>([]);
@@ -128,6 +133,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPredictedFields(new Set());
     setPredictionExplanations([]);
     setPredictionCoachMessages([]);
+    setAdjustments([]);
     setActivePass(1);
     setOdkFilter("ALL");
     if (gameId) {
@@ -204,6 +210,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPredictedFields(new Set());
     setPredictionExplanations([]);
     setPredictionCoachMessages([]);
+    setAdjustments([]);
     setInlineErrors({});
     setCommitErrors({});
     setState(gameId ? (isSlotMode ? "idle" : "candidate") : "idle");
@@ -217,6 +224,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     const errors = validateInline(candidate, touchedFields, getLookupMap());
     setInlineErrors(errors);
     if (Object.keys(errors).length > 0) return;
+
+    const reviewAdjustments: string[] = [];
 
     // Phase 5C patch: Compute EFF at review time (not commit) if not already touched
     if (!touchedFields.has("eff")) {
@@ -240,9 +249,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       fieldSize as 80 | 100
     );
 
-    // Apply gain limiting silently at review
+    // Apply gain limiting and track adjustment
     if (qc.gainLossMessage) {
+      const originalGL = candidate.gainLoss != null ? Number(candidate.gainLoss) : null;
       setCandidate((prev) => ({ ...prev, gainLoss: qc.adjustedGainLoss }));
+      reviewAdjustments.push(`Adjusted: Gain limited from ${originalGL} to ${qc.adjustedGainLoss}.`);
       // Recompute EFF with adjusted gainLoss if not touched
       if (!touchedFields.has("eff")) {
         const effRecomputed = computeEff({
@@ -257,6 +268,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
       }
     }
+
+    setAdjustments(reviewAdjustments);
 
     // TD correction dialog — block proposal transition
     if (qc.correctedResult) {
@@ -292,8 +305,23 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       const meta = slotMetaMap.get(selectedSlotNum);
       const committedFields = meta?.committedFields ?? [];
 
-      // Check if any committed fields have changed values
+      // Check for complete no-op: compare ALL schema fields between existing and normalized
       const existingSlot = committedPlays.find((p) => p.playNum === selectedSlotNum);
+      
+      if (existingSlot) {
+        const isNoop = playSchema.every((f) => {
+          const oldVal = (existingSlot as unknown as Record<string, unknown>)[f.name];
+          const newVal = (normalized as unknown as Record<string, unknown>)[f.name];
+          return String(oldVal ?? "") === String(newVal ?? "");
+        });
+
+        if (isNoop) {
+          setCommitErrors({ _noop: "No changes to commit." });
+          return false;
+        }
+      }
+
+      // Check if any committed fields have changed values → overwrite review
       const overwriteFields: string[] = [];
 
       if (existingSlot) {
@@ -482,6 +510,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setInlineErrors({});
       setCommitErrors({});
       setScaffoldedWarning(null);
+      setAdjustments([]);
       setState("candidate");
     },
     [committedPlays, gameId, fieldSize, slotMetaMap]
@@ -494,6 +523,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPredictedFields(new Set());
     setPredictionExplanations([]);
     setPredictionCoachMessages([]);
+    setAdjustments([]);
     setInlineErrors({});
     setCommitErrors({});
     setScaffoldedWarning(null);
@@ -508,9 +538,13 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const confirmTDCorrection = useCallback(async (): Promise<boolean> => {
     if (!tdCorrectionPending) return false;
     const { correctedResult } = tdCorrectionPending;
+    const originalResult = candidate.result as string | null;
     
     // Apply corrected result to candidate
     setCandidate((prev) => ({ ...prev, result: correctedResult }));
+    
+    // Track adjustment
+    setAdjustments((prev) => [...prev, `Adjusted: Result updated from ${originalResult ?? "(blank)"} to ${correctedResult}.`]);
     
     // Recompute EFF with corrected result
     const effValue = computeEff({
@@ -594,6 +628,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         committedPlays,
         existingPlay,
         pendingNormalized,
+        adjustments,
         selectedSlotNum,
         slotMetaMap,
         isSlotMode,
