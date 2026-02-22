@@ -50,7 +50,7 @@ interface TransactionContextValue {
   cancelOverwrite: () => void;
   loadPlayForOverwrite: (play: PlayRecord) => void;
   refreshCommittedPlays: () => Promise<void>;
-  selectSlot: (playNum: number) => void;
+  selectSlot: (playNum: number) => Promise<void>;
   deselectSlot: () => void;
   dismissScaffoldWarning: () => void;
   commitAndNext: () => Promise<{ committed: boolean; hasNext: boolean }>;
@@ -372,25 +372,23 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   );
 
   const selectSlot = useCallback(
-    (playNum: number) => {
+    async (playNum: number) => {
       const slot = committedPlays.find((p) => p.playNum === playNum);
       if (!slot) return;
 
       const newCandidate: CandidateData = { ...slot };
       
-      // Phase 5A: Run prediction from playNum - 1
-      const prevPlay = committedPlays.find((p) => p.playNum === playNum - 1) ?? null;
+      // Phase 5A: Load prevPlay from IndexedDB to avoid stale state
+      const prevPlay = await getPlay(gameId, playNum - 1);
       const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100);
       
       const newPredicted = new Set<string>();
       if (prediction.eligible) {
-        // Write predicted values into candidate only if the slot doesn't already have them committed
         const meta = slotMetaMap.get(playNum);
         const committedFieldSet = new Set(meta?.committedFields ?? []);
         
         for (const [field, val] of Object.entries({ yardLn: prediction.yardLn, dn: prediction.dn, dist: prediction.dist })) {
           if (val !== null && !committedFieldSet.has(field)) {
-            // Only predict if the current slot value is empty/null
             const currentVal = (newCandidate as Record<string, unknown>)[field];
             if (currentVal === null || currentVal === undefined || currentVal === "") {
               (newCandidate as Record<string, unknown>)[field] = val;
@@ -410,7 +408,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setScaffoldedWarning(null);
       setState("candidate");
     },
-    [committedPlays, fieldSize, slotMetaMap]
+    [committedPlays, gameId, fieldSize, slotMetaMap]
   );
 
   const deselectSlot = useCallback(() => {
@@ -454,20 +452,27 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return { committed: false, hasNext: false };
     }
 
-    // Build filtered list from snapshot
+    // Refresh committedPlays from DB before selecting next slot
+    // so prediction sees the freshly committed play
+    await refreshCommittedPlays();
+
+    // Re-read fresh plays for filtered list
+    const freshPlays = await getPlaysByGame(gameId);
+    const sortedPlays = freshPlays.sort((a, b) => a.playNum - b.playNum);
+
     const filteredList = odkFilter === "ALL"
-      ? currentPlays
-      : currentPlays.filter((p) => p.odk === odkFilter);
+      ? sortedPlays
+      : sortedPlays.filter((p) => p.odk === odkFilter);
     
     const currentIdx = filteredList.findIndex((p) => p.playNum === currentSlotNum);
     if (currentIdx >= 0 && currentIdx < filteredList.length - 1) {
-      selectSlot(filteredList[currentIdx + 1].playNum);
+      await selectSlot(filteredList[currentIdx + 1].playNum);
       return { committed: true, hasNext: true };
     }
 
     // No next slot — already deselected by clearDraft
     return { committed: true, hasNext: false };
-  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot]);
+  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId]);
 
   return (
     <TransactionContext.Provider
