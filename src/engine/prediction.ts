@@ -8,6 +8,7 @@
  * - Yard Line can predict independently if its prerequisites are met.
  * - DN/DIST require additional prerequisites (dn, dist on prevPlay).
  * - No clamping: field overflow suspends yardLn prediction.
+ * - PAT context: suspends normal scrimmage predictions.
  */
 
 import type { PlayRecord } from "./types";

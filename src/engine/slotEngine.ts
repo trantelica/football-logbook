@@ -172,6 +172,7 @@ export function createSlots(
       playType: null,
       playDir: null,
       motionDir: null,
+      patTry: null,
     });
 
     seededFieldsPerSlot.set(i, seeded);

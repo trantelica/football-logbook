@@ -7,7 +7,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import type { GameMeta, GameInitConfig, ODKBlock, QuarterMapping, SlotMeta } from "./types";
+import type { GameMeta, GameInitConfig, ODKBlock, QuarterMapping, SlotMeta, PatMode } from "./types";
 import { SCHEMA_VERSION } from "./schema";
 import {
   createGame as dbCreateGame,
@@ -35,7 +35,8 @@ interface GameContextValue {
     totalPlays: number,
     quarterStarts: QuarterMapping,
     odkBlocks: ODKBlock[],
-    fieldSize?: 80 | 100
+    fieldSize?: 80 | 100,
+    patMode?: PatMode
   ) => Promise<GameMeta>;
   switchGame: (gameId: string) => void;
   pendingSwitch: string | null;
@@ -113,7 +114,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       totalPlays: number,
       quarterStarts: QuarterMapping,
       odkBlocks: ODKBlock[],
-      fieldSize: 80 | 100 = 80
+      fieldSize: 80 | 100 = 80,
+      patMode: PatMode = "none"
     ): Promise<GameMeta> => {
       if (!seasonId) throw new Error("No active season");
 
@@ -135,6 +137,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         createdAt: now,
         schemaVersion: SCHEMA_VERSION,
         fieldSize,
+        patMode,
       };
       await dbCreateGame(meta);
 

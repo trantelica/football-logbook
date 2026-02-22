@@ -37,6 +37,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [totalPlays, setTotalPlays] = useState("");
   const [fieldSize, setFieldSize] = useState<"80" | "100">("80");
+  const [patMode, setPatMode] = useState<"none" | "youth_1_2" | "hs_kick">("none");
   const [q1Start, setQ1Start] = useState("1");
   const [q2Start, setQ2Start] = useState("");
   const [q3Start, setQ3Start] = useState("");
@@ -52,6 +53,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
     setDate(new Date().toISOString().slice(0, 10));
     setTotalPlays("");
     setFieldSize("80");
+    setPatMode("none");
     setQ1Start("1");
     setQ2Start("");
     setQ3Start("");
@@ -79,7 +81,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
 
     setSubmitting(true);
     try {
-      await initializeGame(opponent.trim(), date, n, quarterStarts, odkBlocks, Number(fieldSize) as 80 | 100);
+      await initializeGame(opponent.trim(), date, n, quarterStarts, odkBlocks, Number(fieldSize) as 80 | 100, patMode);
       toast.success(`Game initialized: ${n} slots created`);
       resetForm();
       onOpenChange(false);
@@ -186,6 +188,29 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
                 </ToggleGroup>
                 <p className="text-[10px] text-muted-foreground">
                   Used for yardline prediction. Immutable after creation.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">PAT Mode</Label>
+                <ToggleGroup
+                  type="single"
+                  value={patMode}
+                  onValueChange={(val) => { if (val) setPatMode(val as "none" | "youth_1_2" | "hs_kick"); }}
+                  size="sm"
+                  className="justify-start"
+                >
+                  <ToggleGroupItem value="none" className="text-xs px-3 h-7 font-medium">
+                    None
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="youth_1_2" className="text-xs px-3 h-7 font-medium">
+                    Youth (1/2 Pt.)
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="hs_kick" className="text-xs px-3 h-7 font-medium">
+                    HS Kick
+                  </ToggleGroupItem>
+                </ToggleGroup>
+                <p className="text-[10px] text-muted-foreground">
+                  Controls PAT handling after touchdowns. Immutable after creation.
                 </p>
               </div>
             </fieldset>

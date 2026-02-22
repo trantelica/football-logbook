@@ -33,12 +33,17 @@ export interface PlayRecord {
   playType: string | null;
   playDir: string | null;
   motionDir: string | null;
+  /** PAT try type: "1" (extra point) or "2" (two-point conversion) */
+  patTry: string | null;
 }
 
 /** Candidate/draft data — all fields optional except gameId */
 export type CandidateData = {
   [K in keyof Omit<PlayRecord, "gameId">]?: PlayRecord[K] | string;
 } & { gameId: string };
+
+/** PAT mode for the game */
+export type PatMode = "none" | "youth_1_2" | "hs_kick";
 
 /** Game metadata */
 export interface GameMeta {
@@ -50,6 +55,8 @@ export interface GameMeta {
   schemaVersion: string;
   /** Field size for yardline prediction (80 or 100). Default 80. Immutable after creation. */
   fieldSize?: 80 | 100;
+  /** PAT mode. Immutable after creation. Default "none". */
+  patMode?: PatMode;
 }
 
 /** Season metadata */

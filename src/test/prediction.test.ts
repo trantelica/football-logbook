@@ -40,6 +40,7 @@ function makePlay(overrides: Partial<PlayRecord>): PlayRecord {
     playType: null,
     playDir: null,
     motionDir: null,
+    patTry: null,
     ...overrides,
   } as PlayRecord;
 }
