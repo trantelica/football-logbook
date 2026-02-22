@@ -57,7 +57,10 @@ interface TransactionContextValue {
   // Phase 6: PAT state
   patContext: boolean;
   patTryPending: boolean;
-  selectPatTry: (patTry: "1" | "2") => void;
+  /** Locked try type for penalty re-try (null if fresh PAT) */
+  patLockedTry: "1" | "2" | null;
+  selectPatAttempt: (patTry: "1" | "2", result: "Good" | "No Good" | "Penalty") => void;
+  reopenPatDialog: () => void;
   cancelPatTry: () => void;
   
   updateField: (fieldName: string, value: unknown) => void;
@@ -121,6 +124,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 6: PAT state
   const [patContext, setPatContext] = useState(false);
   const [patTryPending, setPatTryPending] = useState(false);
+  const [patLockedTry, setPatLockedTry] = useState<"1" | "2" | null>(null);
 
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePass] = useState<number>(1);
@@ -233,6 +237,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setScaffoldedWarning(null);
     setPatContext(false);
     setPatTryPending(false);
+    setPatLockedTry(null);
   }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
@@ -518,13 +523,16 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         // Check if patTry is already set (penalty re-try or existing)
         const carriedTry = getCarriedPatTry(prevPlay, slot);
         if (carriedTry) {
-          // Already have patTry, apply playType override
+          // Penalty re-try: lock try type, still need outcome dialog
           newCandidate.patTry = carriedTry;
           newCandidate.playType = patTryToPlayType(carriedTry);
+          setPatLockedTry(carriedTry as "1" | "2");
         } else {
-          // Need PAT try dialog
-          setPatTryPending(true);
+          // Fresh PAT: need both try type and outcome
+          setPatLockedTry(null);
         }
+        // Always show dialog to capture outcome
+        setPatTryPending(true);
         
         // Suspend normal predictions in PAT context
         setCandidate(newCandidate);
@@ -637,14 +645,37 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setTdCorrectionPending(null);
   }, []);
 
-  // Phase 6: PAT try selection
-  const selectPatTry = useCallback((patTry: "1" | "2") => {
+  // Phase 6: PAT attempt selection (combined try + outcome)
+  const selectPatAttempt = useCallback((patTry: "1" | "2", result: "Good" | "No Good" | "Penalty") => {
     setPatTryPending(false);
+    const expectedPlayType = patTryToPlayType(patTry);
+    const newAdjustments: string[] = [];
+    
+    // Track playType adjustment
+    const currentPlayType = candidate.playType as string | null;
+    if (currentPlayType !== expectedPlayType) {
+      newAdjustments.push(`Adjusted: Play Type set to ${expectedPlayType} due to PAT rules.`);
+    }
+    
     setCandidate((prev) => ({
       ...prev,
       patTry,
-      playType: patTryToPlayType(patTry),
+      playType: expectedPlayType,
+      result,
     }));
+    // Mark these as touched so later steps don't overwrite
+    setTouchedFields((prev) => {
+      const next = new Set(prev);
+      next.add("patTry");
+      next.add("playType");
+      next.add("result");
+      return next;
+    });
+    setAdjustments(newAdjustments);
+  }, [candidate.playType]);
+
+  const reopenPatDialog = useCallback(() => {
+    setPatTryPending(true);
   }, []);
 
   const cancelPatTry = useCallback(() => {
@@ -653,6 +684,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setSelectedSlotNum(null);
     setCandidate(emptyCandidate(gameId));
     setPatContext(false);
+    setPatLockedTry(null);
     setState(gameId ? "idle" : "idle");
   }, [gameId]);
 
@@ -744,7 +776,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         cancelTDCorrection,
         patContext,
         patTryPending,
-        selectPatTry,
+        patLockedTry,
+        selectPatAttempt,
+        reopenPatDialog,
         cancelPatTry,
       }}
     >
