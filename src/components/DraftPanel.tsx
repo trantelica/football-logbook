@@ -21,6 +21,7 @@ import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
 import { TDCorrectionDialog } from "./TDCorrectionDialog";
+import { PATTryDialog } from "./PATTryDialog";
 import { toast } from "sonner";
 
 const WORKFLOW_STAGES = [
@@ -69,6 +70,10 @@ export function DraftPanel() {
     tdCorrectionPending,
     confirmTDCorrection,
     cancelTDCorrection,
+    patContext,
+    patTryPending,
+    selectPatTry,
+    cancelPatTry,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -699,6 +704,13 @@ PENALTY O-Holding EFF Y 2MIN N`}
           </div>
         )}
 
+        {/* PAT context indicator */}
+        {patContext && (
+          <div className="text-xs rounded px-3 py-2 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800 font-medium">
+            PAT Attempt {candidate.patTry === "1" ? "(Going for 1 — Extra Pt.)" : candidate.patTry === "2" ? "(Going for 2 — 2 Pt.)" : "— select try type"}
+          </div>
+        )}
+
         {/* Prediction explanation banner */}
         {predictionCoachMessages.length > 0 && (
           <PredictionBanner coachMessages={predictionCoachMessages} technicalExplanations={predictionExplanations} />
@@ -821,6 +833,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
           correctedResult={tdCorrectionPending.correctedResult}
           onConfirm={confirmTDCorrection}
           onCancel={cancelTDCorrection}
+        />
+      )}
+
+      {patTryPending && (
+        <PATTryDialog
+          open
+          onSelect={selectPatTry}
+          onCancel={cancelPatTry}
         />
       )}
     </>

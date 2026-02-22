@@ -395,6 +395,17 @@ export const playSchema: readonly FieldDefinition[] = [
     defaultPassEntry: 1,
     requiredAtCommit: false,
   },
+  {
+    name: "patTry",
+    label: "PAT Try",
+    outputLabel: "PAT TRY",
+    dataType: "enum",
+    allowedValues: ["1", "2"],
+    source: "LOGIC",
+    defaultPolicy: "null",
+    defaultPassEntry: 0,
+    requiredAtCommit: false,
+  },
 ] as const;
 
 // ── Schema Utilities ──

@@ -5,6 +5,7 @@
  * Phase 3: Supports slot-based editing with field-level commit state.
  * Phase 4: Workflow stage selector, ODK filter, Commit & Next.
  * Phase 5A: Deterministic prediction integration.
+ * Phase 6: PAT flow integration.
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
@@ -19,6 +20,7 @@ import { computePrediction } from "./prediction";
 import { toCoachMessages, type CoachMessage } from "./predictionMessages";
 import { computeEff } from "./eff";
 import { runCommitQC } from "./commitQC";
+import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -51,6 +53,12 @@ interface TransactionContextValue {
   tdCorrectionPending: { correctedResult: string } | null;
   confirmTDCorrection: () => Promise<boolean>;
   cancelTDCorrection: () => void;
+
+  // Phase 6: PAT state
+  patContext: boolean;
+  patTryPending: boolean;
+  selectPatTry: (patTry: "1" | "2") => void;
+  cancelPatTry: () => void;
   
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
@@ -110,12 +118,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [predictionExplanations, setPredictionExplanations] = useState<string[]>([]);
   const [predictionCoachMessages, setPredictionCoachMessages] = useState<CoachMessage[]>([]);
 
+  // Phase 6: PAT state
+  const [patContext, setPatContext] = useState(false);
+  const [patTryPending, setPatTryPending] = useState(false);
+
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePass] = useState<number>(1);
   // Phase 4: ODK filter (display-only, no persistence)
   const [odkFilter, setOdkFilter] = useState<string>("ALL");
 
   const fieldSize = activeGame?.fieldSize ?? 80;
+  const patMode = activeGame?.patMode ?? "none";
 
   const isSlotMode = gameIsSlotMode;
 
@@ -218,6 +231,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPendingNormalized(null);
     setSelectedSlotNum(null);
     setScaffoldedWarning(null);
+    setPatContext(false);
+    setPatTryPending(false);
   }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
@@ -226,6 +241,28 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     if (Object.keys(errors).length > 0) return;
 
     const reviewAdjustments: string[] = [];
+
+    // Phase 6: PAT context — apply playType override and validate result
+    if (patContext && candidate.patTry) {
+      const expectedPlayType = patTryToPlayType(String(candidate.patTry));
+      const currentPlayType = candidate.playType as string | null;
+      if (currentPlayType !== expectedPlayType) {
+        reviewAdjustments.push(`Adjusted: Play Type set to ${expectedPlayType} due to PAT rules.`);
+        setCandidate((prev) => ({ ...prev, playType: expectedPlayType }));
+      }
+      
+      // Validate PAT result
+      const patResultError = validatePATResult(candidate.result as string | null);
+      if (patResultError) {
+        setCommitErrors({ result: patResultError });
+        return;
+      }
+      
+      // Skip TD normalization and gain limiting in PAT context
+      setAdjustments(reviewAdjustments);
+      setState("proposal");
+      return;
+    }
 
     // Phase 5C patch: Compute EFF at review time (not commit) if not already touched
     if (!touchedFields.has("eff")) {
@@ -278,7 +315,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
 
     setState("proposal");
-  }, [candidate, touchedFields, getLookupMap, fieldSize]);
+  }, [candidate, touchedFields, getLookupMap, fieldSize, patContext]);
 
   const backToEdit = useCallback(() => {
     if (state === "proposal") {
@@ -473,6 +510,39 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // Phase 5A: Load prevPlay from IndexedDB to avoid stale state
       const prevPlay = await getPlay(gameId, playNum - 1);
 
+      // Phase 6: PAT context detection
+      const isPAT = shouldEnterPATContext(prevPlay, slot, patMode);
+      setPatContext(isPAT);
+      
+      if (isPAT) {
+        // Check if patTry is already set (penalty re-try or existing)
+        const carriedTry = getCarriedPatTry(prevPlay, slot);
+        if (carriedTry) {
+          // Already have patTry, apply playType override
+          newCandidate.patTry = carriedTry;
+          newCandidate.playType = patTryToPlayType(carriedTry);
+        } else {
+          // Need PAT try dialog
+          setPatTryPending(true);
+        }
+        
+        // Suspend normal predictions in PAT context
+        setCandidate(newCandidate);
+        setSelectedSlotNum(playNum);
+        setTouchedFields(new Set());
+        setPredictedFields(new Set());
+        setPredictionExplanations(["PAT attempt: normal predictions suspended."]);
+        setPredictionCoachMessages([{ coach: "Auto-fill paused: PAT attempt.", technical: "PAT attempt: normal predictions suspended." }]);
+        setInlineErrors({});
+        setCommitErrors({});
+        setScaffoldedWarning(null);
+        setAdjustments([]);
+        setState("candidate");
+        return;
+      }
+      
+      setPatTryPending(false);
+
       // Phase 5C patch: Half-time boundary check (only Q3 start)
       let halfTimeBoundary = false;
       const initConfig = await getGameInit(gameId);
@@ -513,7 +583,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setAdjustments([]);
       setState("candidate");
     },
-    [committedPlays, gameId, fieldSize, slotMetaMap]
+    [committedPlays, gameId, fieldSize, slotMetaMap, patMode]
   );
 
   const deselectSlot = useCallback(() => {
@@ -566,6 +636,25 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const cancelTDCorrection = useCallback(() => {
     setTdCorrectionPending(null);
   }, []);
+
+  // Phase 6: PAT try selection
+  const selectPatTry = useCallback((patTry: "1" | "2") => {
+    setPatTryPending(false);
+    setCandidate((prev) => ({
+      ...prev,
+      patTry,
+      playType: patTryToPlayType(patTry),
+    }));
+  }, []);
+
+  const cancelPatTry = useCallback(() => {
+    setPatTryPending(false);
+    // Deselect slot since PAT try is required
+    setSelectedSlotNum(null);
+    setCandidate(emptyCandidate(gameId));
+    setPatContext(false);
+    setState(gameId ? "idle" : "idle");
+  }, [gameId]);
 
   const refreshCommittedPlays = useCallback(async () => {
     if (!gameId) return;
@@ -653,6 +742,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         tdCorrectionPending: tdCorrectionPending ? { correctedResult: tdCorrectionPending.correctedResult } : null,
         confirmTDCorrection,
         cancelTDCorrection,
+        patContext,
+        patTryPending,
+        selectPatTry,
+        cancelPatTry,
       }}
     >
       {children}
