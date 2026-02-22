@@ -77,12 +77,12 @@ export function computePrediction(
   prevPlay: PlayRecord | null,
   currentSlotOdk: string | null,
   fieldSize: FieldSize,
-  quarterChanged?: { prevQtr: string; currQtr: string }
+  halfTimeBoundary?: boolean
 ): PredictionResult {
-  // Gate 0: quarter boundary check
-  if (quarterChanged) {
+  // Gate 0: half-time boundary check (only Q3 start, not every quarter change)
+  if (halfTimeBoundary) {
     return INELIGIBLE([
-      `Auto-fill paused: quarter changed (Q${quarterChanged.prevQtr} → Q${quarterChanged.currQtr}).`,
+      "Auto-fill paused: start of 2nd half.",
     ]);
   }
   // ── Yard Line prerequisites (gates 1-7) ──
@@ -125,18 +125,18 @@ export function computePrediction(
   // ── Yard Line computation ──
   const explanations: string[] = [];
   const gainLoss = Number(prevPlay.gainLoss);
-  const maxIdx = fieldSize - 1;
+  const goalIdx = fieldSize; // goal line index (NOT fieldSize-1)
 
   const currentIdx = yardLnToIdx(Number(prevPlay.yardLn), fieldSize);
   const rawNewIdx = currentIdx + gainLoss;
 
   // If forward progress exceeds the playable field, suspend prediction entirely
-  if (rawNewIdx < 1 || rawNewIdx > maxIdx) {
+  if (rawNewIdx < 1 || rawNewIdx >= goalIdx) {
     return INELIGIBLE(["Forward progress exceeded playable field; scoring/safety logic deferred. Prediction suspended."]);
   }
 
   const predictedYardLn = idxToYardLn(rawNewIdx, fieldSize);
-  const distToGoal = maxIdx - rawNewIdx + 1;
+  const distToGoal = goalIdx - rawNewIdx;
 
   // ── DN/DIST prerequisites check ──
   const hasDn = prevPlay.dn !== null && prevPlay.dn !== undefined;

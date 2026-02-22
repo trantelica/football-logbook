@@ -10,7 +10,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import type { CandidateData, PlayRecord, TransactionState, ValidationErrors, SlotMeta } from "./types";
 import { validateInline, validateCommitGate } from "./validation";
-import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta } from "./db";
+import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
 import { useRoster } from "./rosterContext";
@@ -216,10 +216,56 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const reviewProposal = useCallback(() => {
     const errors = validateInline(candidate, touchedFields, getLookupMap());
     setInlineErrors(errors);
-    if (Object.keys(errors).length === 0) {
-      setState("proposal");
+    if (Object.keys(errors).length > 0) return;
+
+    // Phase 5C patch: Compute EFF at review time (not commit) if not already touched
+    if (!touchedFields.has("eff")) {
+      const effValue = computeEff({
+        result: candidate.result as string | null,
+        gainLoss: candidate.gainLoss != null ? Number(candidate.gainLoss) : null,
+        dn: candidate.dn != null ? Number(candidate.dn) : null,
+        dist: candidate.dist != null ? Number(candidate.dist) : null,
+        penalty: candidate.penalty as string | null,
+      });
+      if (effValue !== null) {
+        setCandidate((prev) => ({ ...prev, eff: effValue }));
+      }
     }
-  }, [candidate, touchedFields, getLookupMap]);
+
+    // Phase 5C patch: TD labeling correction at review time
+    const qc = runCommitQC(
+      candidate.yardLn != null ? Number(candidate.yardLn) : null,
+      candidate.gainLoss != null ? Number(candidate.gainLoss) : null,
+      candidate.result as string | null,
+      fieldSize as 80 | 100
+    );
+
+    // Apply gain limiting silently at review
+    if (qc.gainLossMessage) {
+      setCandidate((prev) => ({ ...prev, gainLoss: qc.adjustedGainLoss }));
+      // Recompute EFF with adjusted gainLoss if not touched
+      if (!touchedFields.has("eff")) {
+        const effRecomputed = computeEff({
+          result: candidate.result as string | null,
+          gainLoss: qc.adjustedGainLoss,
+          dn: candidate.dn != null ? Number(candidate.dn) : null,
+          dist: candidate.dist != null ? Number(candidate.dist) : null,
+          penalty: candidate.penalty as string | null,
+        });
+        if (effRecomputed !== null) {
+          setCandidate((prev) => ({ ...prev, eff: effRecomputed }));
+        }
+      }
+    }
+
+    // TD correction dialog — block proposal transition
+    if (qc.correctedResult) {
+      setTdCorrectionPending({ correctedResult: qc.correctedResult, normalizedPlay: null as unknown as PlayRecord, existingSlot: null });
+      return;
+    }
+
+    setState("proposal");
+  }, [candidate, touchedFields, getLookupMap, fieldSize]);
 
   const backToEdit = useCallback(() => {
     if (state === "proposal") {
@@ -241,41 +287,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       const normalized = result.normalizedPlay!;
 
-      // Phase 5C: Compute EFF at commit time
-      const effValue = computeEff({
-        result: normalized.result,
-        gainLoss: normalized.gainLoss,
-        dn: normalized.dn != null ? Number(normalized.dn) : null,
-        dist: normalized.dist,
-        penalty: normalized.penalty,
-      });
-      if (effValue !== null) {
-        (normalized as unknown as Record<string, unknown>).eff = effValue;
-      }
-
-      // Phase 5C: Commit-gate QC — gainLoss limiting + TD correction
-      const qc = runCommitQC(normalized.yardLn, normalized.gainLoss, normalized.result, fieldSize as 80 | 100);
-      if (qc.gainLossMessage) {
-        (normalized as unknown as Record<string, unknown>).gainLoss = qc.adjustedGainLoss;
-        // Recompute EFF with adjusted gainLoss
-        const effRecomputed = computeEff({
-          result: normalized.result,
-          gainLoss: qc.adjustedGainLoss,
-          dn: normalized.dn != null ? Number(normalized.dn) : null,
-          dist: normalized.dist,
-          penalty: normalized.penalty,
-        });
-        if (effRecomputed !== null) {
-          (normalized as unknown as Record<string, unknown>).eff = effRecomputed;
-        }
-      }
-
-      // Phase 5C: TD labeling correction — block commit and show dialog
-      if (qc.correctedResult) {
-        const existingSlot = committedPlays.find((p) => p.playNum === selectedSlotNum) ?? null;
-        setTdCorrectionPending({ correctedResult: qc.correctedResult, normalizedPlay: normalized, existingSlot });
-        return false;
-      }
+      // EFF and QC already applied at review time — no need to recompute here
 
       const meta = slotMetaMap.get(selectedSlotNum);
       const committedFields = meta?.committedFields ?? [];
@@ -433,13 +445,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // Phase 5A: Load prevPlay from IndexedDB to avoid stale state
       const prevPlay = await getPlay(gameId, playNum - 1);
 
-      // Phase 5C: Quarter boundary check
-      let quarterChanged: { prevQtr: string; currQtr: string } | undefined;
-      if (prevPlay && prevPlay.qtr && slot.qtr && prevPlay.qtr !== slot.qtr) {
-        quarterChanged = { prevQtr: String(prevPlay.qtr), currQtr: String(slot.qtr) };
+      // Phase 5C patch: Half-time boundary check (only Q3 start)
+      let halfTimeBoundary = false;
+      const initConfig = await getGameInit(gameId);
+      if (initConfig) {
+        const q3Start = initConfig.quarterStarts["3"];
+        if (q3Start && playNum === q3Start) {
+          halfTimeBoundary = true;
+        }
       }
 
-      const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, quarterChanged);
+      const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, halfTimeBoundary);
       
       const newPredicted = new Set<string>();
       if (prediction.eligible) {
@@ -488,56 +504,30 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setScaffoldedWarning(null);
   }, []);
 
-  // Phase 5C: TD correction confirmation
+  // Phase 5C patch: TD correction at review time — apply corrected result and proceed to proposal
   const confirmTDCorrection = useCallback(async (): Promise<boolean> => {
     if (!tdCorrectionPending) return false;
-    const { correctedResult, normalizedPlay, existingSlot } = tdCorrectionPending;
+    const { correctedResult } = tdCorrectionPending;
     
-    // Apply corrected result
-    const corrected = { ...normalizedPlay, result: correctedResult } as PlayRecord;
+    // Apply corrected result to candidate
+    setCandidate((prev) => ({ ...prev, result: correctedResult }));
     
     // Recompute EFF with corrected result
     const effValue = computeEff({
       result: correctedResult,
-      gainLoss: corrected.gainLoss,
-      dn: corrected.dn != null ? Number(corrected.dn) : null,
-      dist: corrected.dist,
-      penalty: corrected.penalty,
+      gainLoss: candidate.gainLoss != null ? Number(candidate.gainLoss) : null,
+      dn: candidate.dn != null ? Number(candidate.dn) : null,
+      dist: candidate.dist != null ? Number(candidate.dist) : null,
+      penalty: candidate.penalty as string | null,
     });
     if (effValue !== null) {
-      (corrected as unknown as Record<string, unknown>).eff = effValue;
+      setCandidate((prev) => ({ ...prev, eff: effValue }));
     }
 
-    await dbCommitPlay(corrected, existingSlot);
-
-    if (selectedSlotNum !== null) {
-      const meta = slotMetaMap.get(selectedSlotNum);
-      const newCommittedFields = new Set(meta?.committedFields ?? []);
-      for (const f of playSchema) {
-        const val = (corrected as unknown as Record<string, unknown>)[f.name];
-        if (val !== null && val !== undefined) {
-          newCommittedFields.add(f.name);
-        }
-      }
-      const updatedMeta: SlotMeta = {
-        gameId,
-        playNum: selectedSlotNum,
-        committedFields: Array.from(newCommittedFields),
-      };
-      await saveSlotMeta(updatedMeta);
-      setSlotMetaMap((prev) => {
-        const next = new Map(prev);
-        next.set(selectedSlotNum, updatedMeta);
-        return next;
-      });
-    }
-
-    const plays = await getPlaysByGame(gameId);
-    setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     setTdCorrectionPending(null);
-    clearDraft();
+    setState("proposal");
     return true;
-  }, [tdCorrectionPending, selectedSlotNum, slotMetaMap, gameId, clearDraft]);
+  }, [tdCorrectionPending, candidate]);
 
   const cancelTDCorrection = useCallback(() => {
     setTdCorrectionPending(null);

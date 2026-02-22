@@ -50,9 +50,9 @@ export function runCommitQC(
 
   const yl = Number(yardLn);
   const gl = Number(gainLoss);
-  const maxIdx = fieldSize - 1;
+  const goalIdx = fieldSize; // goal line index (NOT fieldSize-1)
   const currentIdx = yardLnToIdx(yl, fieldSize);
-  const distToGoal = maxIdx - currentIdx;
+  const distToGoal = goalIdx - currentIdx;
 
   // Only limit positive gain toward opponent end zone
   if (gl <= 0 || distToGoal <= 0) return noOp;
@@ -67,7 +67,7 @@ export function runCommitQC(
 
   // Check if play reaches goal line
   const newIdx = currentIdx + adjustedGL;
-  const reachesGoalLine = newIdx >= maxIdx;
+  const reachesGoalLine = newIdx >= goalIdx;
 
   // TD labeling correction
   let correctedResult: string | null = null;
