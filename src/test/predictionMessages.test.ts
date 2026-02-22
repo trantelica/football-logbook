@@ -62,6 +62,11 @@ describe("toCoachMessage", () => {
     expect(msg.coach).toBe("Auto-fill suggestion: Assuming possession changed after 4th down.");
   });
 
+  it("passes through quarter-changed messages", () => {
+    const msg = toCoachMessage("Auto-fill paused: quarter changed (Q1 → Q2).", 1);
+    expect(msg.coach).toContain("quarter changed");
+  });
+
   it("passes through unknown strings", () => {
     const msg = toCoachMessage("Some future explanation", 1);
     expect(msg.coach).toBe("Some future explanation");

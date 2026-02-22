@@ -281,6 +281,24 @@ describe("Scoring/Safety Overflow — Prediction Suspended", () => {
   });
 });
 
+describe("Quarter Boundary — Phase 5C", () => {
+  it("suspends prediction when quarter changes", () => {
+    const play = makePlay({ qtr: "1", yardLn: -30, dn: "1", dist: 10, gainLoss: 5, result: "Rush" });
+    const r = computePrediction(play, "O", 80, { prevQtr: "1", currQtr: "2" });
+    expect(r.eligible).toBe(false);
+    expect(r.yardLn).toBeNull();
+    expect(r.explanations[0]).toContain("quarter changed");
+    expect(r.explanations[0]).toContain("Q1");
+    expect(r.explanations[0]).toContain("Q2");
+  });
+
+  it("does not suspend when quarter is same", () => {
+    const play = makePlay({ qtr: "1", yardLn: -30, dn: "1", dist: 10, gainLoss: 5, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+  });
+});
+
 describe("Edge Cases", () => {
   it("normal down progression (2nd and 5)", () => {
     const play = makePlay({ dn: "2", dist: 5, gainLoss: 3, result: "Rush", yardLn: -30 });

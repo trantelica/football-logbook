@@ -20,6 +20,7 @@ import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, Chevro
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
+import { TDCorrectionDialog } from "./TDCorrectionDialog";
 import { toast } from "sonner";
 
 const WORKFLOW_STAGES = [
@@ -64,6 +65,9 @@ export function DraftPanel() {
     activePass,
     setActivePass,
     commitAndNext,
+    tdCorrectionPending,
+    confirmTDCorrection,
+    cancelTDCorrection,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -798,6 +802,15 @@ PENALTY O-Holding EFF Y 2MIN N`}
           nonCollisionCount={Object.keys(collisionState.nonCollisionPatch).length}
           onConfirm={handleCollisionConfirm}
           onCancel={() => setCollisionState(null)}
+        />
+      )}
+
+      {tdCorrectionPending && (
+        <TDCorrectionDialog
+          open
+          correctedResult={tdCorrectionPending.correctedResult}
+          onConfirm={confirmTDCorrection}
+          onCancel={cancelTDCorrection}
         />
       )}
     </>

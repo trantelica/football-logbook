@@ -76,8 +76,15 @@ const INELIGIBLE = (explanations: string[]): PredictionResult => ({
 export function computePrediction(
   prevPlay: PlayRecord | null,
   currentSlotOdk: string | null,
-  fieldSize: FieldSize
+  fieldSize: FieldSize,
+  quarterChanged?: { prevQtr: string; currQtr: string }
 ): PredictionResult {
+  // Gate 0: quarter boundary check
+  if (quarterChanged) {
+    return INELIGIBLE([
+      `Auto-fill paused: quarter changed (Q${quarterChanged.prevQtr} → Q${quarterChanged.currQtr}).`,
+    ]);
+  }
   // ── Yard Line prerequisites (gates 1-7) ──
 
   // Gate 1: previous play must exist
