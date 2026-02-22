@@ -191,20 +191,21 @@ describe("4th Down — Never produces DN > 4", () => {
 
 describe("Goal Line — distToGoal correctness", () => {
   it("predicts dist=1 at opponent 1-yard line after first down", () => {
-    // At opponent 2 (idx=78), gain 10 => idx=88 → clamped to 79, yardLn=1
-    // distToGoal = 79 - 79 + 1 = 1
-    const play = makePlay({ yardLn: 2, dn: "1", dist: 10, gainLoss: 10, result: "Rush" });
+    // At opponent 5 (idx=75), dn=1 dist=5 gain=4 => idx=79, yardLn=1
+    // gain 4 < dist 5 → not first down. Need gain >= dist for 1st down.
+    // Use dn=1 dist=3 gain=4 => first down, idx=79, distToGoal=1
+    const play = makePlay({ yardLn: 5, dn: "1", dist: 3, gainLoss: 4, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
+    expect(r.yardLn).toBe(1);
     expect(r.dn).toBe(1);
-    expect(r.dist).toBe(1); // only 1 yard to goal
+    expect(r.dist).toBe(1);
   });
 
   it("predicts dist=2 at opponent 2-yard line after first down", () => {
-    // At opponent 5 (idx=75), gain 5 => idx=80 → clamped to 79... no
-    // Actually: at own -30 (idx=30), gain 48 => idx=78, yardLn=80-78=2
-    // distToGoal = 79 - 78 + 1 = 2
-    const play = makePlay({ yardLn: -30, dn: "1", dist: 10, gainLoss: 48, result: "Rush" });
+    // At opponent 5 (idx=75), dn=1 dist=3 gain=3 => idx=78, yardLn=2
+    // gain 3 >= dist 3 → first down, distToGoal = 79-78+1 = 2
+    const play = makePlay({ yardLn: 5, dn: "1", dist: 3, gainLoss: 3, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
     expect(r.dn).toBe(1);
@@ -212,34 +213,47 @@ describe("Goal Line — distToGoal correctness", () => {
   });
 
   it("100-yard field: dist=1 at opponent 1", () => {
-    // At opponent 5 (idx=95), gain 10 => idx=105 → clamped to 99, yardLn=1
-    // distToGoal = 99 - 99 + 1 = 1
-    const play = makePlay({ yardLn: 5, dn: "1", dist: 10, gainLoss: 10, result: "Rush" });
+    // At opponent 5 (idx=95), dn=1 dist=4 gain=4 => idx=99, yardLn=1
+    // distToGoal = 99-99+1 = 1
+    const play = makePlay({ yardLn: 5, dn: "1", dist: 4, gainLoss: 4, result: "Rush" });
     const r = computePrediction(play, "O", 100);
     expect(r.eligible).toBe(true);
+    expect(r.yardLn).toBe(1);
     expect(r.dist).toBe(1);
   });
 });
 
-describe("Edge Cases", () => {
-  it("clamps at own end zone (idx < 1)", () => {
-    // At own -2 (idx=2), loss -5 => idx=-3 → clamped to 1
-    const play = makePlay({ yardLn: -2, dn: "1", dist: 10, gainLoss: -5, result: "Rush" });
-    const r = computePrediction(play, "O", 80);
-    expect(r.eligible).toBe(true);
-    expect(r.explanations).toContain("Index beyond playable range; scoring logic deferred");
-    expect(r.yardLn).toBe(-1); // idx=1 → yardLn=-1
-  });
-
-  it("clamps at opponent end zone (idx > maxIdx)", () => {
-    // At opponent 2 (idx=78), gain 5 => idx=83 → clamped to 79
+describe("Scoring/Safety Overflow — Prediction Suspended", () => {
+  it("suspends when forward progress exceeds opponent end zone", () => {
+    // At opponent 2 (idx=78), gain 5 => idx=83 > 79
     const play = makePlay({ yardLn: 2, dn: "1", dist: 10, gainLoss: 5, result: "Rush" });
     const r = computePrediction(play, "O", 80);
-    expect(r.eligible).toBe(true);
-    expect(r.explanations).toContain("Index beyond playable range; scoring logic deferred");
-    expect(r.yardLn).toBe(1); // idx=79 → yardLn=80-79=1
+    expect(r.eligible).toBe(false);
+    expect(r.yardLn).toBeNull();
+    expect(r.dn).toBeNull();
+    expect(r.dist).toBeNull();
+    expect(r.explanations[0]).toContain("scoring/safety logic deferred");
   });
 
+  it("suspends when loss exceeds own end zone", () => {
+    // At own -2 (idx=2), loss -5 => idx=-3 < 1
+    const play = makePlay({ yardLn: -2, dn: "1", dist: 10, gainLoss: -5, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(false);
+    expect(r.yardLn).toBeNull();
+    expect(r.explanations[0]).toContain("scoring/safety logic deferred");
+  });
+
+  it("does NOT suspend at the boundary (idx=maxIdx is still valid)", () => {
+    // At opponent 5 (idx=75), gain 4 => idx=79 = maxIdx, still in range
+    const play = makePlay({ yardLn: 5, dn: "1", dist: 10, gainLoss: 4, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+    expect(r.yardLn).toBe(1);
+  });
+});
+
+describe("Edge Cases", () => {
   it("normal down progression (2nd and 5)", () => {
     const play = makePlay({ dn: "2", dist: 5, gainLoss: 3, result: "Rush", yardLn: -30 });
     const r = computePrediction(play, "O", 80);
