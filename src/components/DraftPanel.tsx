@@ -72,7 +72,9 @@ export function DraftPanel() {
     cancelTDCorrection,
     patContext,
     patTryPending,
-    selectPatTry,
+    patLockedTry,
+    selectPatAttempt,
+    reopenPatDialog,
     cancelPatTry,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
@@ -284,6 +286,11 @@ export function DraftPanel() {
     ) : null;
 
   const renderField = (fieldName: string) => {
+    // PAT context: hide RESULT (set via dialog), hide playType (auto-set), hide patTry (auto-set)
+    if (patContext && (fieldName === "result" || fieldName === "playType" || fieldName === "patTry")) {
+      return null;
+    }
+
     // Slot mode: playNum is read-only badge
     if (isSlotMode && selectedSlotNum !== null && fieldName === "playNum") {
       return (
@@ -706,8 +713,20 @@ PENALTY O-Holding EFF Y 2MIN N`}
 
         {/* PAT context indicator */}
         {patContext && (
-          <div className="text-xs rounded px-3 py-2 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800 font-medium">
-            PAT Attempt {candidate.patTry === "1" ? "(Going for 1 — Extra Pt.)" : candidate.patTry === "2" ? "(Going for 2 — 2 Pt.)" : "— select try type"}
+          <div className="text-xs rounded px-3 py-2 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800 font-medium space-y-1">
+            <div className="flex items-center justify-between">
+              <span>
+                PAT Attempt {candidate.patTry === "1" ? "(Going for 1 — Extra Pt.)" : candidate.patTry === "2" ? "(Going for 2 — 2 Pt.)" : "— select try type"}
+              </span>
+              {candidate.patTry && candidate.result && !isProposal && (
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={reopenPatDialog}>
+                  Edit
+                </Button>
+              )}
+            </div>
+            {candidate.result && (
+              <div className="text-[11px]">Outcome: <span className="font-semibold">{String(candidate.result)}</span></div>
+            )}
           </div>
         )}
 
@@ -839,7 +858,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
       {patTryPending && (
         <PATTryDialog
           open
-          onSelect={selectPatTry}
+          lockedTry={patLockedTry}
+          onConfirm={selectPatAttempt}
           onCancel={cancelPatTry}
         />
       )}
