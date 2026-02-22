@@ -94,7 +94,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
     setOdkBlocks((prev) => {
       const lastBlock = prev[prev.length - 1];
       const nextStart = lastBlock ? lastBlock.endPlay + 1 : 1;
-      return [...prev, { odk: "O", startPlay: nextStart, endPlay: nextStart }];
+      return [...prev, { odk: "O", startPlay: nextStart, endPlay: 0 }];
     });
   };
 
@@ -255,7 +255,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
                       min="1"
                       value={block.endPlay || ""}
                       onChange={(e) => updateOdkBlock(i, "endPlay", e.target.value)}
-                      placeholder="End"
+                      placeholder="End play #"
                       className="h-8 text-sm font-mono w-20"
                     />
                     {odkBlocks.length > 1 && (

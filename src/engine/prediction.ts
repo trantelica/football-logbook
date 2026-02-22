@@ -1,14 +1,13 @@
 /**
- * Football Engine — Phase 5A Deterministic Prediction Engine
+ * Football Engine — Phase 5B Deterministic Prediction Engine
  *
  * Pure functions for yardline index math and forward-progress prediction.
  * No side effects, no state, no downstream mutation.
  *
- * Rules:
- * - Prediction uses only playNum - 1 (no backward scanning)
- * - DN never exceeds 4 (4th-down turnover assumed)
- * - Penalty present suspends prediction entirely
- * - No ODK/SERIES mutation, no scoring detection
+ * Phase 5B: Partial prediction support.
+ * - Yard Line can predict independently if its prerequisites are met.
+ * - DN/DIST require additional prerequisites (dn, dist on prevPlay).
+ * - No clamping: field overflow suspends yardLn prediction.
  */
 
 import type { PlayRecord } from "./types";
@@ -61,11 +60,14 @@ const INELIGIBLE = (explanations: string[]): PredictionResult => ({
   eligible: false,
 });
 
-// ── Prediction Algorithm ──
+// ── Prediction Algorithm (Phase 5B: Partial Prediction) ──
 
 /**
  * Compute deterministic prediction for the next slot based on the
  * immediately preceding committed play.
+ *
+ * Phase 5B: Split into yardLn prerequisites and dn/dist prerequisites.
+ * yardLn can predict even if dn/dist are missing on prevPlay.
  *
  * @param prevPlay - The committed play at playNum - 1 (or null)
  * @param currentSlotOdk - The ODK value of the slot being edited
@@ -76,6 +78,8 @@ export function computePrediction(
   currentSlotOdk: string | null,
   fieldSize: FieldSize
 ): PredictionResult {
+  // ── Yard Line prerequisites (gates 1-7) ──
+
   // Gate 1: previous play must exist
   if (!prevPlay) {
     return INELIGIBLE(["Prediction suspended: previous slot not available"]);
@@ -106,28 +110,16 @@ export function computePrediction(
     return INELIGIBLE(["Prediction suspended: gain/loss missing on previous play"]);
   }
 
-  // Gate 7: dn must be non-null
-  if (prevPlay.dn === null || prevPlay.dn === undefined) {
-    return INELIGIBLE(["Prediction suspended: down missing on previous play"]);
-  }
-
-  // Gate 8: dist must be non-null
-  if (prevPlay.dist === null || prevPlay.dist === undefined) {
-    return INELIGIBLE(["Prediction suspended: distance missing on previous play"]);
-  }
-
-  // Gate 9: yardLn must be non-null
+  // Gate 7: yardLn must be non-null
   if (prevPlay.yardLn === null || prevPlay.yardLn === undefined) {
     return INELIGIBLE(["Prediction suspended: yard line missing on previous play"]);
   }
 
+  // ── Yard Line computation ──
   const explanations: string[] = [];
-  const currentDn = Number(prevPlay.dn);
-  const currentDist = Number(prevPlay.dist);
   const gainLoss = Number(prevPlay.gainLoss);
   const maxIdx = fieldSize - 1;
 
-  // Step 1: Yardline prediction
   const currentIdx = yardLnToIdx(Number(prevPlay.yardLn), fieldSize);
   const rawNewIdx = currentIdx + gainLoss;
 
@@ -137,11 +129,33 @@ export function computePrediction(
   }
 
   const predictedYardLn = idxToYardLn(rawNewIdx, fieldSize);
-
-  // Distance to goal from new position (higher idx = closer to opponent goal)
   const distToGoal = maxIdx - rawNewIdx + 1;
 
-  // Step 2: Down/Distance prediction
+  // ── DN/DIST prerequisites check ──
+  const hasDn = prevPlay.dn !== null && prevPlay.dn !== undefined;
+  const hasDist = prevPlay.dist !== null && prevPlay.dist !== undefined;
+
+  if (!hasDn || !hasDist) {
+    // Partial prediction: yardLn only
+    if (!hasDn) {
+      explanations.push("Prediction limited: down missing on previous play");
+    }
+    if (!hasDist) {
+      explanations.push("Prediction limited: distance missing on previous play");
+    }
+    return {
+      yardLn: predictedYardLn,
+      dn: null,
+      dist: null,
+      explanations,
+      eligible: true,
+    };
+  }
+
+  // ── Full DN/DIST prediction ──
+  const currentDn = Number(prevPlay.dn);
+  const currentDist = Number(prevPlay.dist);
+
   let predictedDn: number;
   let predictedDist: number;
 
