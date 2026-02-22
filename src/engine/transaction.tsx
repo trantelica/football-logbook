@@ -16,6 +16,7 @@ import { useLookup } from "./lookupContext";
 import { useRoster } from "./rosterContext";
 import { playSchema, getFieldDef } from "./schema";
 import { computePrediction } from "./prediction";
+import { toCoachMessages, type CoachMessage } from "./predictionMessages";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -23,6 +24,7 @@ interface TransactionContextValue {
   touchedFields: Set<string>;
   predictedFields: Set<string>;
   predictionExplanations: string[];
+  predictionCoachMessages: CoachMessage[];
   inlineErrors: ValidationErrors;
   commitErrors: ValidationErrors;
   committedPlays: PlayRecord[];
@@ -91,6 +93,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 5A: Prediction state (ephemeral, never persisted)
   const [predictedFields, setPredictedFields] = useState<Set<string>>(new Set());
   const [predictionExplanations, setPredictionExplanations] = useState<string[]>([]);
+  const [predictionCoachMessages, setPredictionCoachMessages] = useState<CoachMessage[]>([]);
 
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePass] = useState<number>(1);
@@ -114,6 +117,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setScaffoldedWarning(null);
     setPredictedFields(new Set());
     setPredictionExplanations([]);
+    setPredictionCoachMessages([]);
     setActivePass(1);
     setOdkFilter("ALL");
     if (gameId) {
@@ -189,6 +193,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setTouchedFields(new Set());
     setPredictedFields(new Set());
     setPredictionExplanations([]);
+    setPredictionCoachMessages([]);
     setInlineErrors({});
     setCommitErrors({});
     setState(gameId ? (isSlotMode ? "idle" : "candidate") : "idle");
@@ -403,6 +408,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setTouchedFields(new Set());
       setPredictedFields(newPredicted);
       setPredictionExplanations(prediction.explanations);
+      setPredictionCoachMessages(toCoachMessages(prediction.explanations, playNum - 1));
       setInlineErrors({});
       setCommitErrors({});
       setScaffoldedWarning(null);
@@ -417,6 +423,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setTouchedFields(new Set());
     setPredictedFields(new Set());
     setPredictionExplanations([]);
+    setPredictionCoachMessages([]);
     setInlineErrors({});
     setCommitErrors({});
     setScaffoldedWarning(null);
@@ -445,7 +452,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     // Snapshot current state before commit (clearDraft resets selectedSlotNum)
     const currentSlotNum = selectedSlotNum;
-    const currentPlays = [...committedPlays];
+    const _currentPlays = [...committedPlays];
 
     const success = await commitProposal();
     if (!success) {
@@ -482,6 +489,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         touchedFields,
         predictedFields,
         predictionExplanations,
+        predictionCoachMessages,
         inlineErrors,
         commitErrors,
         committedPlays,

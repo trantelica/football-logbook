@@ -1,5 +1,5 @@
 /**
- * Phase 5A — Prediction Engine Tests
+ * Phase 5A/5B — Prediction Engine Tests
  */
 
 import { describe, it, expect } from "vitest";
@@ -133,39 +133,77 @@ describe("Prediction Eligibility Gates", () => {
     expect(r.explanations[0]).toContain("gain/loss missing");
   });
 
-  it("suspends when dn missing", () => {
-    const r = computePrediction(makePlay({ dn: null }), "O", 80);
-    expect(r.eligible).toBe(false);
-  });
-
-  it("suspends when dist missing", () => {
-    const r = computePrediction(makePlay({ dist: null }), "O", 80);
-    expect(r.eligible).toBe(false);
-  });
-
   it("suspends when yardLn missing", () => {
     const r = computePrediction(makePlay({ yardLn: null }), "O", 80);
     expect(r.eligible).toBe(false);
   });
 });
 
+describe("Partial Prediction — yardLn without dn/dist (Phase 5B)", () => {
+  it("predicts yardLn when dn is missing", () => {
+    const play = makePlay({ dn: null, yardLn: -30, gainLoss: 5, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+    // idx=30+5=35, idxToYardLn(35,80): halfField=40, 35<=39 → -35
+    expect(r.yardLn).toBe(-35);
+    expect(r.dn).toBeNull();
+    expect(r.dist).toBeNull();
+    expect(r.explanations.some(e => e.includes("down missing"))).toBe(true);
+  });
+
+  it("predicts yardLn when dist is missing", () => {
+    const play = makePlay({ dist: null, yardLn: -30, gainLoss: 5, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+    expect(r.yardLn).toBe(-35);
+    expect(r.dn).toBeNull();
+    expect(r.dist).toBeNull();
+    expect(r.explanations.some(e => e.includes("distance missing"))).toBe(true);
+  });
+
+  it("predicts yardLn when both dn and dist are missing", () => {
+    const play = makePlay({ dn: null, dist: null, yardLn: -30, gainLoss: 10, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+    // idx=30+10=40, idxToYardLn(40,80): halfField=40, 40<=39? No → 80-40=40
+    expect(r.yardLn).toBe(40);
+    expect(r.dn).toBeNull();
+    expect(r.dist).toBeNull();
+    expect(r.explanations.length).toBe(2);
+  });
+
+  it("still suspends yardLn when overflow even with dn/dist missing", () => {
+    const play = makePlay({ dn: null, dist: null, yardLn: 2, gainLoss: 5, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(false);
+    expect(r.yardLn).toBeNull();
+  });
+
+  it("full prediction when all prereqs present", () => {
+    const play = makePlay({ dn: "1", dist: 10, yardLn: -30, gainLoss: 5, result: "Rush" });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(true);
+    expect(r.yardLn).toBe(-35);
+    expect(r.dn).toBe(2);
+    expect(r.dist).toBe(5);
+  });
+});
+
 describe("Midfield Crossing — 80-yard field", () => {
   it("predicts yardline across midfield correctly", () => {
-    // Play at own -35 (idx=35), gain 10 => idx=45, yardLn = 80-45 = 35
     const play = makePlay({ yardLn: -35, dn: "1", dist: 10, gainLoss: 10, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
-    expect(r.yardLn).toBe(35); // opponent's 35
-    expect(r.dn).toBe(1); // first down achieved (10 >= 10)
+    expect(r.yardLn).toBe(35);
+    expect(r.dn).toBe(1);
     expect(r.dist).toBe(10);
   });
 
   it("handles midfield exactly (idx=40 → yardLn=40)", () => {
-    // Play at own -35, gain 5 => idx=40, yardLn = 80-40 = 40
     const play = makePlay({ yardLn: -35, dn: "1", dist: 10, gainLoss: 5, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
-    expect(r.yardLn).toBe(40); // midfield
+    expect(r.yardLn).toBe(40);
     expect(r.dn).toBe(2);
     expect(r.dist).toBe(5);
   });
@@ -176,7 +214,7 @@ describe("4th Down — Never produces DN > 4", () => {
     const play = makePlay({ dn: "4", dist: 5, gainLoss: 2, result: "Rush", yardLn: -30 });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
-    expect(r.dn).toBe(1); // NOT 5
+    expect(r.dn).toBe(1);
     expect(r.explanations).toContain("4th down turnover assumed; possession logic deferred");
   });
 
@@ -191,9 +229,6 @@ describe("4th Down — Never produces DN > 4", () => {
 
 describe("Goal Line — distToGoal correctness", () => {
   it("predicts dist=1 at opponent 1-yard line after first down", () => {
-    // At opponent 5 (idx=75), dn=1 dist=5 gain=4 => idx=79, yardLn=1
-    // gain 4 < dist 5 → not first down. Need gain >= dist for 1st down.
-    // Use dn=1 dist=3 gain=4 => first down, idx=79, distToGoal=1
     const play = makePlay({ yardLn: 5, dn: "1", dist: 3, gainLoss: 4, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
@@ -203,8 +238,6 @@ describe("Goal Line — distToGoal correctness", () => {
   });
 
   it("predicts dist=2 at opponent 2-yard line after first down", () => {
-    // At opponent 5 (idx=75), dn=1 dist=3 gain=3 => idx=78, yardLn=2
-    // gain 3 >= dist 3 → first down, distToGoal = 79-78+1 = 2
     const play = makePlay({ yardLn: 5, dn: "1", dist: 3, gainLoss: 3, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
@@ -213,8 +246,6 @@ describe("Goal Line — distToGoal correctness", () => {
   });
 
   it("100-yard field: dist=1 at opponent 1", () => {
-    // At opponent 5 (idx=95), dn=1 dist=4 gain=4 => idx=99, yardLn=1
-    // distToGoal = 99-99+1 = 1
     const play = makePlay({ yardLn: 5, dn: "1", dist: 4, gainLoss: 4, result: "Rush" });
     const r = computePrediction(play, "O", 100);
     expect(r.eligible).toBe(true);
@@ -225,7 +256,6 @@ describe("Goal Line — distToGoal correctness", () => {
 
 describe("Scoring/Safety Overflow — Prediction Suspended", () => {
   it("suspends when forward progress exceeds opponent end zone", () => {
-    // At opponent 2 (idx=78), gain 5 => idx=83 > 79
     const play = makePlay({ yardLn: 2, dn: "1", dist: 10, gainLoss: 5, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(false);
@@ -236,7 +266,6 @@ describe("Scoring/Safety Overflow — Prediction Suspended", () => {
   });
 
   it("suspends when loss exceeds own end zone", () => {
-    // At own -2 (idx=2), loss -5 => idx=-3 < 1
     const play = makePlay({ yardLn: -2, dn: "1", dist: 10, gainLoss: -5, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(false);
@@ -245,7 +274,6 @@ describe("Scoring/Safety Overflow — Prediction Suspended", () => {
   });
 
   it("does NOT suspend at the boundary (idx=maxIdx is still valid)", () => {
-    // At opponent 5 (idx=75), gain 4 => idx=79 = maxIdx, still in range
     const play = makePlay({ yardLn: 5, dn: "1", dist: 10, gainLoss: 4, result: "Rush" });
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);

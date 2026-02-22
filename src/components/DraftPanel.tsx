@@ -47,6 +47,7 @@ export function DraftPanel() {
     touchedFields,
     predictedFields,
     predictionExplanations,
+    predictionCoachMessages,
     inlineErrors,
     commitErrors,
     updateField,
@@ -406,17 +407,51 @@ export function DraftPanel() {
         <div key={fieldName} className={fieldClasses}>
           {renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
           <Select
-            value={value != null ? String(value) : ""}
-            onValueChange={handlePenaltyChange}
+            value={value != null && String(value) !== "" ? String(value) : "__none__"}
+            onValueChange={(v) => handlePenaltyChange(v === "__none__" ? "" : v)}
             disabled={isDisabled}
           >
             <SelectTrigger className={inputClasses}>
               <SelectValue placeholder="—" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="__none__">—</SelectItem>
               {fieldDef.allowedValues.map((v) => (
                 <SelectItem key={v} value={v}>
                   {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {stageLockLabel}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      );
+    }
+
+    if (fieldDef.allowedValues) {
+      const displayLabel = (v: string) => {
+        if (fieldName === "qtr") return QTR_DISPLAY[v] ?? v;
+        return v;
+      };
+      // Determine if this field is nullable (not required at commit)
+      const isNullable = !fieldDef.requiredAtCommit;
+      return (
+        <div key={fieldName} className={fieldClasses}>
+          {renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
+          <Select
+            value={value != null && String(value) !== "" ? String(value) : "__none__"}
+            onValueChange={(v) => updateField(fieldName, v === "__none__" ? "" : v)}
+            disabled={isDisabled}
+          >
+            <SelectTrigger className={inputClasses}>
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {isNullable && <SelectItem value="__none__">—</SelectItem>}
+              {fieldDef.allowedValues.map((v) => (
+                <SelectItem key={v} value={v}>
+                  {displayLabel(v)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -660,15 +695,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
         )}
 
         {/* Prediction explanation banner */}
-        {predictionExplanations.length > 0 && (
-          <div className="flex items-start gap-2 text-xs rounded px-3 py-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
-            <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <div className="flex-1 space-y-0.5">
-              {predictionExplanations.map((exp, i) => (
-                <p key={i}>{exp}</p>
-              ))}
-            </div>
-          </div>
+        {predictionCoachMessages.length > 0 && (
+          <PredictionBanner coachMessages={predictionCoachMessages} technicalExplanations={predictionExplanations} />
         )}
 
         {isSegment && (
@@ -776,7 +804,47 @@ PENALTY O-Holding EFF Y 2MIN N`}
   );
 }
 
-// ── Lookup Combobox Sub-Component (simple input + dropdown, iPad-safe) ──
+// ── Prediction Banner Sub-Component with "Why?" expander ──
+
+import type { CoachMessage } from "@/engine/predictionMessages";
+
+function PredictionBanner({ coachMessages, technicalExplanations }: {
+  coachMessages: CoachMessage[];
+  technicalExplanations: string[];
+}) {
+  const [showTechnical, setShowTechnical] = React.useState(false);
+
+  return (
+    <div className="flex flex-col gap-1 text-xs rounded px-3 py-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+      <div className="flex items-start gap-2">
+        <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        <div className="flex-1 space-y-0.5">
+          {coachMessages.map((msg, i) => (
+            <p key={i}>{msg.coach}</p>
+          ))}
+        </div>
+        {technicalExplanations.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowTechnical(!showTechnical)}
+            className="shrink-0 text-[10px] underline opacity-60 hover:opacity-100"
+          >
+            Why?
+          </button>
+        )}
+      </div>
+      {showTechnical && (
+        <div className="ml-5 mt-1 text-[10px] opacity-60 space-y-0.5 font-mono border-t border-violet-200 dark:border-violet-700 pt-1">
+          {technicalExplanations.map((t, i) => (
+            <p key={i}>{t}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 interface LookupComboboxProps {
   fieldName: string;
