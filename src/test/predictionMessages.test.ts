@@ -1,5 +1,5 @@
 /**
- * Phase 5B — Prediction Coach Messages Tests
+ * Phase 5B/5C — Prediction Coach Messages Tests
  */
 
 import { describe, it, expect } from "vitest";
@@ -62,9 +62,9 @@ describe("toCoachMessage", () => {
     expect(msg.coach).toBe("Auto-fill suggestion: Assuming possession changed after 4th down.");
   });
 
-  it("passes through quarter-changed messages", () => {
-    const msg = toCoachMessage("Auto-fill paused: quarter changed (Q1 → Q2).", 1);
-    expect(msg.coach).toContain("quarter changed");
+  it("maps half-time boundary message", () => {
+    const msg = toCoachMessage("Auto-fill paused: start of 2nd half.", 20);
+    expect(msg.coach).toBe("Auto-fill paused: start of 2nd half.");
   });
 
   it("passes through unknown strings", () => {

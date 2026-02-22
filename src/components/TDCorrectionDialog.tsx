@@ -34,7 +34,7 @@ export function TDCorrectionDialog({
         <DialogHeader>
           <DialogTitle>Touchdown Detected</DialogTitle>
           <DialogDescription>
-            This play reaches the goal line. Update result to <strong>{correctedResult}</strong> and commit?
+            This play reaches the goal line. Update result to <strong>{correctedResult}</strong> and continue?
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
@@ -42,7 +42,7 @@ export function TDCorrectionDialog({
             Cancel
           </Button>
           <Button onClick={onConfirm}>
-            Update &amp; Commit
+            Update &amp; Continue
           </Button>
         </DialogFooter>
       </DialogContent>
