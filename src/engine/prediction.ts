@@ -130,17 +130,16 @@ export function computePrediction(
   // Step 1: Yardline prediction
   const currentIdx = yardLnToIdx(Number(prevPlay.yardLn), fieldSize);
   const rawNewIdx = currentIdx + gainLoss;
-  const { idx: newIdx, clamped } = clampIdx(rawNewIdx, fieldSize);
 
-  if (clamped) {
-    explanations.push("Index beyond playable range; scoring logic deferred");
+  // If forward progress exceeds the playable field, suspend prediction entirely
+  if (rawNewIdx < 1 || rawNewIdx > maxIdx) {
+    return INELIGIBLE(["Forward progress exceeded playable field; scoring/safety logic deferred. Prediction suspended."]);
   }
 
-  const predictedYardLn = idxToYardLn(newIdx, fieldSize);
+  const predictedYardLn = idxToYardLn(rawNewIdx, fieldSize);
 
   // Distance to goal from new position (higher idx = closer to opponent goal)
-  // +1 because idx=maxIdx is the 1-yard line, not the goal line itself
-  const distToGoal = maxIdx - newIdx + 1;
+  const distToGoal = maxIdx - rawNewIdx + 1;
 
   // Step 2: Down/Distance prediction
   let predictedDn: number;
