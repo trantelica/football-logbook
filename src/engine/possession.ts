@@ -25,6 +25,7 @@ export const POSSESSION_CHANGE_RESULTS = new Set([
   "Sack, Safety",
   "Rush, Safety",
   "Penalty, Safety",
+  "COP",
 ]);
 
 // Results that are already governed by penalty logic — do NOT trigger possession guardrail
