@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { isPossessionChange, isFourthDownShort, possessionGuardrail, POSSESSION_CHANGE_RESULTS } from "@/engine/possession";
+import { isPossessionChange, isFourthDownShort, possessionGuardrail, normalizeResult, POSSESSION_CHANGE_RESULTS } from "@/engine/possession";
 import { computePrediction } from "@/engine/prediction";
 import { toCoachMessage } from "@/engine/predictionMessages";
 import type { PlayRecord } from "@/engine/types";
@@ -265,5 +265,48 @@ describe("COP result — possession guardrail", () => {
     expect(r.possessionChanged).toBe(true);
     expect(r.needsModal).toBe(false);
     expect(r.needsBanner).toBe(true);
+  });
+});
+
+describe("Normalization — comma-spacing variants", () => {
+  it("normalizeResult trims and fixes comma spacing", () => {
+    expect(normalizeResult("Interception,Def TD")).toBe("Interception, Def TD");
+    expect(normalizeResult("Sack,Fumble,Def TD")).toBe("Sack, Fumble, Def TD");
+    expect(normalizeResult("  Rush,Safety  ")).toBe("Rush, Safety");
+    expect(normalizeResult("Interception,  Def TD")).toBe("Interception, Def TD");
+  });
+
+  it("isPossessionChange matches without space after comma", () => {
+    expect(isPossessionChange(makePlay({ result: "Interception,Def TD" }))).toBe(true);
+  });
+
+  it("isPossessionChange matches with space after comma", () => {
+    expect(isPossessionChange(makePlay({ result: "Interception, Def TD" }))).toBe(true);
+  });
+
+  it("isPossessionChange matches Sack,Safety variant", () => {
+    expect(isPossessionChange(makePlay({ result: "Sack,Safety" }))).toBe(true);
+  });
+
+  it("isPossessionChange matches Fumble,Def TD variant", () => {
+    expect(isPossessionChange(makePlay({ result: "Fumble,Def TD" }))).toBe(true);
+  });
+
+  it("isPossessionChange matches Sack,Fumble,Def TD variant", () => {
+    expect(isPossessionChange(makePlay({ result: "Sack,Fumble,Def TD" }))).toBe(true);
+  });
+
+  it("prediction suspends for comma-variant result", () => {
+    const play = makePlay({ result: "Interception,Def TD", yardLn: -30, dn: "1", dist: 10, gainLoss: 0 });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(false);
+    expect(r.explanations[0]).toContain("Possession likely changed");
+  });
+
+  it("modal triggers for comma-variant result", () => {
+    const play = makePlay({ result: "Fumble,Def TD" });
+    const r = possessionGuardrail(play, "O", false);
+    expect(r.possessionChanged).toBe(true);
+    expect(r.needsModal).toBe(true);
   });
 });

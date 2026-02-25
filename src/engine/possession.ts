@@ -10,7 +10,17 @@
 
 import type { PlayRecord } from "./types";
 
-// ── Possession-Change Result Enums ──
+// ── Normalization (comparison only — never mutates stored values) ──
+
+/** Normalize a result string for comparison: trim, collapse whitespace, ensure one space after commas. */
+export function normalizeResult(raw: string): string {
+  return raw
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/,\s*/g, ", ");
+}
+
+// ── Possession-Change Result Enums (canonical form) ──
 
 export const POSSESSION_CHANGE_RESULTS = new Set([
   "Interception",
@@ -47,7 +57,7 @@ const PENALTY_GOVERNED_RESULTS = new Set([
 export function isPossessionChange(prevPlay: PlayRecord | null): boolean {
   if (!prevPlay) return false;
 
-  const resultStr = prevPlay.result != null ? String(prevPlay.result) : null;
+  const resultStr = prevPlay.result != null ? normalizeResult(String(prevPlay.result)) : null;
   if (!resultStr) return false;
 
   // Penalty-governed results are NOT possession triggers here
@@ -75,7 +85,7 @@ export function isFourthDownShort(prevPlay: PlayRecord): boolean {
 
   if (gainLoss === null || dist === null) return false;
 
-  const resultStr = prevPlay.result != null ? String(prevPlay.result) : null;
+  const resultStr = prevPlay.result != null ? normalizeResult(String(prevPlay.result)) : null;
   if (resultStr && PENALTY_GOVERNED_RESULTS.has(resultStr)) return false;
 
   return gainLoss < dist;
