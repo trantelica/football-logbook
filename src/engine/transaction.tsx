@@ -350,8 +350,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    // Phase 5: Possession guardrail — check at review time
-    if (selectedSlotNum !== null) {
+    // Phase 5: Possession guardrail — check at review time (skip in PAT context)
+    if (selectedSlotNum !== null && !patContext) {
       const prevPlayNum = selectedSlotNum - 1;
       const prevPlay = committedPlays.find((p) => p.playNum === prevPlayNum) ?? null;
       const nextSlotOdk = candidate.odk as string | null;
