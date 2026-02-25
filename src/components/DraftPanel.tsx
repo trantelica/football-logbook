@@ -22,6 +22,7 @@ import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDial
 import { ActorCombobox } from "./ActorCombobox";
 import { TDCorrectionDialog } from "./TDCorrectionDialog";
 import { PATTryDialog } from "./PATTryDialog";
+import { PossessionCheckDialog } from "./PossessionCheckDialog";
 import { toast } from "sonner";
 
 const WORKFLOW_STAGES = [
@@ -76,6 +77,9 @@ export function DraftPanel() {
     selectPatAttempt,
     reopenPatDialog,
     cancelPatTry,
+    possessionCheckPending,
+    confirmPossessionOffense,
+    cancelPossessionCheck,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -861,6 +865,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
           lockedTry={patLockedTry}
           onConfirm={selectPatAttempt}
           onCancel={cancelPatTry}
+        />
+      )}
+
+      {possessionCheckPending && (
+        <PossessionCheckDialog
+          open
+          onConfirmOffense={confirmPossessionOffense}
+          onCancel={cancelPossessionCheck}
         />
       )}
     </>

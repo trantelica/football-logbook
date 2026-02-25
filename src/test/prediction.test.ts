@@ -214,13 +214,12 @@ describe("Midfield Crossing — 80-yard field", () => {
   });
 });
 
-describe("4th Down — Never produces DN > 4", () => {
-  it("predicts DN=1 on 4th down failure with turnover explanation", () => {
+describe("4th Down — Possession guardrail", () => {
+  it("suspends prediction on 4th down failure (possession guardrail)", () => {
     const play = makePlay({ dn: "4", dist: 5, gainLoss: 2, result: "Rush", yardLn: -30 });
     const r = computePrediction(play, "O", 80);
-    expect(r.eligible).toBe(true);
-    expect(r.dn).toBe(1);
-    expect(r.explanations).toContain("4th down turnover assumed; possession logic deferred");
+    expect(r.eligible).toBe(false);
+    expect(r.explanations[0]).toContain("Possession likely changed");
   });
 
   it("predicts first down on 4th down conversion", () => {
@@ -228,7 +227,6 @@ describe("4th Down — Never produces DN > 4", () => {
     const r = computePrediction(play, "O", 80);
     expect(r.eligible).toBe(true);
     expect(r.dn).toBe(1);
-    expect(r.explanations).not.toContain("4th down turnover assumed; possession logic deferred");
   });
 });
 

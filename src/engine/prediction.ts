@@ -12,6 +12,7 @@
  */
 
 import type { PlayRecord } from "./types";
+import { isPossessionChange } from "./possession";
 
 // ── Field Size Types ──
 
@@ -86,6 +87,14 @@ export function computePrediction(
       "Auto-fill paused: start of 2nd half.",
     ]);
   }
+
+  // Gate 0b: Possession-change guardrail
+  if (isPossessionChange(prevPlay)) {
+    return INELIGIBLE([
+      "Possession likely changed: next yard line/down/distance not predicted.",
+    ]);
+  }
+
   // ── Yard Line prerequisites (gates 1-7) ──
 
   // Gate 1: previous play must exist

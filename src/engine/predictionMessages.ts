@@ -59,6 +59,9 @@ export function toCoachMessage(technical: string, prevPlayNum: number): CoachMes
   if (technical.includes("Offsetting penalties: replay down")) {
     return { coach: "Offsetting penalties: replay down. Next values held.", technical };
   }
+  if (technical.includes("Possession likely changed")) {
+    return { coach: "Possession may have changed on the previous play. Next values not predicted.", technical };
+  }
   if (technical.includes("next yard line/down/distance not predicted")) {
     return { coach: "Penalty recorded: next yard line/down/distance not predicted. Enter next values.", technical };
   }

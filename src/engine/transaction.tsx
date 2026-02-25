@@ -21,6 +21,7 @@ import { toCoachMessages, type CoachMessage } from "./predictionMessages";
 import { computeEff } from "./eff";
 import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
+import { possessionGuardrail } from "./possession";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -62,6 +63,11 @@ interface TransactionContextValue {
   selectPatAttempt: (patTry: "1" | "2", result: "Good" | "No Good" | "Penalty") => void;
   reopenPatDialog: () => void;
   cancelPatTry: () => void;
+
+  // Phase 5: Possession guardrail
+  possessionCheckPending: boolean;
+  confirmPossessionOffense: () => void;
+  cancelPossessionCheck: () => void;
   
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
@@ -126,6 +132,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [patTryPending, setPatTryPending] = useState(false);
   const [patLockedTry, setPatLockedTry] = useState<"1" | "2" | null>(null);
 
+  // Phase 5: Possession check state
+  const [possessionCheckPending, setPossessionCheckPending] = useState(false);
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePass] = useState<number>(1);
   // Phase 4: ODK filter (display-only, no persistence)
@@ -342,8 +350,21 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return;
     }
 
+    // Phase 5: Possession guardrail — check at review time
+    if (selectedSlotNum !== null) {
+      const prevPlayNum = selectedSlotNum - 1;
+      const prevPlay = committedPlays.find((p) => p.playNum === prevPlayNum) ?? null;
+      const nextSlotOdk = candidate.odk as string | null;
+      const isOdkFilterActive = odkFilter !== "ALL";
+      const guard = possessionGuardrail(prevPlay, nextSlotOdk, isOdkFilterActive);
+      if (guard.possessionChanged && guard.needsModal) {
+        setPossessionCheckPending(true);
+        return;
+      }
+    }
+
     setState("proposal");
-  }, [candidate, touchedFields, getLookupMap, fieldSize, patContext]);
+  }, [candidate, touchedFields, getLookupMap, fieldSize, patContext, selectedSlotNum, committedPlays, odkFilter]);
 
   const backToEdit = useCallback(() => {
     if (state === "proposal") {
@@ -711,6 +732,16 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setState(gameId ? "idle" : "idle");
   }, [gameId]);
 
+  // Phase 5: Possession check confirmation
+  const confirmPossessionOffense = useCallback(() => {
+    setPossessionCheckPending(false);
+    setState("proposal");
+  }, []);
+
+  const cancelPossessionCheck = useCallback(() => {
+    setPossessionCheckPending(false);
+  }, []);
+
   const refreshCommittedPlays = useCallback(async () => {
     if (!gameId) return;
     const plays = await getPlaysByGame(gameId);
@@ -803,6 +834,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         selectPatAttempt,
         reopenPatDialog,
         cancelPatTry,
+        possessionCheckPending,
+        confirmPossessionOffense,
+        cancelPossessionCheck,
       }}
     >
       {children}
