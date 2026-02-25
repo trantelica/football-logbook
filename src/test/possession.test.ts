@@ -45,26 +45,20 @@ describe("Possession-change result enum triggers", () => {
   const allTriggers = [
     "Interception",
     "Interception, Def TD",
-    "Interception, Fumble",
     "Fumble",
     "Fumble, Def TD",
+    "Complete, Fumble",
     "Sack, Fumble",
     "Sack, Fumble, Def TD",
     "Def TD",
     "Safety",
     "Sack, Safety",
     "Rush, Safety",
-    "Penalty, Safety",
     "COP",
   ];
 
   for (const result of allTriggers) {
     it(`detects possession change for "${result}"`, () => {
-      // "Penalty, Safety" is penalty-governed → should NOT trigger possession
-      if (result === "Penalty, Safety") {
-        expect(isPossessionChange(makePlay({ result }))).toBe(false);
-        return;
-      }
       expect(isPossessionChange(makePlay({ result }))).toBe(true);
     });
   }
@@ -308,5 +302,32 @@ describe("Normalization — comma-spacing variants", () => {
     const r = possessionGuardrail(play, "O", false);
     expect(r.possessionChanged).toBe(true);
     expect(r.needsModal).toBe(true);
+  });
+});
+
+describe("Complete, Fumble — possession guardrail", () => {
+  it("detects possession change for Complete, Fumble", () => {
+    expect(isPossessionChange(makePlay({ result: "Complete, Fumble" }))).toBe(true);
+  });
+
+  it("needs modal when Complete, Fumble + next slot O + no filter", () => {
+    const play = makePlay({ result: "Complete, Fumble" });
+    const r = possessionGuardrail(play, "O", false);
+    expect(r.possessionChanged).toBe(true);
+    expect(r.needsModal).toBe(true);
+    expect(r.needsBanner).toBe(false);
+  });
+
+  it("suspends predictions for Complete, Fumble", () => {
+    const play = makePlay({ result: "Complete, Fumble", yardLn: -30, dn: "2", dist: 7, gainLoss: 5 });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(false);
+    expect(r.explanations[0]).toContain("Possession likely changed");
+  });
+});
+
+describe("Interception, Fumble — removed from triggers", () => {
+  it("does NOT trigger possession change for Interception, Fumble", () => {
+    expect(isPossessionChange(makePlay({ result: "Interception, Fumble" }))).toBe(false);
   });
 });

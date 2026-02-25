@@ -25,9 +25,9 @@ export function normalizeResult(raw: string): string {
 export const POSSESSION_CHANGE_RESULTS = new Set([
   "Interception",
   "Interception, Def TD",
-  "Interception, Fumble",
   "Fumble",
   "Fumble, Def TD",
+  "Complete, Fumble",
   "Sack, Fumble",
   "Sack, Fumble, Def TD",
   "Def TD",
