@@ -289,8 +289,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    // Phase 5C patch: Compute EFF at review time (not commit) if not already touched
-    if (!touchedFields.has("eff")) {
+    // Offsetting Penalties → force EFF = N (unless coach touched)
+    if (!touchedFields.has("eff") && String(candidate.result) === "Offsetting Penalties") {
+      setCandidate((prev) => ({ ...prev, eff: "N" }));
+    } else if (!touchedFields.has("eff")) {
+      // Normal EFF computation
       const effValue = computeEff({
         result: candidate.result as string | null,
         gainLoss: candidate.gainLoss != null ? Number(candidate.gainLoss) : null,
