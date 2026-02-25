@@ -53,7 +53,7 @@ export function PATTryDialog({ open, lockedTry, onConfirm, onCancel }: PATTryDia
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>PAT Attempt</DialogTitle>
           <DialogDescription>
