@@ -55,6 +55,7 @@ describe("Possession-change result enum triggers", () => {
     "Sack, Safety",
     "Rush, Safety",
     "Penalty, Safety",
+    "COP",
   ];
 
   for (const result of allTriggers) {
@@ -232,5 +233,37 @@ describe("Coach messages for possession guardrail", () => {
     const msg = toCoachMessage("Possession likely changed: next yard line/down/distance not predicted.", 5);
     expect(msg.coach).toContain("Possession may have changed");
     expect(msg.coach).toContain("not predicted");
+  });
+});
+
+describe("COP result — possession guardrail", () => {
+  it("detects possession change for COP", () => {
+    expect(isPossessionChange(makePlay({ result: "COP" }))).toBe(true);
+  });
+
+  it("suspends predictions for COP result", () => {
+    const play = makePlay({ result: "COP", yardLn: -30, dn: "2", dist: 7, gainLoss: 0 });
+    const r = computePrediction(play, "O", 80);
+    expect(r.eligible).toBe(false);
+    expect(r.yardLn).toBeNull();
+    expect(r.dn).toBeNull();
+    expect(r.dist).toBeNull();
+    expect(r.explanations[0]).toContain("Possession likely changed");
+  });
+
+  it("needs modal when COP + next slot O + no filter", () => {
+    const play = makePlay({ result: "COP" });
+    const r = possessionGuardrail(play, "O", false);
+    expect(r.possessionChanged).toBe(true);
+    expect(r.needsModal).toBe(true);
+    expect(r.needsBanner).toBe(false);
+  });
+
+  it("needs banner (no modal) when COP + filter active", () => {
+    const play = makePlay({ result: "COP" });
+    const r = possessionGuardrail(play, "O", true);
+    expect(r.possessionChanged).toBe(true);
+    expect(r.needsModal).toBe(false);
+    expect(r.needsBanner).toBe(true);
   });
 });
