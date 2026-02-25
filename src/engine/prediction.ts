@@ -103,9 +103,31 @@ export function computePrediction(
     return INELIGIBLE(["Prediction suspended: current play is not offensive"]);
   }
 
-  // Gate 4: penalty must be null
-  if (prevPlay.penalty !== null && prevPlay.penalty !== undefined) {
-    return INELIGIBLE(["Prediction suspended: penalty present on previous play"]);
+  // Gate 4a: Penalty + result checks (replaces blanket penalty gate)
+  const hasPenalty = prevPlay.penalty !== null && prevPlay.penalty !== undefined;
+  const resultStr = prevPlay.result !== null && prevPlay.result !== undefined ? String(prevPlay.result) : null;
+
+  // Rule 2: Offsetting Penalties → replay down (hold all values)
+  if (resultStr === "Offsetting Penalties") {
+    // Need yardLn, dn, dist on prevPlay to hold them
+    if (prevPlay.yardLn === null || prevPlay.yardLn === undefined) {
+      return INELIGIBLE(["Prediction suspended: yard line missing on previous play"]);
+    }
+    const holdYardLn = Number(prevPlay.yardLn);
+    const holdDn = prevPlay.dn !== null && prevPlay.dn !== undefined ? Number(prevPlay.dn) : null;
+    const holdDist = prevPlay.dist !== null && prevPlay.dist !== undefined ? Number(prevPlay.dist) : null;
+    return {
+      yardLn: holdYardLn,
+      dn: holdDn,
+      dist: holdDist,
+      explanations: ["Offsetting penalties: replay down. Next values held."],
+      eligible: true,
+    };
+  }
+
+  // Rule 4: Generic penalty result → suspend predictions
+  if (resultStr === "Penalty" || resultStr === "Penalty, Safety") {
+    return INELIGIBLE(["Penalty recorded: next yard line/down/distance not predicted."]);
   }
 
   // Gate 5: result must be non-null
@@ -125,6 +147,12 @@ export function computePrediction(
 
   // ── Yard Line computation ──
   const explanations: string[] = [];
+
+  // Rule 3: Penalty present + non-penalty result → normal prediction with note
+  if (hasPenalty) {
+    explanations.push("Penalty noted. Next-play values based on net result recorded.");
+  }
+
   const gainLoss = Number(prevPlay.gainLoss);
   const goalIdx = fieldSize; // goal line index (NOT fieldSize-1)
 

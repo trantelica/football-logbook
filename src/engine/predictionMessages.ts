@@ -56,6 +56,15 @@ export function toCoachMessage(technical: string, prevPlayNum: number): CoachMes
   if (technical.includes("start of 2nd half")) {
     return { coach: "Auto-fill paused: start of 2nd half.", technical };
   }
+  if (technical.includes("Offsetting penalties: replay down")) {
+    return { coach: "Offsetting penalties: replay down. Next values held.", technical };
+  }
+  if (technical.includes("next yard line/down/distance not predicted")) {
+    return { coach: "Penalty recorded: next yard line/down/distance not predicted. Enter next values.", technical };
+  }
+  if (technical.includes("Next-play values based on net result")) {
+    return { coach: `Penalty noted. Next-play values are based on the net result you recorded.`, technical };
+  }
 
   // Fallback: pass through unchanged
   return { coach: technical, technical };
