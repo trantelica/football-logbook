@@ -15,7 +15,7 @@ import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForG
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
 import { useRoster } from "./rosterContext";
-import { playSchema, getFieldDef } from "./schema";
+import { playSchema, getFieldDef, PENALTY_YARDS_MAP } from "./schema";
 import { computePrediction } from "./prediction";
 import { toCoachMessages, type CoachMessage } from "./predictionMessages";
 import { computeEff } from "./eff";
@@ -246,6 +246,26 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     if (Object.keys(errors).length > 0) return;
 
     const reviewAdjustments: string[] = [];
+
+    // Rule 1: PEN YARDS proposal-time defaulting
+    const penaltyVal = candidate.penalty as string | null | undefined;
+    if (penaltyVal && penaltyVal !== "") {
+      // Penalty is set — default penYards if not touched
+      if (!touchedFields.has("penYards")) {
+        const defaultYards = PENALTY_YARDS_MAP[penaltyVal];
+        const currentPenYards = candidate.penYards;
+        if (defaultYards !== undefined && (currentPenYards === null || currentPenYards === undefined || currentPenYards === "")) {
+          setCandidate((prev) => ({ ...prev, penYards: defaultYards }));
+          reviewAdjustments.push("Penalty yards filled from the penalty list. You can change it.");
+        }
+      }
+    } else {
+      // Penalty cleared — clear penYards if not touched
+      if (!touchedFields.has("penYards") && candidate.penYards != null && candidate.penYards !== "") {
+        setCandidate((prev) => ({ ...prev, penYards: null }));
+        reviewAdjustments.push("Penalty cleared. Penalty yards cleared.");
+      }
+    }
 
     // Phase 6: PAT context — apply playType override and validate result
     if (patContext && candidate.patTry) {

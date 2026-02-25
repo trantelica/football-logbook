@@ -116,10 +116,16 @@ describe("Prediction Eligibility Gates", () => {
     expect(r.explanations[0]).toContain("not offensive");
   });
 
-  it("suspends when penalty present", () => {
-    const r = computePrediction(makePlay({ penalty: "O-Holding" }), "O", 80);
+  it("suspends when result is generic Penalty", () => {
+    const r = computePrediction(makePlay({ penalty: "O-Holding", result: "Penalty" }), "O", 80);
     expect(r.eligible).toBe(false);
-    expect(r.explanations[0]).toContain("penalty present");
+    expect(r.explanations[0]).toContain("not predicted");
+  });
+
+  it("allows prediction when penalty present with net result", () => {
+    const r = computePrediction(makePlay({ penalty: "O-Holding", result: "Rush", gainLoss: 5 }), "O", 80);
+    expect(r.eligible).toBe(true);
+    expect(r.explanations.some(e => e.includes("Penalty noted"))).toBe(true);
   });
 
   it("suspends when result missing", () => {
