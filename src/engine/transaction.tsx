@@ -22,7 +22,7 @@ import { computeEff } from "./eff";
 import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 import { possessionGuardrail } from "./possession";
-import { validatePersonnel, getCarryForwardPersonnel, computePassCompletion } from "./personnel";
+import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS } from "./personnel";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -84,6 +84,10 @@ interface TransactionContextValue {
   deselectSlot: () => void;
   dismissScaffoldWarning: () => void;
   commitAndNext: () => Promise<{ committed: boolean; hasNext: boolean }>;
+
+  // Carry-forward indicators (Pass 2)
+  carriedForwardFields: Set<string>;
+  carriedForwardFromPlayNum: number | null;
 }
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
@@ -141,28 +145,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePassRaw] = useState<number>(1);
 
-  // Carry-forward-aware stage setter
+  // Carry-forward state (Pass 2 only)
+  const [carriedForwardFields, setCarriedForwardFields] = useState<Set<string>>(new Set());
+  const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
+  const [lastPass2CommitPlayNum, setLastPass2CommitPlayNum] = useState<number | null>(null);
+
+  // Stage setter — no carry-forward here, just clear Pass 1 prompts
   const setActivePass = useCallback((pass: number) => {
     setActivePassRaw(pass);
-    // Trigger carry-forward seeding when switching into Pass 2 with a slot selected
-    if (pass === 2 && selectedSlotNum !== null) {
-      const slot = committedPlays.find((p) => p.playNum === selectedSlotNum);
-      if (slot && slot.odk === "O") {
-        const carryForward = getCarryForwardPersonnel(committedPlays, slotMetaMap, selectedSlotNum);
-        if (carryForward) {
-          setCandidate((prev) => {
-            const updated = { ...prev };
-            for (const [pos, jersey] of Object.entries(carryForward)) {
-              const currentVal = (updated as Record<string, unknown>)[pos];
-              if (currentVal === null || currentVal === undefined || currentVal === "") {
-                (updated as Record<string, unknown>)[pos] = jersey;
-              }
-            }
-            return updated;
-          });
-        }
-      }
-    }
     // Clear Pass 1 prompts when entering Pass 2+
     if (pass >= 2) {
       setPredictionExplanations([]);
@@ -170,7 +160,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setPossessionCheckPending(false);
       setPossessionPrevPlayInfo(null);
     }
-  }, [selectedSlotNum, committedPlays, slotMetaMap]);
+  }, []);
 
   // Phase 4: ODK filter (display-only, no persistence)
   const [odkFilter, setOdkFilter] = useState<string>("ALL");
@@ -260,6 +250,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
+      // If editing a carried-forward field, remove indicator
+      setCarriedForwardFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
       setState("candidate");
       setCommitErrors({});
 
@@ -287,6 +286,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPatContext(false);
     setPatTryPending(false);
     setPatLockedTry(null);
+    setCarriedForwardFields(new Set());
+    setCarriedForwardFromPlayNum(null);
   }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
@@ -702,19 +703,33 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setPossessionCheckPending(false);
       setPossessionPrevPlayInfo(null);
 
-      // Carry-forward personnel seeding (only at activePass === 2)
-      if (activePass === 2 && slot.odk === "O") {
-        const carryForward = getCarryForwardPersonnel(committedPlays, slotMetaMap, playNum);
-        if (carryForward) {
-          for (const [pos, jersey] of Object.entries(carryForward)) {
+      // Optional +1 carry-forward exception: only if this is exactly lastPass2CommitPlayNum + 1
+      if (activePass === 2 && slot.odk === "O" && lastPass2CommitPlayNum !== null && playNum === lastPass2CommitPlayNum + 1) {
+        const sourcePlay = committedPlays.find((p) => p.playNum === lastPass2CommitPlayNum);
+        if (sourcePlay) {
+          const seededFields = new Set<string>();
+          const sp = sourcePlay as unknown as Record<string, unknown>;
+          for (const pos of PERSONNEL_POSITIONS) {
             const currentVal = (newCandidate as Record<string, unknown>)[pos];
             if (currentVal === null || currentVal === undefined || currentVal === "") {
-              (newCandidate as Record<string, unknown>)[pos] = jersey;
+              const srcVal = sp[pos];
+              if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
+                (newCandidate as Record<string, unknown>)[pos] = srcVal;
+                seededFields.add(pos);
+              }
             }
           }
+          if (seededFields.size > 0) {
+            setCarriedForwardFields(seededFields);
+            setCarriedForwardFromPlayNum(lastPass2CommitPlayNum);
+          }
         }
+      } else {
+        // No carry-forward on arbitrary selection
+        setCarriedForwardFields(new Set());
+        setCarriedForwardFromPlayNum(null);
       }
-      
+
       setCandidate(newCandidate);
       setSelectedSlotNum(playNum);
       setTouchedFields(new Set());
@@ -727,7 +742,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setAdjustments([]);
       setState("candidate");
     },
-    [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter, activePass]
+    [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter, activePass, lastPass2CommitPlayNum]
   );
 
   const deselectSlot = useCallback(() => {
@@ -852,15 +867,19 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     // Snapshot current state before commit (clearDraft resets selectedSlotNum)
     const currentSlotNum = selectedSlotNum;
-    const _currentPlays = [...committedPlays];
+    const currentActivePass = activePass;
 
     const success = await commitProposal();
     if (!success) {
       return { committed: false, hasNext: false };
     }
 
+    // Track last Pass 2 commit for +1 exception
+    if (currentActivePass === 2 && currentSlotNum !== null) {
+      setLastPass2CommitPlayNum(currentSlotNum);
+    }
+
     // Refresh committedPlays from DB before selecting next slot
-    // so prediction sees the freshly committed play
     await refreshCommittedPlays();
 
     // Re-read fresh plays for filtered list
@@ -873,13 +892,62 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     
     const currentIdx = filteredList.findIndex((p) => p.playNum === currentSlotNum);
     if (currentIdx >= 0 && currentIdx < filteredList.length - 1) {
-      await selectSlot(filteredList[currentIdx + 1].playNum);
+      const nextPlay = filteredList[currentIdx + 1];
+
+      // Pass 2 carry-forward: seed personnel into next slot if ODK=O
+      if (currentActivePass === 2 && nextPlay.odk === "O" && currentSlotNum !== null) {
+        // Get the just-committed play from fresh data
+        const justCommitted = sortedPlays.find((p) => p.playNum === currentSlotNum);
+        if (justCommitted) {
+          // We need to select the slot first, then apply seeding
+          // Build seeded candidate inline
+          const nextSlot = sortedPlays.find((p) => p.playNum === nextPlay.playNum);
+          if (nextSlot) {
+            const seededCandidate: CandidateData = { ...nextSlot };
+            const seededFields = new Set<string>();
+            const src = justCommitted as unknown as Record<string, unknown>;
+            for (const pos of PERSONNEL_POSITIONS) {
+              const currentVal = (seededCandidate as unknown as Record<string, unknown>)[pos];
+              if (currentVal === null || currentVal === undefined || currentVal === "") {
+                const srcVal = src[pos];
+                if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
+                  (seededCandidate as unknown as Record<string, unknown>)[pos] = srcVal;
+                  seededFields.add(pos);
+                }
+              }
+            }
+
+            // Set state directly instead of calling selectSlot to avoid clearing seeded values
+            setCandidate(seededCandidate);
+            setSelectedSlotNum(nextPlay.playNum);
+            setTouchedFields(new Set());
+            setPredictedFields(new Set());
+            setPredictionExplanations([]);
+            setPredictionCoachMessages([]);
+            setInlineErrors({});
+            setCommitErrors({});
+            setScaffoldedWarning(null);
+            setAdjustments([]);
+            setPatContext(false);
+            setPatTryPending(false);
+            setPatLockedTry(null);
+            setPossessionCheckPending(false);
+            setPossessionPrevPlayInfo(null);
+            setCarriedForwardFields(seededFields);
+            setCarriedForwardFromPlayNum(currentSlotNum);
+            setState("candidate");
+            return { committed: true, hasNext: true };
+          }
+        }
+      }
+
+      await selectSlot(nextPlay.playNum);
       return { committed: true, hasNext: true };
     }
 
     // No next slot — already deselected by clearDraft
     return { committed: true, hasNext: false };
-  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId]);
+  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass]);
 
   return (
     <TransactionContext.Provider
@@ -917,6 +985,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         deselectSlot,
         dismissScaffoldWarning,
         commitAndNext,
+        carriedForwardFields,
+        carriedForwardFromPlayNum,
         tdCorrectionPending: tdCorrectionPending ? { correctedResult: tdCorrectionPending.correctedResult } : null,
         confirmTDCorrection,
         cancelTDCorrection,
