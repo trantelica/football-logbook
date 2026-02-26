@@ -145,7 +145,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const setActivePass = useCallback((pass: number) => {
     setActivePassRaw(pass);
     // Trigger carry-forward seeding when switching into Pass 2 with a slot selected
-    if (pass >= 2 && selectedSlotNum !== null) {
+    if (pass === 2 && selectedSlotNum !== null) {
       const slot = committedPlays.find((p) => p.playNum === selectedSlotNum);
       if (slot && slot.odk === "O") {
         const carryForward = getCarryForwardPersonnel(committedPlays, slotMetaMap, selectedSlotNum);
@@ -162,6 +162,13 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           });
         }
       }
+    }
+    // Clear Pass 1 prompts when entering Pass 2+
+    if (pass >= 2) {
+      setPredictionExplanations([]);
+      setPredictionCoachMessages([]);
+      setPossessionCheckPending(false);
+      setPossessionPrevPlayInfo(null);
     }
   }, [selectedSlotNum, committedPlays, slotMetaMap]);
 
@@ -597,72 +604,106 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // Phase 5A: Load prevPlay from IndexedDB to avoid stale state
       const prevPlay = await getPlay(gameId, playNum - 1);
 
-      // Phase 6: PAT context detection
-      const isPAT = shouldEnterPATContext(prevPlay, slot, patMode);
-      setPatContext(isPAT);
-      
-      if (isPAT) {
-        // Check if patTry is already set (penalty re-try or existing)
-        const carriedTry = getCarriedPatTry(prevPlay, slot);
-        if (carriedTry) {
-          // Penalty re-try: lock try type, still need outcome dialog
-          newCandidate.patTry = carriedTry;
-          newCandidate.playType = patTryToPlayType(carriedTry);
-          setPatLockedTry(carriedTry as "1" | "2");
-        } else {
-          // Fresh PAT: need both try type and outcome
-          setPatLockedTry(null);
-        }
-        // Always show dialog to capture outcome
-        setPatTryPending(true);
+      // ── Pass 1-only logic: predictions, PAT, possession ──
+      // When activePass >= 2, skip all Pass 1 gating entirely
+      if (activePass < 2) {
+        // Phase 6: PAT context detection
+        const isPAT = shouldEnterPATContext(prevPlay, slot, patMode);
+        setPatContext(isPAT);
         
-        // Suspend normal predictions in PAT context
+        if (isPAT) {
+          const carriedTry = getCarriedPatTry(prevPlay, slot);
+          if (carriedTry) {
+            newCandidate.patTry = carriedTry;
+            newCandidate.playType = patTryToPlayType(carriedTry);
+            setPatLockedTry(carriedTry as "1" | "2");
+          } else {
+            setPatLockedTry(null);
+          }
+          setPatTryPending(true);
+          
+          setCandidate(newCandidate);
+          setSelectedSlotNum(playNum);
+          setTouchedFields(new Set());
+          setPredictedFields(new Set());
+          setPredictionExplanations(["PAT attempt: normal predictions suspended."]);
+          setPredictionCoachMessages([{ coach: "Auto-fill paused: PAT attempt.", technical: "PAT attempt: normal predictions suspended." }]);
+          setInlineErrors({});
+          setCommitErrors({});
+          setScaffoldedWarning(null);
+          setAdjustments([]);
+          setState("candidate");
+          return;
+        }
+        
+        setPatTryPending(false);
+
+        // Phase 5C patch: Half-time boundary check (only Q3 start)
+        let halfTimeBoundary = false;
+        const initConfig = await getGameInit(gameId);
+        if (initConfig) {
+          const q3Start = initConfig.quarterStarts["3"];
+          if (q3Start && playNum === q3Start) {
+            halfTimeBoundary = true;
+          }
+        }
+
+        const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, halfTimeBoundary);
+        
+        const newPredicted = new Set<string>();
+        if (prediction.eligible) {
+          const meta = slotMetaMap.get(playNum);
+          const committedFieldSet = new Set(meta?.committedFields ?? []);
+          
+          for (const [field, val] of Object.entries({ yardLn: prediction.yardLn, dn: prediction.dn, dist: prediction.dist })) {
+            if (val !== null && !committedFieldSet.has(field)) {
+              const currentVal = (newCandidate as Record<string, unknown>)[field];
+              if (currentVal === null || currentVal === undefined || currentVal === "") {
+                (newCandidate as Record<string, unknown>)[field] = val;
+                newPredicted.add(field);
+              }
+            }
+          }
+        }
+
         setCandidate(newCandidate);
         setSelectedSlotNum(playNum);
         setTouchedFields(new Set());
-        setPredictedFields(new Set());
-        setPredictionExplanations(["PAT attempt: normal predictions suspended."]);
-        setPredictionCoachMessages([{ coach: "Auto-fill paused: PAT attempt.", technical: "PAT attempt: normal predictions suspended." }]);
+        setPredictedFields(newPredicted);
+        setPredictionExplanations(prediction.explanations);
+        setPredictionCoachMessages(toCoachMessages(prediction.explanations, playNum - 1));
         setInlineErrors({});
         setCommitErrors({});
         setScaffoldedWarning(null);
         setAdjustments([]);
         setState("candidate");
+
+        // Phase 5: Possession guardrail at slot load (skip PAT context)
+        setPossessionCheckDismissed(false);
+        setPossessionCheckPending(false);
+        setPossessionPrevPlayInfo(null);
+        const nextSlotOdk = slot.odk;
+        const isOdkFilterActive = odkFilter !== "ALL";
+        const guard = possessionGuardrail(prevPlay, nextSlotOdk, isOdkFilterActive);
+        if (guard.possessionChanged && guard.needsModal) {
+          setPossessionPrevPlayInfo({
+            playNum: playNum - 1,
+            result: prevPlay?.result != null ? String(prevPlay.result) : "unknown",
+          });
+          setPossessionCheckPending(true);
+        }
         return;
       }
-      
+
+      // ── Pass 2+ logic: no predictions, no possession, no PAT ──
+      setPatContext(false);
       setPatTryPending(false);
+      setPatLockedTry(null);
+      setPossessionCheckPending(false);
+      setPossessionPrevPlayInfo(null);
 
-      // Phase 5C patch: Half-time boundary check (only Q3 start)
-      let halfTimeBoundary = false;
-      const initConfig = await getGameInit(gameId);
-      if (initConfig) {
-        const q3Start = initConfig.quarterStarts["3"];
-        if (q3Start && playNum === q3Start) {
-          halfTimeBoundary = true;
-        }
-      }
-
-      const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, halfTimeBoundary);
-      
-      const newPredicted = new Set<string>();
-      if (prediction.eligible) {
-        const meta = slotMetaMap.get(playNum);
-        const committedFieldSet = new Set(meta?.committedFields ?? []);
-        
-        for (const [field, val] of Object.entries({ yardLn: prediction.yardLn, dn: prediction.dn, dist: prediction.dist })) {
-          if (val !== null && !committedFieldSet.has(field)) {
-            const currentVal = (newCandidate as Record<string, unknown>)[field];
-            if (currentVal === null || currentVal === undefined || currentVal === "") {
-              (newCandidate as Record<string, unknown>)[field] = val;
-              newPredicted.add(field);
-            }
-          }
-        }
-      }
-
-      // Phase 6: Carry-forward personnel seeding for Pass 2 on offensive plays
-      if (activePass >= 2 && slot.odk === "O") {
+      // Carry-forward personnel seeding (only at activePass === 2)
+      if (activePass === 2 && slot.odk === "O") {
         const carryForward = getCarryForwardPersonnel(committedPlays, slotMetaMap, playNum);
         if (carryForward) {
           for (const [pos, jersey] of Object.entries(carryForward)) {
@@ -677,29 +718,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setCandidate(newCandidate);
       setSelectedSlotNum(playNum);
       setTouchedFields(new Set());
-      setPredictedFields(newPredicted);
-      setPredictionExplanations(prediction.explanations);
-      setPredictionCoachMessages(toCoachMessages(prediction.explanations, playNum - 1));
+      setPredictedFields(new Set());
+      setPredictionExplanations([]);
+      setPredictionCoachMessages([]);
       setInlineErrors({});
       setCommitErrors({});
       setScaffoldedWarning(null);
       setAdjustments([]);
       setState("candidate");
-
-      // Phase 5: Possession guardrail at slot load (skip PAT context)
-      setPossessionCheckDismissed(false);
-      setPossessionCheckPending(false);
-      setPossessionPrevPlayInfo(null);
-      const nextSlotOdk = slot.odk;
-      const isOdkFilterActive = odkFilter !== "ALL";
-      const guard = possessionGuardrail(prevPlay, nextSlotOdk, isOdkFilterActive);
-      if (guard.possessionChanged && guard.needsModal) {
-        setPossessionPrevPlayInfo({
-          playNum: playNum - 1,
-          result: prevPlay?.result != null ? String(prevPlay.result) : "unknown",
-        });
-        setPossessionCheckPending(true);
-      }
     },
     [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter, activePass]
   );

@@ -736,8 +736,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
           </div>
         )}
 
-        {/* Prediction explanation banner */}
-        {predictionCoachMessages.length > 0 && (
+        {/* Prediction explanation banner — Pass 1 only */}
+        {activePass < 2 && predictionCoachMessages.length > 0 && (
           <PredictionBanner coachMessages={predictionCoachMessages} technicalExplanations={predictionExplanations} />
         )}
 
@@ -875,7 +875,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
         />
       )}
 
-      {possessionCheckPending && (
+      {activePass < 2 && possessionCheckPending && (
         <PossessionCheckDialog
           open
           prevPlayInfo={possessionPrevPlayInfo}
