@@ -66,6 +66,7 @@ interface TransactionContextValue {
 
   // Phase 5: Possession guardrail
   possessionCheckPending: boolean;
+  possessionPrevPlayInfo: { playNum: number; result: string } | null;
   confirmPossessionOffense: () => void;
   cancelPossessionCheck: () => void;
   
@@ -134,6 +135,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Phase 5: Possession check state
   const [possessionCheckPending, setPossessionCheckPending] = useState(false);
+  const [possessionCheckDismissed, setPossessionCheckDismissed] = useState(false);
+  const [possessionPrevPlayInfo, setPossessionPrevPlayInfo] = useState<{ playNum: number; result: string } | null>(null);
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePass] = useState<number>(1);
   // Phase 4: ODK filter (display-only, no persistence)
@@ -348,19 +351,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     if (qc.correctedResult) {
       setTdCorrectionPending({ correctedResult: qc.correctedResult, normalizedPlay: null as unknown as PlayRecord, existingSlot: null });
       return;
-    }
-
-    // Phase 5: Possession guardrail — check at review time (skip in PAT context)
-    if (selectedSlotNum !== null && !patContext) {
-      const prevPlayNum = selectedSlotNum - 1;
-      const prevPlay = committedPlays.find((p) => p.playNum === prevPlayNum) ?? null;
-      const nextSlotOdk = candidate.odk as string | null;
-      const isOdkFilterActive = odkFilter !== "ALL";
-      const guard = possessionGuardrail(prevPlay, nextSlotOdk, isOdkFilterActive);
-      if (guard.possessionChanged && guard.needsModal) {
-        setPossessionCheckPending(true);
-        return;
-      }
     }
 
     setState("proposal");
@@ -634,8 +624,23 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setScaffoldedWarning(null);
       setAdjustments([]);
       setState("candidate");
+
+      // Phase 5: Possession guardrail at slot load (skip PAT context)
+      setPossessionCheckDismissed(false);
+      setPossessionCheckPending(false);
+      setPossessionPrevPlayInfo(null);
+      const nextSlotOdk = slot.odk;
+      const isOdkFilterActive = odkFilter !== "ALL";
+      const guard = possessionGuardrail(prevPlay, nextSlotOdk, isOdkFilterActive);
+      if (guard.possessionChanged && guard.needsModal) {
+        setPossessionPrevPlayInfo({
+          playNum: playNum - 1,
+          result: prevPlay?.result != null ? String(prevPlay.result) : "unknown",
+        });
+        setPossessionCheckPending(true);
+      }
     },
-    [committedPlays, gameId, fieldSize, slotMetaMap, patMode]
+    [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter]
   );
 
   const deselectSlot = useCallback(() => {
@@ -732,10 +737,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setState(gameId ? "idle" : "idle");
   }, [gameId]);
 
-  // Phase 5: Possession check confirmation
+  // Phase 5: Possession check confirmation — remain in Draft, one-time dismiss
   const confirmPossessionOffense = useCallback(() => {
     setPossessionCheckPending(false);
-    setState("proposal");
+    setPossessionCheckDismissed(true);
   }, []);
 
   const cancelPossessionCheck = useCallback(() => {
@@ -835,6 +840,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         reopenPatDialog,
         cancelPatTry,
         possessionCheckPending,
+        possessionPrevPlayInfo,
         confirmPossessionOffense,
         cancelPossessionCheck,
       }}

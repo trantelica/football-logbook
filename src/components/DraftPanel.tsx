@@ -78,6 +78,7 @@ export function DraftPanel() {
     reopenPatDialog,
     cancelPatTry,
     possessionCheckPending,
+    possessionPrevPlayInfo,
     confirmPossessionOffense,
     cancelPossessionCheck,
   } = useTransaction();
@@ -871,6 +872,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
       {possessionCheckPending && (
         <PossessionCheckDialog
           open
+          prevPlayInfo={possessionPrevPlayInfo}
           onConfirmOffense={confirmPossessionOffense}
           onCancel={cancelPossessionCheck}
         />
