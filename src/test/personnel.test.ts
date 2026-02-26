@@ -168,6 +168,7 @@ describe("validatePersonnel", () => {
       rosterNumbers
     );
     expect(errors.rusher).toContain("must be one of the 11");
+    expect(errors.rusher).toContain("fix in Play Details");
   });
 
   it("passes when actor is in personnel", () => {
