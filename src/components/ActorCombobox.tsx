@@ -49,7 +49,7 @@ export function ActorCombobox({
   const isNovelJersey =
     typedNum !== "" &&
     !isNaN(parsedNum) &&
-    parsedNum > 0 &&
+    parsedNum >= 0 &&
     !roster.some((r) => r.jerseyNumber === parsedNum);
 
   useEffect(() => {
