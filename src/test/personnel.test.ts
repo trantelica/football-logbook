@@ -13,6 +13,7 @@ import {
   getCarryForwardPersonnel,
   PERSONNEL_POSITIONS,
 } from "@/engine/personnel";
+import { validateInline, validateCommitGate } from "@/engine/validation";
 import type { PlayRecord, SlotMeta, CandidateData } from "@/engine/types";
 
 function makePlay(overrides: Partial<PlayRecord> = {}): PlayRecord {
@@ -168,7 +169,7 @@ describe("validatePersonnel", () => {
       rosterNumbers
     );
     expect(errors.rusher).toContain("must be one of the 11");
-    expect(errors.rusher).toContain("fix in Play Details");
+    expect(errors.rusher).toContain("Actor Integrity");
   });
 
   it("passes when actor is in personnel", () => {
@@ -275,6 +276,121 @@ describe("getCarryForwardPersonnel", () => {
     const result = getCarryForwardPersonnel(plays, metas, 2);
     expect(result).toBeNull();
   });
+
+  it("finds source across D/K gap (backward-looking, not limited to playNum-1)", () => {
+    const personnelValues: Record<string, number> = {};
+    PERSONNEL_POSITIONS.forEach((f, i) => { personnelValues[f] = 50 + i; });
+
+    const plays: PlayRecord[] = [
+      makePlay({ playNum: 1, ...personnelValues }),
+      makePlay({ playNum: 2, odk: "D" }),
+      makePlay({ playNum: 3, odk: "K" }),
+      makePlay({ playNum: 4 }), // O play, target
+    ];
+    const metas = new Map<number, SlotMeta>();
+    metas.set(1, makeMeta([...PERSONNEL_POSITIONS as unknown as string[]], 1));
+    metas.set(2, makeMeta([], 2));
+    metas.set(3, makeMeta([], 3));
+
+    const result = getCarryForwardPersonnel(plays, metas, 4);
+    expect(result).not.toBeNull();
+    expect(result!.posLT).toBe(50);
+  });
+
+  it("uses most recent complete source, not first", () => {
+    const pv1: Record<string, number> = {};
+    PERSONNEL_POSITIONS.forEach((f, i) => { pv1[f] = 50 + i; });
+    const pv2: Record<string, number> = {};
+    PERSONNEL_POSITIONS.forEach((f, i) => { pv2[f] = 70 + i; });
+
+    const plays: PlayRecord[] = [
+      makePlay({ playNum: 1, ...pv1 }),
+      makePlay({ playNum: 3, ...pv2 }),
+      makePlay({ playNum: 5 }),
+    ];
+    const metas = new Map<number, SlotMeta>();
+    metas.set(1, makeMeta([...PERSONNEL_POSITIONS as unknown as string[]], 1));
+    metas.set(3, makeMeta([...PERSONNEL_POSITIONS as unknown as string[]], 3));
+
+    const result = getCarryForwardPersonnel(plays, metas, 5);
+    expect(result).not.toBeNull();
+    expect(result!.posLT).toBe(70); // from play 3, not play 1
+  });
+
+  it("carries forward jersey #0 correctly", () => {
+    const personnelValues: Record<string, number> = {};
+    PERSONNEL_POSITIONS.forEach((f, i) => { personnelValues[f] = i; }); // 0 through 10
+
+    const plays: PlayRecord[] = [
+      makePlay({ playNum: 1, ...personnelValues }),
+      makePlay({ playNum: 2 }),
+    ];
+    const metas = new Map<number, SlotMeta>();
+    metas.set(1, makeMeta([...PERSONNEL_POSITIONS as unknown as string[]], 1));
+
+    const result = getCarryForwardPersonnel(plays, metas, 2);
+    expect(result).not.toBeNull();
+    expect(result!.posLT).toBe(0);
+  });
+});
+
+// ── Actor Fix Flows ──
+
+describe("actor fix flows", () => {
+  function makeCandidate(overrides: Record<string, unknown> = {}): CandidateData {
+    const base: Record<string, unknown> = { gameId: "g1", odk: "O" };
+    PERSONNEL_POSITIONS.forEach((f, i) => { base[f] = 50 + i; });
+    return { ...base, ...overrides } as CandidateData;
+  }
+
+  const rosterNumbers = new Set([50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 7, 22, 0]);
+
+  it("Option A: swapping actor into personnel resolves error", () => {
+    // Actor rusher=#7 not in 11. Swap into posLT (replacing #50).
+    const c = makeCandidate({ rusher: 7 });
+    let errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeDefined();
+
+    // Apply fix: set posLT = 7
+    (c as Record<string, unknown>).posLT = 7;
+    errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeUndefined();
+    expect(errors.posLT).toBeUndefined();
+  });
+
+  it("Option B: changing actor to existing personnel member resolves error", () => {
+    // Actor rusher=#7 not in 11. Change rusher to #50 (posLT).
+    const c = makeCandidate({ rusher: 7 });
+    let errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeDefined();
+
+    // Apply fix: set rusher = 50
+    (c as Record<string, unknown>).rusher = 50;
+    errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeUndefined();
+  });
+
+  it("actor fix with jersey #0 works (Option A)", () => {
+    const c = makeCandidate({ rusher: 0 });
+    let errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeDefined(); // 0 not in default 50-60
+
+    // Swap 0 into posLT
+    (c as Record<string, unknown>).posLT = 0;
+    errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeUndefined();
+  });
+
+  it("actor fix with jersey #0 works (Option B)", () => {
+    // Set posLT=0, then actor rusher to 0
+    const c = makeCandidate({ posLT: 0, rusher: 7 });
+    let errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeDefined();
+
+    (c as Record<string, unknown>).rusher = 0;
+    errors = validatePersonnel(c, rosterNumbers);
+    expect(errors.rusher).toBeUndefined();
+  });
 });
 
 // ── Roster Safety ──
@@ -287,5 +403,28 @@ describe("roster safety", () => {
     // Mutating play2's personnel should not affect play1
     play2.posLT = 99;
     expect(play1.posLT).toBe(50);
+  });
+});
+
+// ── Validation Engine Jersey #0 ──
+
+describe("validation engine jersey #0", () => {
+  it("inline validation accepts 0 for actor integer fields", () => {
+    const candidate = { gameId: "g1", rusher: "0" } as CandidateData;
+    const touched = new Set(["rusher"]);
+    const errors = validateInline(candidate, touched);
+    expect(errors.rusher).toBeUndefined();
+  });
+
+  it("commit-gate validation accepts 0 for actor integer fields", () => {
+    const candidate = {
+      gameId: "g1", playNum: "1", qtr: "1", odk: "O",
+      series: "1", yardLn: "35", dn: "1", dist: "10",
+      offPlay: "Test", result: "Rush", gainLoss: "4",
+      rusher: "0",
+    } as unknown as CandidateData;
+    const roster = new Set([0]);
+    const result = validateCommitGate(candidate, 1, undefined, roster);
+    expect(result.errors.rusher).toBeUndefined();
   });
 });

@@ -119,7 +119,7 @@ export function validatePersonnel(
       const actorNum = Number(actorVal);
       if (!Number.isInteger(actorNum) || actorNum < 0) continue;
       if (!personnelSet.has(actorNum)) {
-        errors[actor] = `${actor.charAt(0).toUpperCase() + actor.slice(1)} (#${actorNum}) must be one of the 11 personnel — fix in Play Details`;
+        errors[actor] = `${actor.charAt(0).toUpperCase() + actor.slice(1)} (#${actorNum}) must be one of the 11 personnel — use Actor Integrity fix below`;
       }
     }
   }
