@@ -9,21 +9,18 @@ import { useRoster } from "@/engine/rosterContext";
 import { PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
 import { ActorCombobox } from "./ActorCombobox";
 import { Badge } from "@/components/ui/badge";
-import { QTR_DISPLAY } from "@/engine/schema";
 import { Lock } from "lucide-react";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
 const CONTEXT_FIELDS: { key: string; label: string; format?: (v: unknown) => string }[] = [
-  { key: "qtr", label: "QTR", format: (v) => QTR_DISPLAY[String(v)] ?? String(v) },
   { key: "odk", label: "ODK" },
-  { key: "series", label: "Series" },
   { key: "yardLn", label: "Yard Ln" },
   { key: "dn", label: "Down" },
   { key: "dist", label: "Dist" },
+  { key: "offForm", label: "Off. Form" },
   { key: "offPlay", label: "Off. Play" },
   { key: "motion", label: "Motion" },
   { key: "result", label: "Result" },
-  { key: "gainLoss", label: "GN/LS" },
 ];
 
 const ACTOR_FIELDS_PASS2 = ["rusher", "passer", "receiver", "returner"];
@@ -60,7 +57,7 @@ export function PersonnelPanel() {
             </Badge>
           )}
         </div>
-        <div className="grid grid-cols-5 gap-x-4 gap-y-1">
+        <div className="grid grid-cols-4 gap-x-4 gap-y-1">
           {CONTEXT_FIELDS.map(({ key, label, format }) => {
             const val = c[key];
             const display = val != null && val !== "" 

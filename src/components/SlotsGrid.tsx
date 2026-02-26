@@ -33,12 +33,14 @@ const ODK_FILTER_LABELS: Record<string, string> = {
   K: "Kicking",
 };
 
-function getSlotStatus(play: PlayRecord, meta: SlotMeta | undefined): "not-started" | "pass1-done" | "complete" {
+function getSlotStatus(play: PlayRecord, meta: SlotMeta | undefined): "not-started" | "pass1-done" | "personnel-updated" {
   const p1 = isPass1Complete(play, meta);
+  if (!p1) return "not-started";
+  // For non-O plays, personnel is N/A — stay at "pass1-done"
+  if (play.odk !== "O") return "pass1-done";
   const p2 = isPass2Complete(play, meta);
-  if (p1 && p2) return "complete";
-  if (p1) return "pass1-done";
-  return "not-started";
+  if (p2) return "personnel-updated";
+  return "pass1-done";
 }
 
 export function SlotsGrid() {
@@ -85,7 +87,7 @@ export function SlotsGrid() {
           </Badge>
           <Badge variant="outline" className="gap-1 font-normal">
             <span className="h-1.5 w-1.5 rounded-full bg-committed" />
-            Complete
+            Personnel Updated
           </Badge>
         </div>
       </div>
@@ -153,7 +155,7 @@ export function SlotsGrid() {
                     <span
                       className={cn(
                         "inline-block h-2 w-2 rounded-full",
-                        status === "complete" && "bg-committed",
+                        status === "personnel-updated" && "bg-committed",
                         status === "pass1-done" && "bg-candidate",
                         status === "not-started" && "bg-muted-foreground"
                       )}
