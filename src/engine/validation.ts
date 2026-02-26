@@ -126,7 +126,7 @@ function validateLookupField(
 
 // ── Actor Roster Validation ──
 
-const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver"]);
+const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
 
 function validateActorField(
   fieldDef: FieldDefinition,

@@ -5,6 +5,7 @@
  */
 
 import React from "react";
+import { isPass1Complete, isPass2Complete } from "@/engine/personnel";
 import {
   Table,
   TableBody,
@@ -32,16 +33,12 @@ const ODK_FILTER_LABELS: Record<string, string> = {
   K: "Kicking",
 };
 
-function getSlotStatus(meta: SlotMeta | undefined): "seeded" | "partial" | "complete" {
-  if (!meta) return "seeded";
-  const committed = new Set(meta.committedFields);
-  const keyFields = ["qtr", "odk", "dn", "dist", "offForm", "offPlay", "result"];
-  const filledCount = keyFields.filter((f) => committed.has(f)).length;
-  if (filledCount >= keyFields.length) return "complete";
-  const seededDefault = new Set(["playNum", "qtr", "odk", "series"]);
-  const hasExtra = meta.committedFields.some((f) => !seededDefault.has(f));
-  if (hasExtra) return "partial";
-  return "seeded";
+function getSlotStatus(play: PlayRecord, meta: SlotMeta | undefined): "not-started" | "pass1-done" | "complete" {
+  const p1 = isPass1Complete(play, meta);
+  const p2 = isPass2Complete(play, meta);
+  if (p1 && p2) return "complete";
+  if (p1) return "pass1-done";
+  return "not-started";
 }
 
 export function SlotsGrid() {
@@ -80,11 +77,11 @@ export function SlotsGrid() {
         <div className="flex gap-2 text-[10px]">
           <Badge variant="outline" className="gap-1 font-normal">
             <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-            Seeded
+            Not Started
           </Badge>
           <Badge variant="outline" className="gap-1 font-normal">
             <span className="h-1.5 w-1.5 rounded-full bg-candidate" />
-            Partial
+            Play Details Done
           </Badge>
           <Badge variant="outline" className="gap-1 font-normal">
             <span className="h-1.5 w-1.5 rounded-full bg-committed" />
@@ -137,7 +134,7 @@ export function SlotsGrid() {
           <TableBody>
             {filteredPlays.map((play) => {
               const meta = slotMetaMap.get(play.playNum);
-              const status = getSlotStatus(meta);
+              const status = getSlotStatus(play, meta);
               const isSelected = selectedSlotNum === play.playNum;
 
               return (
@@ -157,8 +154,8 @@ export function SlotsGrid() {
                       className={cn(
                         "inline-block h-2 w-2 rounded-full",
                         status === "complete" && "bg-committed",
-                        status === "partial" && "bg-candidate",
-                        status === "seeded" && "bg-muted-foreground"
+                        status === "pass1-done" && "bg-candidate",
+                        status === "not-started" && "bg-muted-foreground"
                       )}
                     />
                   </TableCell>

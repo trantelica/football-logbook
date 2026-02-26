@@ -35,6 +35,20 @@ export interface PlayRecord {
   motionDir: string | null;
   /** PAT try type: "1" (extra point) or "2" (two-point conversion) */
   patTry: string | null;
+  // Phase 6 Pass 2: Personnel position fields (jersey numbers)
+  posLT: number | null;
+  posLG: number | null;
+  posC: number | null;
+  posRG: number | null;
+  posRT: number | null;
+  posX: number | null;
+  posY: number | null;
+  pos1: number | null;
+  pos2: number | null;
+  pos3: number | null;
+  pos4: number | null;
+  /** Returner actor field */
+  returner: number | null;
 }
 
 /** Candidate/draft data — all fields optional except gameId */
@@ -159,6 +173,10 @@ export interface SlotMeta {
   playNum: number;
   /** Field names that have been committed (seeded fields start committed) */
   committedFields: string[];
+  /** Whether Pass 1 (Play Details) is complete */
+  pass1Complete?: boolean;
+  /** Whether Pass 2 (Personnel) is complete */
+  pass2Complete?: boolean;
 }
 
 /** Game-level audit record */

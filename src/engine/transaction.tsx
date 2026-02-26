@@ -22,6 +22,7 @@ import { computeEff } from "./eff";
 import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 import { possessionGuardrail } from "./possession";
+import { validatePersonnel, getCarryForwardPersonnel, computePassCompletion, PERSONNEL_POSITIONS } from "./personnel";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -256,6 +257,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setInlineErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
+    // Phase 6: Pass 2 personnel validation for offensive plays
+    if (activePass >= 2 && candidate.odk === "O") {
+      const personnelErrors = validatePersonnel(candidate, rosterNumbers);
+      if (Object.keys(personnelErrors).length > 0) {
+        setCommitErrors(personnelErrors);
+        return;
+      }
+    }
+
     const reviewAdjustments: string[] = [];
 
     // Rule 1: PEN YARDS proposal-time defaulting
@@ -430,10 +440,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           newCommittedFields.add(f.name);
         }
       }
+      const committedFieldsArr = Array.from(newCommittedFields);
+      const passFlags = computePassCompletion(normalized, committedFieldsArr);
       const updatedMeta: SlotMeta = {
         gameId,
         playNum: selectedSlotNum,
-        committedFields: Array.from(newCommittedFields),
+        committedFields: committedFieldsArr,
+        pass1Complete: passFlags.pass1Complete,
+        pass2Complete: passFlags.pass2Complete,
       };
       await saveSlotMeta(updatedMeta);
 
@@ -497,10 +511,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           newCommittedFields.add(f.name);
         }
       }
+      const committedFieldsArr = Array.from(newCommittedFields);
+      const passFlags = computePassCompletion(pendingNormalized, committedFieldsArr);
       const updatedMeta: SlotMeta = {
         gameId,
         playNum: selectedSlotNum,
-        committedFields: Array.from(newCommittedFields),
+        committedFields: committedFieldsArr,
+        pass1Complete: passFlags.pass1Complete,
+        pass2Complete: passFlags.pass2Complete,
       };
       await saveSlotMeta(updatedMeta);
       setSlotMetaMap((prev) => {
@@ -612,6 +630,19 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           }
         }
       }
+
+      // Phase 6: Carry-forward personnel seeding for Pass 2 on offensive plays
+      if (activePass >= 2 && slot.odk === "O") {
+        const carryForward = getCarryForwardPersonnel(committedPlays, slotMetaMap, playNum);
+        if (carryForward) {
+          for (const [pos, jersey] of Object.entries(carryForward)) {
+            const currentVal = (newCandidate as Record<string, unknown>)[pos];
+            if (currentVal === null || currentVal === undefined || currentVal === "") {
+              (newCandidate as Record<string, unknown>)[pos] = jersey;
+            }
+          }
+        }
+      }
       
       setCandidate(newCandidate);
       setSelectedSlotNum(playNum);
@@ -640,7 +671,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         setPossessionCheckPending(true);
       }
     },
-    [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter]
+    [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter, activePass]
   );
 
   const deselectSlot = useCallback(() => {
