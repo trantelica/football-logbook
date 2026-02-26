@@ -22,7 +22,7 @@ import { computeEff } from "./eff";
 import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 import { possessionGuardrail } from "./possession";
-import { validatePersonnel, getCarryForwardPersonnel, computePassCompletion, PERSONNEL_POSITIONS } from "./personnel";
+import { validatePersonnel, getCarryForwardPersonnel, computePassCompletion } from "./personnel";
 
 interface TransactionContextValue {
   state: TransactionState;
@@ -139,7 +139,32 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [possessionCheckDismissed, setPossessionCheckDismissed] = useState(false);
   const [possessionPrevPlayInfo, setPossessionPrevPlayInfo] = useState<{ playNum: number; result: string } | null>(null);
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
-  const [activePass, setActivePass] = useState<number>(1);
+  const [activePass, setActivePassRaw] = useState<number>(1);
+
+  // Carry-forward-aware stage setter
+  const setActivePass = useCallback((pass: number) => {
+    setActivePassRaw(pass);
+    // Trigger carry-forward seeding when switching into Pass 2 with a slot selected
+    if (pass >= 2 && selectedSlotNum !== null) {
+      const slot = committedPlays.find((p) => p.playNum === selectedSlotNum);
+      if (slot && slot.odk === "O") {
+        const carryForward = getCarryForwardPersonnel(committedPlays, slotMetaMap, selectedSlotNum);
+        if (carryForward) {
+          setCandidate((prev) => {
+            const updated = { ...prev };
+            for (const [pos, jersey] of Object.entries(carryForward)) {
+              const currentVal = (updated as Record<string, unknown>)[pos];
+              if (currentVal === null || currentVal === undefined || currentVal === "") {
+                (updated as Record<string, unknown>)[pos] = jersey;
+              }
+            }
+            return updated;
+          });
+        }
+      }
+    }
+  }, [selectedSlotNum, committedPlays, slotMetaMap]);
+
   // Phase 4: ODK filter (display-only, no persistence)
   const [odkFilter, setOdkFilter] = useState<string>("ALL");
 
@@ -163,7 +188,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPredictionExplanations([]);
     setPredictionCoachMessages([]);
     setAdjustments([]);
-    setActivePass(1);
+    setActivePassRaw(1);
     setOdkFilter("ALL");
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
@@ -197,9 +222,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const updateField = useCallback(
     (fieldName: string, value: unknown) => {
       // Stage-based field locking: reject updates for fields outside active pass
+      // Exception: actor fields are editable in Pass 2 for integrity correction
+      const ACTOR_FIELD_NAMES = new Set(["rusher", "passer", "receiver", "returner"]);
       const fieldDef = getFieldDef(fieldName);
       if (fieldDef && fieldDef.defaultPassEntry > activePass) {
-        return; // Read-only at this stage
+        // Allow actor fields in Pass 2 for integrity fixes
+        if (!(activePass >= 2 && ACTOR_FIELD_NAMES.has(fieldName))) {
+          return; // Read-only at this stage
+        }
       }
 
       // Scaffolded field warning check (slot mode only)
