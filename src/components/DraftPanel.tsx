@@ -23,12 +23,13 @@ import { ActorCombobox } from "./ActorCombobox";
 import { TDCorrectionDialog } from "./TDCorrectionDialog";
 import { PATTryDialog } from "./PATTryDialog";
 import { PossessionCheckDialog } from "./PossessionCheckDialog";
+import { PersonnelPanel } from "./PersonnelPanel";
 import { toast } from "sonner";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
-  { value: "1", label: "Basic Play Data", pass: 1, enabled: true },
-  { value: "2", label: "Manage Personnel", pass: 2, enabled: false },
+  { value: "1", label: "Pass 1: Play Details", pass: 1, enabled: true },
+  { value: "2", label: "Pass 2: Personnel", pass: 2, enabled: true },
   { value: "3", label: "Enter Grades", pass: 3, enabled: false },
 ] as const;
 
@@ -40,7 +41,7 @@ const DEPENDENT_FIELD_MAP: Record<string, string[]> = {
 };
 
 /** Actor fields backed by roster */
-const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver"]);
+const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
 
 export function DraftPanel() {
   const { activeGame } = useGameContext();
@@ -766,9 +767,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {playSchema.map((f) => renderField(f.name))}
-        </div>
+        {/* Pass 2: Personnel panel; Pass 1: standard field grid */}
+        {activePass === 2 ? (
+          <PersonnelPanel />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {playSchema.map((f) => renderField(f.name))}
+          </div>
+        )}
 
         <div className="flex gap-2 pt-2 border-t border-border/30">
           {!isProposal && (

@@ -173,6 +173,18 @@ export function createSlots(
       playDir: null,
       motionDir: null,
       patTry: null,
+      posLT: null,
+      posLG: null,
+      posC: null,
+      posRG: null,
+      posRT: null,
+      posX: null,
+      posY: null,
+      pos1: null,
+      pos2: null,
+      pos3: null,
+      pos4: null,
+      returner: null,
     });
 
     seededFieldsPerSlot.set(i, seeded);
