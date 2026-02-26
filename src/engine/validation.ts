@@ -138,7 +138,7 @@ function validateActorField(
   if (!rosterNumbers) return null;
 
   const num = Number(value);
-  if (!Number.isInteger(num) || num <= 0) return null; // type validation handles this
+  if (!Number.isInteger(num) || num < 0) return null; // type validation handles this
   if (!rosterNumbers.has(num)) {
     return `Jersey #${num} not found in roster`;
   }

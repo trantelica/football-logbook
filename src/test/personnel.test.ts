@@ -2,7 +2,7 @@
  * Phase 6 — Personnel Tests
  *
  * Tests for pass completion, personnel validation, carry-forward seeding,
- * and roster safety.
+ * roster safety, and jersey #0 support.
  */
 
 import { describe, it, expect } from "vitest";
@@ -140,7 +140,7 @@ describe("validatePersonnel", () => {
     return { ...base, ...overrides } as CandidateData;
   }
 
-  const rosterNumbers = new Set([50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 7, 22]);
+  const rosterNumbers = new Set([50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 7, 22, 0]);
 
   it("returns no errors when all 11 positions valid and unique", () => {
     const errors = validatePersonnel(makeCandidate(), rosterNumbers);
@@ -184,6 +184,51 @@ describe("validatePersonnel", () => {
       { gameId: "g1", odk: "D" } as CandidateData
     );
     expect(Object.keys(errors)).toHaveLength(0);
+  });
+
+  // ── Jersey #0 tests ──
+
+  it("accepts jersey #0 in personnel positions", () => {
+    const errors = validatePersonnel(
+      makeCandidate({ posLT: 0 }),
+      rosterNumbers
+    );
+    expect(errors.posLT).toBeUndefined();
+  });
+
+  it("accepts jersey #0 as actor when in personnel", () => {
+    const errors = validatePersonnel(
+      makeCandidate({ posLT: 0, rusher: 0 }),
+      rosterNumbers
+    );
+    expect(errors.posLT).toBeUndefined();
+    expect(errors.rusher).toBeUndefined();
+  });
+
+  it("detects actor #0 not in personnel", () => {
+    // Default personnel starts at 50, so 0 isn't in the 11
+    const errors = validatePersonnel(
+      makeCandidate({ rusher: 0 }),
+      rosterNumbers
+    );
+    expect(errors.rusher).toContain("must be one of the 11");
+  });
+
+  it("detects duplicate jersey #0", () => {
+    const errors = validatePersonnel(
+      makeCandidate({ posLT: 0, posLG: 0 }),
+      rosterNumbers
+    );
+    expect(errors.posLG).toContain("already assigned");
+  });
+
+  it("rejects jersey #0 when not in roster", () => {
+    const rosterWithout0 = new Set([50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]);
+    const errors = validatePersonnel(
+      makeCandidate({ posLT: 0 }),
+      rosterWithout0
+    );
+    expect(errors.posLT).toContain("not in roster");
   });
 });
 

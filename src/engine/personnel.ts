@@ -91,7 +91,7 @@ export function validatePersonnel(
       continue;
     }
     const num = Number(val);
-    if (!Number.isInteger(num) || num <= 0) {
+    if (!Number.isInteger(num) || num < 0) {
       errors[pos] = `${PERSONNEL_LABELS[pos]} must be a valid jersey number`;
       continue;
     }
@@ -117,7 +117,7 @@ export function validatePersonnel(
       const actorVal = c[actor];
       if (actorVal == null || actorVal === "" || actorVal === undefined) continue;
       const actorNum = Number(actorVal);
-      if (!Number.isInteger(actorNum) || actorNum <= 0) continue;
+      if (!Number.isInteger(actorNum) || actorNum < 0) continue;
       if (!personnelSet.has(actorNum)) {
         errors[actor] = `${actor.charAt(0).toUpperCase() + actor.slice(1)} (#${actorNum}) must be one of the 11 personnel — fix in Play Details`;
       }
