@@ -19,12 +19,14 @@ import {
 
 interface PossessionCheckDialogProps {
   open: boolean;
+  prevPlayInfo?: { playNum: number; result: string } | null;
   onConfirmOffense: () => void;
   onCancel: () => void;
 }
 
 export function PossessionCheckDialog({
   open,
+  prevPlayInfo,
   onConfirmOffense,
   onCancel,
 }: PossessionCheckDialogProps) {
@@ -34,9 +36,17 @@ export function PossessionCheckDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Possession check</AlertDialogTitle>
           <AlertDialogDescription>
-            This play result suggests the other team may have the ball next, but
-            the next slot is set to Offense. Confirm Offense before proceeding,
+            The previous play's result suggests the other team may have the ball
+            next, but this slot is set to Offense. Confirm Offense to continue,
             or change the next slot to Defense or Kick.
+            {prevPlayInfo && (
+              <>
+                <br />
+                <span className="mt-1 block text-xs">
+                  Previous play: Play {prevPlayInfo.playNum} — {prevPlayInfo.result}.
+                </span>
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
