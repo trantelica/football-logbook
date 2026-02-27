@@ -450,4 +450,28 @@ describe("Q3 series auto-increment", () => {
     const newSeries = Number(priorOPlays[0].series) + 1;
     expect(newSeries).toBe(8); // 7 + 1
   });
+
+  it("increments series when O block spans halftime (Q2->Q3)", () => {
+    // Simulate: plays 9,10 are O with series=5 (same block), Q3 starts at play 11
+    const plays: PlayRecord[] = [
+      makePlay({ playNum: 9, odk: "O", series: 5 }),
+      makePlay({ playNum: 10, odk: "O", series: 5 }),
+    ];
+    const q3PlayNum = 11;
+    // Slot at q3Start is also O with series=5 (block-carried)
+    const slot = makePlay({ playNum: q3PlayNum, odk: "O", series: 5 });
+
+    const priorOPlays = plays
+      .filter((p) => p.playNum < q3PlayNum && p.odk === "O" && p.series != null)
+      .sort((a, b) => b.playNum - a.playNum);
+    expect(priorOPlays.length).toBeGreaterThan(0);
+    const proposedSeries = Number(priorOPlays[0].series) + 1;
+    expect(proposedSeries).toBe(6);
+
+    // The fix: if slot.series === block-carried value (5), override to proposed (6)
+    if (slot.series === null || slot.series === undefined || slot.series === plays[plays.length - 1].series) {
+      slot.series = proposedSeries;
+    }
+    expect(slot.series).toBe(6);
+  });
 });

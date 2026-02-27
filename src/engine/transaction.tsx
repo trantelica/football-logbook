@@ -605,6 +605,35 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // Phase 5A: Load prevPlay from IndexedDB to avoid stale state
       const prevPlay = await getPlay(gameId, playNum - 1);
 
+      // ── Q3 Series auto-increment (runs in ALL passes) ──
+      // If this play is Q3 start and ODK=O, force series = (most recent prior O play's series) + 1
+      const initConfig = await getGameInit(gameId);
+      let halfTimeBoundary = false;
+      if (initConfig) {
+        const q3Start = initConfig.quarterStarts["3"];
+        if (q3Start && playNum === q3Start) {
+          halfTimeBoundary = true;
+        }
+      }
+
+      if (halfTimeBoundary && slot.odk === "O" && initConfig) {
+        const priorOPlays = committedPlays
+          .filter((p) => p.playNum < playNum && p.odk === "O" && p.series != null)
+          .sort((a, b) => b.playNum - a.playNum);
+        if (priorOPlays.length > 0) {
+          const lastSeries = Number(priorOPlays[0].series);
+          if (Number.isFinite(lastSeries)) {
+            const proposedSeries = lastSeries + 1;
+            // Only auto-set if candidate series is blank or matches block-carried value (same as slot)
+            const currentSeries = newCandidate.series;
+            if (currentSeries === null || currentSeries === undefined || currentSeries === "" || currentSeries === slot.series) {
+              newCandidate.series = proposedSeries;
+            }
+            // If coach already set a different value, don't silently overwrite
+          }
+        }
+      }
+
       // ── Pass 1-only logic: predictions, PAT, possession ──
       // When activePass >= 2, skip all Pass 1 gating entirely
       if (activePass < 2) {
@@ -638,30 +667,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         
         setPatTryPending(false);
-
-        // Phase 5C patch: Half-time boundary check (only Q3 start)
-        let halfTimeBoundary = false;
-        const initConfig = await getGameInit(gameId);
-        if (initConfig) {
-          const q3Start = initConfig.quarterStarts["3"];
-          if (q3Start && playNum === q3Start) {
-            halfTimeBoundary = true;
-          }
-        }
-
-        // Q3 Series auto-increment: if this play is Q3 start and ODK=O,
-        // set series = (most recent prior O play's series) + 1
-        if (halfTimeBoundary && slot.odk === "O" && initConfig) {
-          const priorOPlays = committedPlays
-            .filter((p) => p.playNum < playNum && p.odk === "O" && p.series != null)
-            .sort((a, b) => b.playNum - a.playNum);
-          if (priorOPlays.length > 0) {
-            const lastSeries = Number(priorOPlays[0].series);
-            if (Number.isFinite(lastSeries)) {
-              newCandidate.series = lastSeries + 1;
-            }
-          }
-        }
 
         const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, halfTimeBoundary);
         
