@@ -9,7 +9,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { toast } from "sonner";
+
 import type { CandidateData, PlayRecord, TransactionState, ValidationErrors, SlotMeta } from "./types";
 import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit } from "./db";
@@ -881,7 +881,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Phase 4: Commit & Next — advances to next slot in filtered scaffold list
   const commitAndNext = useCallback(async (): Promise<{ committed: boolean; hasNext: boolean }> => {
-    if (state !== "proposal" && state !== "candidate") {
+    if (state !== "proposal") {
       return { committed: false, hasNext: false };
     }
 
@@ -889,36 +889,13 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     const currentSlotNum = selectedSlotNum;
     const currentActivePass = activePass;
 
-    // Detect no-op: compare candidate to existing committed play
-    let isNoop = false;
-    if (currentSlotNum !== null) {
-      const existingSlot = committedPlays.find((p) => p.playNum === currentSlotNum);
-      if (existingSlot) {
-        isNoop = playSchema.every((f) => {
-          const oldVal = (existingSlot as unknown as Record<string, unknown>)[f.name];
-          const newVal = (candidate as unknown as Record<string, unknown>)[f.name];
-          return String(oldVal ?? "") === String(newVal ?? "");
-        });
-      } else if (state === "candidate") {
-        // No existing play and still in candidate state = nothing to commit
-        isNoop = true;
-      }
+    const success = await commitProposal();
+    if (!success) {
+      return { committed: false, hasNext: false };
     }
 
-    if (isNoop) {
-      toast.info("No changes to commit. Advancing to next slot.");
-    } else {
-      if (state !== "proposal") {
-        return { committed: false, hasNext: false };
-      }
-      const success = await commitProposal();
-      if (!success) {
-        return { committed: false, hasNext: false };
-      }
-    }
-
-    // Track last Pass 2 commit for +1 exception (only on real commit)
-    if (!isNoop && currentActivePass === 2 && currentSlotNum !== null) {
+    // Track last Pass 2 commit for +1 exception
+    if (currentActivePass === 2 && currentSlotNum !== null) {
       setLastPass2CommitPlayNum(currentSlotNum);
     }
 
@@ -937,13 +914,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     if (currentIdx >= 0 && currentIdx < filteredList.length - 1) {
       const nextPlay = filteredList[currentIdx + 1];
 
-      // Pass 2 carry-forward: seed personnel into next slot if ODK=O (only on real commit)
-      if (!isNoop && currentActivePass === 2 && nextPlay.odk === "O" && currentSlotNum !== null) {
+      // Pass 2 carry-forward: seed personnel into next slot if ODK=O
+      if (currentActivePass === 2 && nextPlay.odk === "O" && currentSlotNum !== null) {
         // Get the just-committed play from fresh data
         const justCommitted = sortedPlays.find((p) => p.playNum === currentSlotNum);
         if (justCommitted) {
-          // We need to select the slot first, then apply seeding
-          // Build seeded candidate inline
           const nextSlot = sortedPlays.find((p) => p.playNum === nextPlay.playNum);
           if (nextSlot) {
             const seededCandidate: CandidateData = { ...nextSlot };
@@ -990,7 +965,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     // No next slot — already deselected by clearDraft
     return { committed: true, hasNext: false };
-  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass, candidate]);
+  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass]);
 
   return (
     <TransactionContext.Provider
