@@ -8,6 +8,30 @@
 import type { PlayRecord, ODKBlock, QuarterMapping } from "./types";
 import type { ODK } from "./schema";
 
+/**
+ * Split any ODK block that spans the halftime boundary (Q3 start).
+ * This ensures series computation never carries across halftime within a single block.
+ */
+export function splitBlocksAtHalftime(
+  odkBlocks: ODKBlock[],
+  quarterStarts: QuarterMapping
+): ODKBlock[] {
+  const q3Start = quarterStarts["3"];
+  if (q3Start == null || q3Start <= 0) return odkBlocks;
+
+  const result: ODKBlock[] = [];
+  for (const block of odkBlocks) {
+    if (block.startPlay < q3Start && block.endPlay >= q3Start) {
+      // Split into pre-halftime and post-halftime
+      result.push({ odk: block.odk, startPlay: block.startPlay, endPlay: q3Start - 1 });
+      result.push({ odk: block.odk, startPlay: q3Start, endPlay: block.endPlay });
+    } else {
+      result.push(block);
+    }
+  }
+  return result;
+}
+
 // ── Validation ──
 
 export interface InitValidationError {
@@ -102,21 +126,36 @@ export function computeODKForPlay(playNum: number, odkBlocks: ODKBlock[]): ODK |
 
 /**
  * Compute series number for a play.
- * Series increments when transitioning from D/K → O.
- * Series carries during continuous O blocks.
+ * Series increments when:
+ *   - Transitioning from D/K → O
+ *   - Entering a new O block (even after another O block, e.g. halftime split)
+ * Series carries within a continuous O block.
  * Returns null for non-O plays.
  */
 export function computeSeriesForPlay(playNum: number, odkBlocks: ODKBlock[]): number | null {
   const currentODK = computeODKForPlay(playNum, odkBlocks);
   if (currentODK !== "O") return null;
 
+  // Build a map of playNum → which block index it belongs to
+  const getBlockIndex = (p: number): number => {
+    for (let i = 0; i < odkBlocks.length; i++) {
+      if (p >= odkBlocks[i].startPlay && p <= odkBlocks[i].endPlay) return i;
+    }
+    return -1;
+  };
+
   let series = 0;
+  let prevBlockIdx = -1;
   let prevODK: string | null = null;
 
   for (let p = 1; p <= playNum; p++) {
     const odk = computeODKForPlay(p, odkBlocks);
-    if (odk === "O" && prevODK !== "O") {
-      series++;
+    if (odk === "O") {
+      const blockIdx = getBlockIndex(p);
+      if (prevODK !== "O" || blockIdx !== prevBlockIdx) {
+        series++;
+      }
+      prevBlockIdx = blockIdx;
     }
     if (odk !== null) prevODK = odk;
   }
@@ -132,13 +171,15 @@ export function createSlots(
   quarterStarts: QuarterMapping,
   odkBlocks: ODKBlock[]
 ): { slots: PlayRecord[]; seededFieldsPerSlot: Map<number, string[]> } {
+  // Split blocks at halftime to prevent series carrying across Q2→Q3
+  const normalizedBlocks = splitBlocksAtHalftime(odkBlocks, quarterStarts);
   const slots: PlayRecord[] = [];
   const seededFieldsPerSlot = new Map<number, string[]>();
 
   for (let i = 1; i <= totalPlays; i++) {
     const qtr = computeQuarterForPlay(i, quarterStarts);
-    const odk = computeODKForPlay(i, odkBlocks);
-    const series = computeSeriesForPlay(i, odkBlocks);
+    const odk = computeODKForPlay(i, normalizedBlocks);
+    const series = computeSeriesForPlay(i, normalizedBlocks);
 
     const seeded: string[] = ["playNum"];
     if (qtr !== null) seeded.push("qtr");

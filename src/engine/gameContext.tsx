@@ -17,6 +17,7 @@ import {
   putSlotsBatch,
   addGameAudit,
 } from "./db";
+import { splitBlocksAtHalftime } from "./slotEngine";
 import { useSeason } from "./seasonContext";
 import { createSlots, validateInitConfig } from "./slotEngine";
 
@@ -141,8 +142,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       };
       await dbCreateGame(meta);
 
-      // 2. Create slots with seeding
-      const { slots, seededFieldsPerSlot } = createSlots(gameId, totalPlays, quarterStarts, odkBlocks);
+      // 2. Split blocks at halftime boundary before seeding
+      const normalizedBlocks = splitBlocksAtHalftime(odkBlocks, quarterStarts);
+
+      // 3. Create slots with seeding (uses normalized blocks)
+      const { slots, seededFieldsPerSlot } = createSlots(gameId, totalPlays, quarterStarts, normalizedBlocks);
 
       // 3. Create slot meta (seeded fields start as committed)
       const slotMetas: SlotMeta[] = slots.map((slot) => ({
@@ -159,7 +163,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         gameId,
         totalPlays,
         quarterStarts,
-        odkBlocks,
+        odkBlocks: normalizedBlocks,
         schemaVersion: SCHEMA_VERSION,
         dbVersion: DB_VERSION,
         timestamp: now,

@@ -813,7 +813,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
               Review Proposal
             </Button>
           )}
-          {isSlotMode && selectedSlotNum !== null && (
+          {selectedSlotNum !== null && (
             <Button
               size="sm"
               variant="ghost"
