@@ -68,6 +68,7 @@ export function DraftPanel() {
     activePass,
     setActivePass,
     commitAndNext,
+    nextSlot,
     adjustments,
     tdCorrectionPending,
     confirmTDCorrection,
@@ -556,6 +557,13 @@ export function DraftPanel() {
     }
   };
 
+  const handleNextSlot = async () => {
+    const advanced = await nextSlot();
+    if (!advanced) {
+      toast("No next slot.");
+    }
+  };
+
   const handleParseAndApply = async () => {
     if (!rawInputText.trim() || selectedSlotNum === null) return;
     const result = await saveInput(selectedSlotNum, rawInputText.trim());
@@ -803,6 +811,17 @@ PENALTY O-Holding EFF Y 2MIN N`}
             >
               <Eye className="h-3.5 w-3.5" />
               Review Proposal
+            </Button>
+          )}
+          {isSlotMode && selectedSlotNum !== null && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1 text-xs"
+              onClick={handleNextSlot}
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+              Next Slot
             </Button>
           )}
           {isProposal && (
