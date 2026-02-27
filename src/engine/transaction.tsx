@@ -23,8 +23,9 @@ import { computeEff } from "./eff";
 import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 import { possessionGuardrail } from "./possession";
-import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS } from "./personnel";
-
+import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
+import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
+// normalizeToSchema imported for potential future use; grade normalization is inline
 interface TransactionContextValue {
   state: TransactionState;
   candidate: CandidateData;
@@ -71,6 +72,11 @@ interface TransactionContextValue {
   possessionPrevPlayInfo: { playNum: number; result: string } | null;
   confirmPossessionOffense: () => void;
   cancelPossessionCheck: () => void;
+
+  // Phase 7: Grade overwrite
+  gradeOverwriteDiffs: GradeOverwriteDiff[];
+  confirmGradeOverwrite: () => Promise<boolean>;
+  cancelGradeOverwrite: () => void;
   
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
@@ -147,6 +153,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 4: activePass as state (default 1 = "Basic Play Data")
   const [activePass, setActivePassRaw] = useState<number>(1);
 
+  // Phase 7: Grade overwrite state
+  const [gradeOverwriteDiffs, setGradeOverwriteDiffs] = useState<GradeOverwriteDiff[]>([]);
+  const [pendingGradeSnapshot, setPendingGradeSnapshot] = useState<Record<string, number | null> | null>(null);
   // Carry-forward state (Pass 2 only)
   const [carriedForwardFields, setCarriedForwardFields] = useState<Set<string>>(new Set());
   const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
@@ -293,6 +302,34 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
+    // ── Pass 3: Grade-only review ──
+    if (activePass === 3) {
+      // Only validate touched grade fields
+      const gradeErrors: ValidationErrors = {};
+      for (const fieldName of touchedFields) {
+        if (!GRADE_FIELDS.includes(fieldName as any)) continue;
+        const val = (candidate as Record<string, unknown>)[fieldName];
+        if (val === null || val === undefined || val === "") continue;
+        const str = String(val).trim();
+        if (!/^-?\d+$/.test(str)) {
+          gradeErrors[fieldName] = `Must be a whole number`;
+          continue;
+        }
+        const num = Number(str);
+        if (num < -3 || num > 3) {
+          gradeErrors[fieldName] = `Must be between -3 and 3`;
+        }
+      }
+      if (Object.keys(gradeErrors).length > 0) {
+        setInlineErrors(gradeErrors);
+        return;
+      }
+      setInlineErrors({});
+      setAdjustments([]);
+      setState("proposal");
+      return;
+    }
+
     const errors = validateInline(candidate, touchedFields, getLookupMap());
     setInlineErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -311,7 +348,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     // Rule 1: PEN YARDS proposal-time defaulting
     const penaltyVal = candidate.penalty as string | null | undefined;
     if (penaltyVal && penaltyVal !== "") {
-      // Penalty is set — default penYards if not touched
       if (!touchedFields.has("penYards")) {
         const defaultYards = PENALTY_YARDS_MAP[penaltyVal];
         const currentPenYards = candidate.penYards;
@@ -321,14 +357,13 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
       }
     } else {
-      // Penalty cleared — clear penYards if not touched
       if (!touchedFields.has("penYards") && candidate.penYards != null && candidate.penYards !== "") {
         setCandidate((prev) => ({ ...prev, penYards: null }));
         reviewAdjustments.push("Penalty cleared. Penalty yards cleared.");
       }
     }
 
-    // Phase 6: PAT context — apply playType override and validate result
+    // Phase 6: PAT context
     if (patContext && candidate.patTry) {
       const expectedPlayType = patTryToPlayType(String(candidate.patTry));
       const currentPlayType = candidate.playType as string | null;
@@ -336,25 +371,20 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         reviewAdjustments.push(`Adjusted: Play Type set to ${expectedPlayType} due to PAT rules.`);
         setCandidate((prev) => ({ ...prev, playType: expectedPlayType }));
       }
-      
-      // Validate PAT result
       const patResultError = validatePATResult(candidate.result as string | null);
       if (patResultError) {
         setCommitErrors({ result: patResultError });
         return;
       }
-      
-      // Skip TD normalization and gain limiting in PAT context
       setAdjustments(reviewAdjustments);
       setState("proposal");
       return;
     }
 
-    // Offsetting Penalties → force EFF = N (unless coach touched)
+    // Offsetting Penalties → force EFF = N
     if (!touchedFields.has("eff") && String(candidate.result) === "Offsetting Penalties") {
       setCandidate((prev) => ({ ...prev, eff: "N" }));
     } else if (!touchedFields.has("eff")) {
-      // Normal EFF computation
       const effValue = computeEff({
         result: candidate.result as string | null,
         gainLoss: candidate.gainLoss != null ? Number(candidate.gainLoss) : null,
@@ -367,7 +397,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
     }
 
-    // Phase 5C patch: TD labeling correction at review time
+    // Phase 5C: TD labeling correction
     const qc = runCommitQC(
       candidate.yardLn != null ? Number(candidate.yardLn) : null,
       candidate.gainLoss != null ? Number(candidate.gainLoss) : null,
@@ -375,12 +405,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       fieldSize as 80 | 100
     );
 
-    // Apply gain limiting and track adjustment
     if (qc.gainLossMessage) {
       const originalGL = candidate.gainLoss != null ? Number(candidate.gainLoss) : null;
       setCandidate((prev) => ({ ...prev, gainLoss: qc.adjustedGainLoss }));
       reviewAdjustments.push(`Adjusted: Gain limited from ${originalGL} to ${qc.adjustedGainLoss}.`);
-      // Recompute EFF with adjusted gainLoss if not touched
       if (!touchedFields.has("eff")) {
         const effRecomputed = computeEff({
           result: candidate.result as string | null,
@@ -397,14 +425,13 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     setAdjustments(reviewAdjustments);
 
-    // TD correction dialog — block proposal transition
     if (qc.correctedResult) {
       setTdCorrectionPending({ correctedResult: qc.correctedResult, normalizedPlay: null as unknown as PlayRecord, existingSlot: null });
       return;
     }
 
     setState("proposal");
-  }, [candidate, touchedFields, getLookupMap, fieldSize, patContext, selectedSlotNum, committedPlays, odkFilter]);
+  }, [candidate, touchedFields, getLookupMap, fieldSize, patContext, selectedSlotNum, committedPlays, odkFilter, activePass, rosterNumbers]);
 
   const backToEdit = useCallback(() => {
     if (state === "proposal") {
@@ -413,8 +440,126 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
   }, [state]);
 
+  /** Helper: field-scoped grade commit — merges only grade fields onto committedRow */
+  const commitGradeFields = useCallback(async (
+    gradeSnapshot: Record<string, number | null>,
+    committedRow: PlayRecord
+  ): Promise<boolean> => {
+    if (!selectedSlotNum) return false;
+    // Build merged play: copy committedRow, overwrite only grade fields
+    const merged = { ...committedRow } as unknown as Record<string, unknown>;
+    for (const gf of GRADE_FIELDS) {
+      merged[gf] = gradeSnapshot[gf] ?? null;
+    }
+    const mergedPlay = merged as unknown as PlayRecord;
+
+    await dbCommitPlay(mergedPlay, committedRow);
+
+    // Update slotMeta: add grade fields to committed set
+    const meta = slotMetaMap.get(selectedSlotNum);
+    const newCommittedFields = new Set(meta?.committedFields ?? []);
+    for (const gf of GRADE_FIELDS) {
+      if (gradeSnapshot[gf] != null) {
+        newCommittedFields.add(gf);
+      }
+    }
+    const committedFieldsArr = Array.from(newCommittedFields);
+    const passFlags = computePassCompletion(mergedPlay, committedFieldsArr);
+    const updatedMeta: SlotMeta = {
+      gameId,
+      playNum: selectedSlotNum,
+      committedFields: committedFieldsArr,
+      pass1Complete: passFlags.pass1Complete,
+      pass2Complete: passFlags.pass2Complete,
+    };
+    await saveSlotMeta(updatedMeta);
+
+    const plays = await getPlaysByGame(gameId);
+    setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
+    setSlotMetaMap((prev) => {
+      const next = new Map(prev);
+      next.set(selectedSlotNum, updatedMeta);
+      return next;
+    });
+    clearDraft();
+    return true;
+  }, [gameId, selectedSlotNum, slotMetaMap, clearDraft]);
+
   const commitProposal = useCallback(async (): Promise<boolean> => {
     if (state !== "proposal") return false;
+
+    // ── Pass 3: Field-scoped grade commit ──
+    if (activePass === 3 && isSlotMode && selectedSlotNum !== null) {
+      const committedRow = committedPlays.find((p) => p.playNum === selectedSlotNum);
+      
+      // Defense-in-depth: hard reject if no committedRow or not offense
+      if (!committedRow) {
+        setCommitErrors({ _gate: "No committed row found. Commit Pass 1 first." });
+        return false;
+      }
+      if (committedRow.odk !== "O") {
+        setCommitErrors({ _gate: "Grades only apply to committed Offense plays (ODK = O)." });
+        return false;
+      }
+
+      // Normalize grade fields from candidate to integers
+      const gradeSnapshot: Record<string, number | null> = {};
+      const gradeErrors: ValidationErrors = {};
+      for (const gf of GRADE_FIELDS) {
+        const raw = (candidate as Record<string, unknown>)[gf];
+        if (raw === null || raw === undefined || raw === "") {
+          gradeSnapshot[gf] = null;
+          continue;
+        }
+        const str = String(raw).trim();
+        if (!/^-?\d+$/.test(str)) {
+          gradeErrors[gf] = `Must be a whole number`;
+          continue;
+        }
+        const num = Number(str);
+        if (num < -3 || num > 3) {
+          gradeErrors[gf] = `Must be between -3 and 3`;
+          continue;
+        }
+        gradeSnapshot[gf] = num;
+      }
+      if (Object.keys(gradeErrors).length > 0) {
+        setCommitErrors(gradeErrors);
+        return false;
+      }
+
+      // Check for no-op
+      const cr = committedRow as unknown as Record<string, unknown>;
+      const hasAnyChange = GRADE_FIELDS.some((gf) => {
+        const before = cr[gf] as number | null ?? null;
+        const after = gradeSnapshot[gf] ?? null;
+        return before !== after;
+      });
+      if (!hasAnyChange) {
+        setCommitErrors({ _noop: "No grade changes to commit." });
+        return false;
+      }
+
+      // Compute overwrite diffs: trigger when before !== null AND after !== before
+      const diffs: GradeOverwriteDiff[] = [];
+      for (const gf of GRADE_FIELDS) {
+        const before = cr[gf] as number | null ?? null;
+        const after = gradeSnapshot[gf] ?? null;
+        if (before !== null && after !== before) {
+          diffs.push({ field: gf, before, after });
+        }
+      }
+
+      if (diffs.length > 0) {
+        // Freeze snapshot and show dialog
+        setPendingGradeSnapshot({ ...gradeSnapshot });
+        setGradeOverwriteDiffs(diffs);
+        return false;
+      }
+
+      // No overwrites — direct field-scoped commit
+      return commitGradeFields(gradeSnapshot, committedRow);
+    }
 
     if (isSlotMode && selectedSlotNum !== null) {
       // Slot-mode commit: field-level commit state
@@ -426,12 +571,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       const normalized = result.normalizedPlay!;
 
-      // EFF and QC already applied at review time — no need to recompute here
-
       const meta = slotMetaMap.get(selectedSlotNum);
       const committedFields = meta?.committedFields ?? [];
 
-      // Check for complete no-op: compare ALL schema fields between existing and normalized
       const existingSlot = committedPlays.find((p) => p.playNum === selectedSlotNum);
       
       if (existingSlot) {
@@ -447,7 +589,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
       }
 
-      // Check if any committed fields have changed values → overwrite review
       const overwriteFields: string[] = [];
 
       if (existingSlot) {
@@ -470,7 +611,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         return false;
       }
 
-      // No committed field changes — direct commit
       await dbCommitPlay(normalized, existingSlot ?? null);
 
       const newCommittedFields = new Set(committedFields);
@@ -524,7 +664,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays, rosterNumbers]);
+  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays, rosterNumbers, commitGradeFields]);
 
   const confirmOverwrite = useCallback(async (): Promise<boolean> => {
     if (!pendingNormalized || !existingPlay) return false;
@@ -876,6 +1016,23 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPossessionCheckPending(false);
   }, []);
 
+  // Phase 7: Grade overwrite confirmation — uses frozen snapshot
+  const confirmGradeOverwrite = useCallback(async (): Promise<boolean> => {
+    if (!pendingGradeSnapshot || !selectedSlotNum) return false;
+    const committedRow = committedPlays.find((p) => p.playNum === selectedSlotNum);
+    if (!committedRow || committedRow.odk !== "O") return false;
+    const success = await commitGradeFields(pendingGradeSnapshot, committedRow);
+    setGradeOverwriteDiffs([]);
+    setPendingGradeSnapshot(null);
+    return success;
+  }, [pendingGradeSnapshot, selectedSlotNum, committedPlays, commitGradeFields]);
+
+  const cancelGradeOverwrite = useCallback(() => {
+    setGradeOverwriteDiffs([]);
+    setPendingGradeSnapshot(null);
+    setState("proposal");
+  }, []);
+
   const refreshCommittedPlays = useCallback(async () => {
     if (!gameId) return;
     const plays = await getPlaysByGame(gameId);
@@ -1045,6 +1202,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         possessionPrevPlayInfo,
         confirmPossessionOffense,
         cancelPossessionCheck,
+        gradeOverwriteDiffs,
+        confirmGradeOverwrite,
+        cancelGradeOverwrite,
       }}
     >
       {children}

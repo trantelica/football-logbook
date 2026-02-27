@@ -5,7 +5,7 @@
  */
 
 import React from "react";
-import { isPass1Complete, isPass2Complete } from "@/engine/personnel";
+import { isPass1Complete, isPass2Complete, anyGradePresent } from "@/engine/personnel";
 import {
   Table,
   TableBody,
@@ -76,7 +76,7 @@ export function SlotsGrid() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-committed">
           {headerLabel}
         </h2>
-        <div className="flex gap-2 text-[10px]">
+        <div className="flex gap-2 text-[10px] flex-wrap">
           <Badge variant="outline" className="gap-1 font-normal">
             <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
             Not Started
@@ -88,6 +88,13 @@ export function SlotsGrid() {
           <Badge variant="outline" className="gap-1 font-normal">
             <span className="h-1.5 w-1.5 rounded-full bg-committed" />
             Personnel Updated
+          </Badge>
+          <Badge variant="outline" className="gap-1 font-normal">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Blocking Graded
+          </Badge>
+          <Badge variant="outline" className="gap-1 font-normal text-muted-foreground">
+            Not Offense
           </Badge>
         </div>
       </div>
@@ -152,14 +159,22 @@ export function SlotsGrid() {
                   onClick={() => selectSlot(play.playNum)}
                 >
                   <TableCell className="px-2 py-1.5">
-                    <span
-                      className={cn(
-                        "inline-block h-2 w-2 rounded-full",
-                        status === "personnel-updated" && "bg-committed",
-                        status === "pass1-done" && "bg-candidate",
-                        status === "not-started" && "bg-muted-foreground"
-                      )}
-                    />
+                    <div className="flex items-center gap-1">
+                      <span
+                        className={cn(
+                          "inline-block h-2 w-2 rounded-full",
+                          status === "personnel-updated" && "bg-committed",
+                          status === "pass1-done" && "bg-candidate",
+                          status === "not-started" && "bg-muted-foreground"
+                        )}
+                      />
+                      {/* Pass 3 indicators */}
+                      {play.odk !== "O" ? (
+                        <span className="text-[9px] text-muted-foreground">N/O</span>
+                      ) : anyGradePresent(play) ? (
+                        <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" title="Blocking Graded" />
+                      ) : null}
+                    </div>
                   </TableCell>
                   {VISIBLE_COLUMNS.map((col) => (
                     <TableCell

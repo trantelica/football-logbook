@@ -226,6 +226,17 @@ export function createSlots(
       pos3: null,
       pos4: null,
       returner: null,
+      gradeLT: null,
+      gradeLG: null,
+      gradeC: null,
+      gradeRG: null,
+      gradeRT: null,
+      gradeX: null,
+      gradeY: null,
+      grade1: null,
+      grade2: null,
+      grade3: null,
+      grade4: null,
     });
 
     seededFieldsPerSlot.set(i, seeded);

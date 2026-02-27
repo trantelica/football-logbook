@@ -6,6 +6,24 @@
 
 import type { PlayRecord, SlotMeta, CandidateData } from "./types";
 
+/** The 11 blocking grade field names */
+export const GRADE_FIELDS = [
+  "gradeLT", "gradeLG", "gradeC", "gradeRG", "gradeRT",
+  "gradeX", "gradeY", "grade1", "grade2", "grade3", "grade4",
+] as const;
+
+/** Grade field display labels (position name only) */
+export const GRADE_LABELS: Record<string, string> = {
+  gradeLT: "LT", gradeLG: "LG", gradeC: "C", gradeRG: "RG", gradeRT: "RT",
+  gradeX: "X", gradeY: "Y", grade1: "1", grade2: "2", grade3: "3", grade4: "4",
+};
+
+/** Returns true if any of the 11 grade fields is non-null */
+export function anyGradePresent(row: PlayRecord): boolean {
+  const r = row as unknown as Record<string, unknown>;
+  return GRADE_FIELDS.some((f) => r[f] != null);
+}
+
 /** The 11 offensive personnel position field names */
 export const PERSONNEL_POSITIONS = [
   "posLT", "posLG", "posC", "posRG", "posRT",

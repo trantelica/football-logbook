@@ -24,13 +24,16 @@ import { TDCorrectionDialog } from "./TDCorrectionDialog";
 import { PATTryDialog } from "./PATTryDialog";
 import { PossessionCheckDialog } from "./PossessionCheckDialog";
 import { PersonnelPanel } from "./PersonnelPanel";
+import { BlockingPanel } from "./BlockingPanel";
+import { GradeOverwriteDialog } from "./GradeOverwriteDialog";
+import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
   { value: "1", label: "Pass 1: Play Details", pass: 1, enabled: true },
   { value: "2", label: "Pass 2: Personnel", pass: 2, enabled: true },
-  { value: "3", label: "Enter Grades", pass: 3, enabled: false },
+  { value: "3", label: "Pass 3: Blocking", pass: 3, enabled: true },
 ] as const;
 
 /** Map of parent lookup fields → dependent fields to auto-populate */
@@ -84,6 +87,9 @@ export function DraftPanel() {
     confirmPossessionOffense,
     cancelPossessionCheck,
     carriedForwardFields,
+    gradeOverwriteDiffs,
+    confirmGradeOverwrite,
+    cancelGradeOverwrite,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -791,8 +797,10 @@ PENALTY O-Holding EFF Y 2MIN N`}
           </div>
         )}
 
-        {/* Pass 2: Personnel panel; Pass 1: standard field grid */}
-        {activePass === 2 ? (
+        {/* Pass 3: Blocking panel; Pass 2: Personnel panel; Pass 1: standard field grid */}
+        {activePass === 3 ? (
+          <BlockingPanel />
+        ) : activePass === 2 ? (
           <PersonnelPanel />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -807,7 +815,13 @@ PENALTY O-Holding EFF Y 2MIN N`}
               variant="outline"
               className="gap-1"
               onClick={reviewProposal}
-              disabled={activePass >= 2 ? (touchedFields.size === 0 && carriedForwardFields.size === 0) : touchedFields.size === 0}
+              disabled={
+                activePass === 3
+                  ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
+                  : activePass >= 2
+                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0)
+                    : touchedFields.size === 0
+              }
             >
               <Eye className="h-3.5 w-3.5" />
               Review Proposal
@@ -916,6 +930,15 @@ PENALTY O-Holding EFF Y 2MIN N`}
           prevPlayInfo={possessionPrevPlayInfo}
           onConfirmOffense={confirmPossessionOffense}
           onCancel={cancelPossessionCheck}
+        />
+      )}
+
+      {gradeOverwriteDiffs.length > 0 && (
+        <GradeOverwriteDialog
+          open
+          diffs={gradeOverwriteDiffs}
+          onConfirm={confirmGradeOverwrite}
+          onCancel={cancelGradeOverwrite}
         />
       )}
     </>

@@ -49,6 +49,18 @@ export interface PlayRecord {
   pos4: number | null;
   /** Returner actor field */
   returner: number | null;
+  // Phase 7 Pass 3: Blocking grade fields
+  gradeLT: number | null;
+  gradeLG: number | null;
+  gradeC: number | null;
+  gradeRG: number | null;
+  gradeRT: number | null;
+  gradeX: number | null;
+  gradeY: number | null;
+  grade1: number | null;
+  grade2: number | null;
+  grade3: number | null;
+  grade4: number | null;
 }
 
 /** Candidate/draft data — all fields optional except gameId */
