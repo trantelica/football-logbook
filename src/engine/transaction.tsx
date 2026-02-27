@@ -619,25 +619,26 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
 
       if (halfTimeBoundary && slot.odk === "O") {
-        const priorOPlays = committedPlays
-          .filter((p) => p.playNum < playNum && p.odk === "O" && p.series != null)
-          .sort((a, b) => b.playNum - a.playNum);
-        if (priorOPlays.length > 0) {
-          const lastSeries = Number(priorOPlays[0].series);
-          if (Number.isFinite(lastSeries)) {
-            const proposedSeries = lastSeries + 1;
-            // Force override: slot.series is the block-carried value. 
-            // Only skip if coach manually set a DIFFERENT value (not matching the original slot).
-            const currentSeries = newCandidate.series;
-            const slotOriginalSeries = slot.series;
-            // Use Number coercion for safe comparison (IndexedDB may store as string or number)
-            const currentNum = currentSeries != null && currentSeries !== "" ? Number(currentSeries) : null;
-            const slotNum = slotOriginalSeries != null ? Number(slotOriginalSeries) : null;
-            if (currentNum === null || currentNum === slotNum) {
-              newCandidate.series = proposedSeries;
+        // DB-backed: scan backwards from playNum-1 to find last O play with series
+        let lastSeries: number | null = null;
+        for (let n = playNum - 1; n >= 1; n--) {
+          const p = await getPlay(gameId, n);
+          if (p && p.odk === "O" && p.series != null) {
+            const s = Number(p.series);
+            if (Number.isFinite(s)) {
+              lastSeries = s;
+              break;
             }
-            // If coach already set a different value (currentNum !== slotNum), don't silently overwrite
           }
+        }
+        const proposedSeries = lastSeries !== null ? lastSeries + 1 : 1;
+        // Force override unless coach manually set a DIFFERENT value (not matching block-carried slot value)
+        const currentSeries = newCandidate.series;
+        const slotOriginalSeries = slot.series;
+        const currentNum = currentSeries != null && currentSeries !== "" ? Number(currentSeries) : null;
+        const slotNum = slotOriginalSeries != null ? Number(slotOriginalSeries) : null;
+        if (currentNum === null || currentNum === slotNum) {
+          newCandidate.series = proposedSeries;
         }
       }
 

@@ -14,6 +14,7 @@ import {
   PERSONNEL_POSITIONS,
 } from "@/engine/personnel";
 import { validateInline, validateCommitGate } from "@/engine/validation";
+import { splitBlocksAtHalftime, computeSeriesForPlay } from "@/engine/slotEngine";
 import type { PlayRecord, SlotMeta, CandidateData } from "@/engine/types";
 
 function makePlay(overrides: Partial<PlayRecord> = {}): PlayRecord {
@@ -476,21 +477,14 @@ describe("Q3 series auto-increment", () => {
   });
 
   it("forces series increment at Q3 start (quarterStarts['3']=7, block-carried series=1)", () => {
-    // quarterStarts["3"] = 7
-    // plays 1-6 include O plays with series=1
-    // play 7 is odk="O" with series=1 (block-carried from the O block spanning halftime)
     const q3Start = 7;
-    const committedPlays: PlayRecord[] = [
-      makePlay({ playNum: 1, odk: "O", series: 1 }),
-      makePlay({ playNum: 2, odk: "O", series: 1 }),
-      makePlay({ playNum: 3, odk: "O", series: 1 }),
-      makePlay({ playNum: 4, odk: "O", series: 1 }),
-      makePlay({ playNum: 5, odk: "O", series: 1 }),
-      makePlay({ playNum: 6, odk: "O", series: 1 }),
-    ];
+    // Simulate DB-backed scan: plays 1-6 are O with series=1
+    const dbPlays: Record<number, PlayRecord> = {};
+    for (let i = 1; i <= 6; i++) {
+      dbPlays[i] = makePlay({ playNum: i, odk: "O", series: 1 });
+    }
     const slot = makePlay({ playNum: 7, odk: "O", series: 1 }); // block-carried
 
-    // Simulate selectSlot Q3 logic
     const playNum = 7;
     const halfTimeBoundary = playNum === q3Start;
     expect(halfTimeBoundary).toBe(true);
@@ -498,23 +492,45 @@ describe("Q3 series auto-increment", () => {
     const newCandidate = { ...slot };
 
     if (halfTimeBoundary && slot.odk === "O") {
-      const priorOPlays = committedPlays
-        .filter((p) => p.playNum < playNum && p.odk === "O" && p.series != null)
-        .sort((a, b) => b.playNum - a.playNum);
-      if (priorOPlays.length > 0) {
-        const lastSeries = Number(priorOPlays[0].series);
-        const proposedSeries = lastSeries + 1;
-        const currentNum = newCandidate.series != null ? Number(newCandidate.series) : null;
-        const slotNum = slot.series != null ? Number(slot.series) : null;
-        // currentNum equals slotNum (both 1), so override
-        if (currentNum === null || currentNum === slotNum) {
-          newCandidate.series = proposedSeries;
+      // DB-backed scan (simulated)
+      let lastSeries: number | null = null;
+      for (let n = playNum - 1; n >= 1; n--) {
+        const p = dbPlays[n];
+        if (p && p.odk === "O" && p.series != null) {
+          lastSeries = Number(p.series);
+          break;
         }
+      }
+      const proposedSeries = lastSeries !== null ? lastSeries + 1 : 1;
+      const currentNum = newCandidate.series != null ? Number(newCandidate.series) : null;
+      const slotNum = slot.series != null ? Number(slot.series) : null;
+      if (currentNum === null || currentNum === slotNum) {
+        newCandidate.series = proposedSeries;
       }
     }
 
-    // After selectSlot(7), series must be 2 (not block-carried 1)
     expect(newCandidate.series).toBe(2);
+  });
+
+  it("splitBlocksAtHalftime splits O block spanning Q3 start", () => {
+    const blocks = [{ odk: "O", startPlay: 1, endPlay: 12 }];
+    const quarterStarts = { "1": 1, "2": 4, "3": 7, "4": 10 };
+    const result = splitBlocksAtHalftime(blocks, quarterStarts);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ odk: "O", startPlay: 1, endPlay: 6 });
+    expect(result[1]).toEqual({ odk: "O", startPlay: 7, endPlay: 12 });
+  });
+
+  it("splitBlocksAtHalftime produces correct series across halftime", () => {
+    const blocks = [{ odk: "O", startPlay: 1, endPlay: 12 }];
+    const quarterStarts = { "1": 1, "2": 4, "3": 7, "4": 10 };
+    const split = splitBlocksAtHalftime(blocks, quarterStarts);
+    // Series for play 6 (end of first half O block) should be 1
+    const series6 = computeSeriesForPlay(6, split);
+    expect(series6).toBe(1);
+    // Series for play 7 (start of second half O block) should be 2 (new block = new series)
+    const series7 = computeSeriesForPlay(7, split);
+    expect(series7).toBe(2);
   });
 });
 
