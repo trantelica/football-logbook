@@ -1,106 +1,65 @@
 
-# Phase 4 — COMPLETED
 
-# Phase 4 Completion Plan — Two Corrections Applied
+## Phase 7 Slice 7.1: Pass 3 Blocking & Grading MVP
 
-This plan incorporates two corrections to the previously approved Phase 4 completion plan. All other details from the prior plan remain unchanged.
+### Files to Create (2)
 
----
+1. **`src/components/BlockingPanel.tsx`** — Pass 3 UI with read-only context, read-only personnel (from committedRow), grade grid
+2. **`src/components/GradeOverwriteDialog.tsx`** — Field-scoped overwrite confirmation for grade changes
 
-## Correction 1: SCHEMA_VERSION = "2.1.0"
+### Files to Modify (7)
 
-The version bump is a minor addition (new fields, new outputLabel property), not a breaking change. Use `"2.1.0"` instead of `"3.0.0"`.
+3. **`src/engine/types.ts`** — Add 11 `grade*: number | null` fields to `PlayRecord` (after `returner`)
+4. **`src/engine/schema.ts`** — Add 11 grade field definitions to `playSchema` (after `returner`, before closing `] as const`). `dataType: "integer"`, `allowedValues: ["-3","-2","-1","0","1","2","3"]`, `defaultPassEntry: 3`, `requiredAtCommit: false`, `defaultPolicy: "null"`, `source: "COACH"`
+5. **`src/engine/personnel.ts`** — Add `GRADE_FIELDS`, `GRADE_LABELS`, `anyGradePresent(row)` exports
+6. **`src/engine/validation.ts`** — No changes needed (existing `validateField` for `dataType:"integer"` + `allowedValues` already handles [-3..3] validation)
+7. **`src/engine/transaction.tsx`** — Pass 3 logic:
+   - Add `gradeOverwriteDiffs` state + `pendingGradeSnapshot` state
+   - Add `confirmGradeOverwrite()` / `cancelGradeOverwrite()` callbacks
+   - Expose via context
+   - `reviewProposal`: when `activePass === 3`, skip all Pass 1/2 logic (PAT, EFF, QC, TD correction, penalty defaults, personnel validation, possession). Only run inline validation on touched fields. Transition to "proposal"
+   - `commitProposal`: when `activePass === 3`:
+     - Find committedRow from `committedPlays` by `selectedSlotNum`
+     - Hard reject if no committedRow or committedRow.odk !== "O"
+     - Validate touched grade fields
+     - Normalize only grade fields to integers
+     - Compute grade overwrite diffs (committedRow vs normalized proposal, trigger when before !== null AND after !== before)
+     - If diffs exist: store `pendingGradeSnapshot` (frozen normalized snapshot) + `gradeOverwriteDiffs`, return false
+     - Otherwise: **field-scoped persist** — merge only grade fields onto committedRow, write to DB
+   - `confirmGradeOverwrite()`: use `pendingGradeSnapshot` (not live candidate) to do the field-scoped merge+write
+   - `updateField`: allow grade fields when `activePass === 3` (they have `defaultPassEntry: 3`)
+8. **`src/components/DraftPanel.tsx`** — Changes:
+   - `WORKFLOW_STAGES[3]`: set `enabled: true`, label → `"Pass 3: Blocking"`
+   - Render `<BlockingPanel />` when `activePass === 3` (alongside existing Pass 2 / Pass 1 branching)
+   - Review Proposal disabled condition for Pass 3: enabled iff touchedFields intersects GRADE_FIELDS
+   - Wire `<GradeOverwriteDialog />` from transaction context state
+9. **`src/components/SlotsGrid.tsx`** — Add Pass 3 badges:
+   - Import `anyGradePresent` from personnel
+   - Legend: add "Blocking Graded" (emerald dot) and "Not Offense" (gray/muted text)
+   - Per-row: if `play.odk !== "O"` → "Not Offense" badge; if `play.odk === "O"` && `anyGradePresent(play)` → "Blocking Graded" badge
 
-**In schema.ts**: Change `SCHEMA_VERSION` from `"2.0.0"` to `"2.1.0"`.
+### File to Add (1)
 
----
+10. **`src/test/grading.test.ts`** — Tests:
+    - `anyGradePresent` returns false for all-null, true when ≥1 grade set
+    - Grade validation: reject 4, accept -3, 0, 3, null
+    - ODK gating: commit blocked when committedRow.odk !== "O"
+    - ODK gating: commit blocked when no committedRow
+    - Overwrite: null→1 no diff; 2→1 produces diff; 2→null produces diff
+    - Stored grades are `number|null` after normalization
+    - Export: `playsToCSV` includes grade columns
 
-## Correction 2: Narrow Lookup Validation Skip via `lookupMode`
+### Key Implementation Details
 
-### Problem
+**Field-scoped commit (Addendum 1)**: When `activePass === 3`, `commitProposal` builds a merged play by copying the committedRow and overwriting ONLY the 11 grade fields from the normalized proposal. All other fields remain exactly as they are in the committed row.
 
-The prior plan said: "skip `validateLookupField` for all fields with `allowedValues`." This is too broad -- it would skip season lookup validation for dependent LOOKUP-sourced fields like `offStrength` and `personnel` that legitimately have `allowedValues` but should still participate in lookup governance if needed.
+**Stable overwrite snapshot (Addendum 2)**: When grade overwrite diffs are detected, freeze a `pendingGradeSnapshot` (the normalized grade values at diff-detection time). `confirmGradeOverwrite()` uses this snapshot, not live candidate state, preventing edits-while-dialog-open from changing what gets committed.
 
-### Solution: Add `lookupMode` to FieldDefinition
+**SlotsGrid "Not Offense" badge (Addendum 3)**: Condition is simply `play.odk !== "O"` (committed row exists by virtue of being in `committedPlays`). No "has any committed data" heuristic.
 
-Add an optional property to the schema interface:
+**Export**: `playsToCSV` already iterates `playSchema` — adding grade fields to schema automatically includes them in CSV output. No changes needed to db.ts.
 
-```typescript
-export interface FieldDefinition {
-  // ... existing properties ...
-  /** Controls lookup validation behavior.
-   *  - "season": validated against season-maintained lookup table (offForm, offPlay, motion)
-   *  - "fixed": validated by allowedValues enum only, not season lookup (penalty)
-   *  - undefined: no lookup validation (COACH fields, LOGIC fields, dependent LOOKUP fields with allowedValues)
-   */
-  lookupMode?: "season" | "fixed";
-}
-```
+**BlockingPanel personnel display**: Reads committedRow (found via `committedPlays.find(p => p.playNum === selectedSlotNum)`), not candidate. Uses `useRoster()` roster array to map jersey → name.
 
-### Field assignments
-
-| Field | source | lookupMode | Validation behavior |
-|-------|--------|------------|-------------------|
-| offForm | LOOKUP | `"season"` | Checked against season lookup table |
-| offPlay | LOOKUP | `"season"` | Checked against season lookup table |
-| motion | LOOKUP | `"season"` | Checked against season lookup table |
-| penalty | COACH | `"fixed"` | Validated by `allowedValues` only (existing enum check); `validateLookupField` skipped |
-| offStrength | LOOKUP | (none) | Validated by `allowedValues` enum check; no season lookup table for this field exists |
-| personnel | LOOKUP | (none) | Same as offStrength |
-| playType | LOOKUP | (none) | Same |
-| playDir | LOOKUP | (none) | Same |
-| motionDir | LOOKUP | (none) | Same |
-| penYards | LOOKUP | (none) | Integer validation only |
-| result | COACH | (none) | Validated by `allowedValues` enum check |
-| All other COACH fields | COACH | (none) | Standard type validation |
-
-### validation.ts change
-
-In `validateLookupField`, replace the prior plan's "skip if `allowedValues` defined" guard with:
-
-```typescript
-function validateLookupField(
-  fieldDef: FieldDefinition,
-  value: unknown,
-  lookups: Map<string, string[]> | undefined,
-  mode: "error" | "warning"
-): string | null {
-  // Only validate fields with lookupMode "season"
-  if (fieldDef.lookupMode !== "season") return null;
-  if (value === null || value === undefined || value === "") return null;
-  if (!lookups) return null;
-  // ... rest unchanged (check against season lookup table)
-}
-```
-
-This means:
-- `offForm`, `offPlay`, `motion` (lookupMode "season") are validated against season lookup tables -- exactly as today
-- `penalty` (lookupMode "fixed") skips season lookup validation, relies on allowedValues enum check
-- Dependent LOOKUP fields without lookupMode (offStrength, personnel, etc.) skip season lookup validation, rely on allowedValues enum check
-- COACH fields without lookupMode skip season lookup validation as before
-
-### Why this is better
-
-- No hardcoded field-name checks in validation logic
-- Schema-driven: adding a new "fixed vocab" field in the future just requires setting `lookupMode: "fixed"`
-- Season-maintained lookups are explicitly opt-in via `lookupMode: "season"`
-- Dependent LOOKUP fields with `allowedValues` are correctly excluded from season lookup checks (no season table exists for them) without an overly broad skip rule
-
----
-
-## Summary of All Other Plan Details (Unchanged)
-
-Everything else from the previously approved plan remains exactly as stated:
-
-- 11 new fields added to PlayRecord/schema with correct sources (penalty.source = COACH, penYards/offStrength/personnel/playType/playDir/motionDir.source = LOOKUP)
-- twoMin and eff stored as "Y"/"N" enum strings
-- PENALTY_VALUES (37 entries), PENALTY_YARDS_MAP, EFF_VALUES constants
-- outputLabel on all FieldDefinitions for Hudl CSV headers
-- ActorCombobox for roster-backed actor fields with commit-gate enforcement
-- Relational lookup governance (auto-populate dependents, clear on parent clear)
-- Raw input pipeline: DB_VERSION 4, raw_input store, deterministic anchor-based parser (exact match only, no fuzzy), parse report with ambiguous/unrecognized status
-- CSV export with escapeCSV, schema-driven column order, outputLabel headers
-- Start Game ODK block startPlay auto-increment
-- 3 new files (ActorCombobox.tsx, rawInputContext.tsx, rawInputParser.ts), 10+ modified files
-- No prediction, no personnel positions, no AI inference
+**Grade Select UI**: Each position gets a `<Select>` with options: blank, -3, -2, -1, 0, 1, 2, 3. String values from Select are stored via `updateField`, and `normalizeToSchema` handles integer conversion at commit time.
 
