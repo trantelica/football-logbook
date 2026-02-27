@@ -364,6 +364,21 @@ export function DraftPanel() {
             error={error}
             committedDot={committedDot(fieldName)}
           />
+          {(() => {
+            const jerseyStr = value != null ? String(value).trim() : "";
+            const jerseyNum = parseInt(jerseyStr, 10);
+            if (jerseyStr !== "" && !isNaN(jerseyNum) && jerseyNum >= 0) {
+              const player = roster.find((r) => r.jerseyNumber === jerseyNum);
+              if (player) {
+                return (
+                  <span className="text-[9px] text-muted-foreground truncate block pl-0.5">
+                    {player.playerName}
+                  </span>
+                );
+              }
+            }
+            return null;
+          })()}
           {stageLockLabel}
           {commitErrors[fieldName] && (
             <div className="flex gap-1 mt-0.5">
@@ -779,7 +794,6 @@ PENALTY O-Holding EFF Y 2MIN N`}
 
         <div className="flex gap-2 pt-2 border-t border-border/30">
           {!isProposal && (
-            <>
             <Button
               size="sm"
               variant="outline"
@@ -790,18 +804,6 @@ PENALTY O-Holding EFF Y 2MIN N`}
               <Eye className="h-3.5 w-3.5" />
               Review Proposal
             </Button>
-            {isSlotMode && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1"
-                onClick={handleCommitAndNext}
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-                Commit & Next
-              </Button>
-            )}
-            </>
           )}
           {isProposal && (
             <>
