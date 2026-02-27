@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Lock, AlertTriangle, ArrowRight, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
 const CONTEXT_FIELDS: { key: string; label: string }[] = [
@@ -250,12 +251,20 @@ function ActorFixCard({
 
   const handleSwapInto = () => {
     if (!swapTarget) return;
+    const currentVal = candidate[swapTarget];
     updateField(swapTarget, actorJersey);
+    if (String(currentVal) !== String(actorJersey)) {
+      toast.info("Actor/personnel updated. Quick check recommended: verify other personnel positions are still correct.");
+    }
   };
 
   const handleChangeActor = () => {
     if (!changeTarget) return;
+    const currentVal = candidate[actorField];
     updateField(actorField, changeTarget);
+    if (String(currentVal) !== String(changeTarget)) {
+      toast.info("Actor/personnel updated. Quick check recommended: verify other personnel positions are still correct.");
+    }
   };
 
   return (

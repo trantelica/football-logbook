@@ -85,6 +85,7 @@ interface TransactionContextValue {
   deselectSlot: () => void;
   dismissScaffoldWarning: () => void;
   commitAndNext: () => Promise<{ committed: boolean; hasNext: boolean }>;
+  nextSlot: () => Promise<boolean>;
 
   // Carry-forward indicators (Pass 2)
   carriedForwardFields: Set<string>;
@@ -884,6 +885,25 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setSlotMetaMap(map);
   }, [gameId]);
 
+  // Phase 6: Next Slot — pure navigation, no commit, no state mutation
+  const nextSlot = useCallback(async (): Promise<boolean> => {
+    if (!gameId || selectedSlotNum === null) return false;
+
+    const freshPlays = await getPlaysByGame(gameId);
+    const sortedPlays = freshPlays.sort((a, b) => a.playNum - b.playNum);
+    const filteredList = odkFilter === "ALL"
+      ? sortedPlays
+      : sortedPlays.filter((p) => p.odk === odkFilter);
+
+    const currentIdx = filteredList.findIndex((p) => p.playNum === selectedSlotNum);
+    if (currentIdx >= 0 && currentIdx < filteredList.length - 1) {
+      const nextPlay = filteredList[currentIdx + 1];
+      await selectSlot(nextPlay.playNum);
+      return true;
+    }
+    return false;
+  }, [gameId, selectedSlotNum, odkFilter, selectSlot]);
+
   // Phase 4: Commit & Next — advances to next slot in filtered scaffold list
   const commitAndNext = useCallback(async (): Promise<{ committed: boolean; hasNext: boolean }> => {
     if (state !== "proposal") {
@@ -1008,6 +1028,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         deselectSlot,
         dismissScaffoldWarning,
         commitAndNext,
+        nextSlot,
         carriedForwardFields,
         carriedForwardFromPlayNum,
         tdCorrectionPending: tdCorrectionPending ? { correctedResult: tdCorrectionPending.correctedResult } : null,
