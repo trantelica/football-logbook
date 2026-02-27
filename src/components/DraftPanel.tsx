@@ -82,6 +82,7 @@ export function DraftPanel() {
     possessionPrevPlayInfo,
     confirmPossessionOffense,
     cancelPossessionCheck,
+    carriedForwardFields,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -783,7 +784,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
               variant="outline"
               className="gap-1"
               onClick={reviewProposal}
-              disabled={activePass >= 2 ? false : touchedFields.size === 0}
+              disabled={activePass >= 2 ? (touchedFields.size === 0 && carriedForwardFields.size === 0) : touchedFields.size === 0}
             >
               <Eye className="h-3.5 w-3.5" />
               Review Proposal
