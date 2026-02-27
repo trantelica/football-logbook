@@ -779,6 +779,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
 
         <div className="flex gap-2 pt-2 border-t border-border/30">
           {!isProposal && (
+            <>
             <Button
               size="sm"
               variant="outline"
@@ -789,6 +790,18 @@ PENALTY O-Holding EFF Y 2MIN N`}
               <Eye className="h-3.5 w-3.5" />
               Review Proposal
             </Button>
+            {isSlotMode && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={handleCommitAndNext}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+                Commit & Next
+              </Button>
+            )}
+            </>
           )}
           {isProposal && (
             <>
