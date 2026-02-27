@@ -474,4 +474,46 @@ describe("Q3 series auto-increment", () => {
     }
     expect(slot.series).toBe(6);
   });
+
+  it("forces series increment at Q3 start (quarterStarts['3']=7, block-carried series=1)", () => {
+    // quarterStarts["3"] = 7
+    // plays 1-6 include O plays with series=1
+    // play 7 is odk="O" with series=1 (block-carried from the O block spanning halftime)
+    const q3Start = 7;
+    const committedPlays: PlayRecord[] = [
+      makePlay({ playNum: 1, odk: "O", series: 1 }),
+      makePlay({ playNum: 2, odk: "O", series: 1 }),
+      makePlay({ playNum: 3, odk: "O", series: 1 }),
+      makePlay({ playNum: 4, odk: "O", series: 1 }),
+      makePlay({ playNum: 5, odk: "O", series: 1 }),
+      makePlay({ playNum: 6, odk: "O", series: 1 }),
+    ];
+    const slot = makePlay({ playNum: 7, odk: "O", series: 1 }); // block-carried
+
+    // Simulate selectSlot Q3 logic
+    const playNum = 7;
+    const halfTimeBoundary = playNum === q3Start;
+    expect(halfTimeBoundary).toBe(true);
+
+    const newCandidate = { ...slot };
+
+    if (halfTimeBoundary && slot.odk === "O") {
+      const priorOPlays = committedPlays
+        .filter((p) => p.playNum < playNum && p.odk === "O" && p.series != null)
+        .sort((a, b) => b.playNum - a.playNum);
+      if (priorOPlays.length > 0) {
+        const lastSeries = Number(priorOPlays[0].series);
+        const proposedSeries = lastSeries + 1;
+        const currentNum = newCandidate.series != null ? Number(newCandidate.series) : null;
+        const slotNum = slot.series != null ? Number(slot.series) : null;
+        // currentNum equals slotNum (both 1), so override
+        if (currentNum === null || currentNum === slotNum) {
+          newCandidate.series = proposedSeries;
+        }
+      }
+    }
+
+    // After selectSlot(7), series must be 2 (not block-carried 1)
+    expect(newCandidate.series).toBe(2);
+  });
 });

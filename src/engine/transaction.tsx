@@ -612,12 +612,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       let halfTimeBoundary = false;
       if (initConfig) {
         const q3Start = initConfig.quarterStarts["3"];
-        if (q3Start && playNum === q3Start) {
+        if (q3Start !== undefined && q3Start !== null && playNum === q3Start) {
           halfTimeBoundary = true;
         }
       }
 
-      if (halfTimeBoundary && slot.odk === "O" && initConfig) {
+      if (halfTimeBoundary && slot.odk === "O") {
         const priorOPlays = committedPlays
           .filter((p) => p.playNum < playNum && p.odk === "O" && p.series != null)
           .sort((a, b) => b.playNum - a.playNum);
@@ -625,12 +625,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           const lastSeries = Number(priorOPlays[0].series);
           if (Number.isFinite(lastSeries)) {
             const proposedSeries = lastSeries + 1;
-            // Only auto-set if candidate series is blank or matches block-carried value (same as slot)
+            // Force override: slot.series is the block-carried value. 
+            // Only skip if coach manually set a DIFFERENT value (not matching the original slot).
             const currentSeries = newCandidate.series;
-            if (currentSeries === null || currentSeries === undefined || currentSeries === "" || currentSeries === slot.series) {
+            const slotOriginalSeries = slot.series;
+            // Use Number coercion for safe comparison (IndexedDB may store as string or number)
+            const currentNum = currentSeries != null && currentSeries !== "" ? Number(currentSeries) : null;
+            const slotNum = slotOriginalSeries != null ? Number(slotOriginalSeries) : null;
+            if (currentNum === null || currentNum === slotNum) {
               newCandidate.series = proposedSeries;
             }
-            // If coach already set a different value, don't silently overwrite
+            // If coach already set a different value (currentNum !== slotNum), don't silently overwrite
           }
         }
       }
