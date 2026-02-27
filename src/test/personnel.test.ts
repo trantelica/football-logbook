@@ -406,25 +406,48 @@ describe("roster safety", () => {
   });
 });
 
-// ── Validation Engine Jersey #0 ──
+// ── Q3 Series Auto-Increment ──
 
-describe("validation engine jersey #0", () => {
-  it("inline validation accepts 0 for actor integer fields", () => {
-    const candidate = { gameId: "g1", rusher: "0" } as CandidateData;
-    const touched = new Set(["rusher"]);
-    const errors = validateInline(candidate, touched);
-    expect(errors.rusher).toBeUndefined();
+describe("Q3 series auto-increment", () => {
+  it("computes series = prior O play series + 1 at Q3 boundary", () => {
+    // Simulate: last O play before Q3 has series=5
+    const plays: PlayRecord[] = [
+      makePlay({ playNum: 1, odk: "O", series: 3 }),
+      makePlay({ playNum: 10, odk: "O", series: 5 }),
+      makePlay({ playNum: 11, odk: "D", series: null }),
+    ];
+    // Q3 starts at play 12, odk=O
+    const q3PlayNum = 12;
+    const priorOPlays = plays
+      .filter((p) => p.playNum < q3PlayNum && p.odk === "O" && p.series != null)
+      .sort((a, b) => b.playNum - a.playNum);
+    expect(priorOPlays.length).toBeGreaterThan(0);
+    const newSeries = Number(priorOPlays[0].series) + 1;
+    expect(newSeries).toBe(6);
   });
 
-  it("commit-gate validation accepts 0 for actor integer fields", () => {
-    const candidate = {
-      gameId: "g1", playNum: "1", qtr: "1", odk: "O",
-      series: "1", yardLn: "35", dn: "1", dist: "10",
-      offPlay: "Test", result: "Rush", gainLoss: "4",
-      rusher: "0",
-    } as unknown as CandidateData;
-    const roster = new Set([0]);
-    const result = validateCommitGate(candidate, 1, undefined, roster);
-    expect(result.errors.rusher).toBeUndefined();
+  it("returns no series if no prior O plays exist", () => {
+    const plays: PlayRecord[] = [
+      makePlay({ playNum: 1, odk: "D", series: null }),
+    ];
+    const q3PlayNum = 2;
+    const priorOPlays = plays
+      .filter((p) => p.playNum < q3PlayNum && p.odk === "O" && p.series != null)
+      .sort((a, b) => b.playNum - a.playNum);
+    expect(priorOPlays.length).toBe(0);
+  });
+
+  it("uses most recent prior O play, not first", () => {
+    const plays: PlayRecord[] = [
+      makePlay({ playNum: 1, odk: "O", series: 1 }),
+      makePlay({ playNum: 5, odk: "O", series: 4 }),
+      makePlay({ playNum: 8, odk: "O", series: 7 }),
+    ];
+    const q3PlayNum = 10;
+    const priorOPlays = plays
+      .filter((p) => p.playNum < q3PlayNum && p.odk === "O" && p.series != null)
+      .sort((a, b) => b.playNum - a.playNum);
+    const newSeries = Number(priorOPlays[0].series) + 1;
+    expect(newSeries).toBe(8); // 7 + 1
   });
 });

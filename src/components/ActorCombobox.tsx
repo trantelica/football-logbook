@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import type { RosterEntry } from "@/engine/types";
 
 interface ActorComboboxProps {
-  fieldLabel: string;
+  fieldLabel: React.ReactNode;
   requiredAtCommit: boolean;
   value: string;
   onChange: (value: string) => void;
