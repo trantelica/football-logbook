@@ -12,7 +12,7 @@ import { ActorCombobox } from "./ActorCombobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, AlertTriangle } from "lucide-react";
+import { Lock, AlertTriangle, ArrowRight, Sparkles } from "lucide-react";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
 const CONTEXT_FIELDS: { key: string; label: string }[] = [
@@ -40,8 +40,10 @@ export function PersonnelPanel() {
     selectedSlotNum,
     commitErrors,
     inlineErrors,
+    carriedForwardFields,
+    carriedForwardFromPlayNum,
   } = useTransaction();
-  const { roster, addPlayer } = useRoster();
+  const { roster, addPlayer, getPlayer } = useRoster();
 
   const c = candidate as unknown as Record<string, unknown>;
   const errors = { ...inlineErrors, ...commitErrors };
@@ -67,8 +69,27 @@ export function PersonnelPanel() {
       .map((a) => ({ field: a, value: c[a], message: errors[a] }));
   }, [errors, c]);
 
+  // Helper: get player name from roster by jersey number
+  const getPlayerName = (jerseyNum: number | null | undefined): string | null => {
+    if (jerseyNum == null) return null;
+    const num = Number(jerseyNum);
+    if (!Number.isFinite(num) || num < 0) return null;
+    const player = getPlayer(num);
+    return player?.playerName ?? null;
+  };
+
   return (
     <div className="space-y-4">
+      {/* Carry-forward banner */}
+      {carriedForwardFields.size > 0 && carriedForwardFromPlayNum != null && (
+        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Carried forward from Play #{carriedForwardFromPlayNum} — {carriedForwardFields.size} field(s) seeded. Edit any field to override.
+          </span>
+        </div>
+      )}
+
       {/* Play Context Header — Read-only */}
       <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
         <div className="flex items-center gap-2 mb-2">
@@ -108,20 +129,42 @@ export function PersonnelPanel() {
               Personnel Positions (11 Players)
             </h3>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-              {PERSONNEL_POSITIONS.map((pos) => (
-                <ActorCombobox
-                  key={pos}
-                  fieldLabel={PERSONNEL_LABELS[pos]}
-                  requiredAtCommit={false}
-                  value={c[pos] != null ? String(c[pos]) : ""}
-                  onChange={(v) => updateField(pos, v)}
-                  roster={roster}
-                  addPlayer={addPlayer}
-                  disabled={false}
-                  inputClassName="h-8 text-sm font-mono"
-                  error={errors[pos]}
-                />
-              ))}
+              {PERSONNEL_POSITIONS.map((pos) => {
+                const isCarried = carriedForwardFields.has(pos);
+                const jerseyVal = c[pos] != null ? String(c[pos]) : "";
+                const playerName = jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
+                return (
+                  <div key={pos} className="space-y-0.5">
+                    <ActorCombobox
+                      fieldLabel={
+                        <span className="flex items-center gap-1">
+                          {PERSONNEL_LABELS[pos]}
+                          {isCarried && (
+                            <Sparkles className="h-2.5 w-2.5 text-violet-500" />
+                          )}
+                        </span>
+                      }
+                      requiredAtCommit={false}
+                      value={jerseyVal}
+                      onChange={(v) => updateField(pos, v)}
+                      roster={roster}
+                      addPlayer={addPlayer}
+                      disabled={false}
+                      inputClassName={
+                        isCarried
+                          ? "h-8 text-sm font-mono bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700"
+                          : "h-8 text-sm font-mono"
+                      }
+                      error={errors[pos]}
+                    />
+                    {playerName && (
+                      <span className="text-[9px] text-muted-foreground truncate block pl-0.5">
+                        {playerName}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -131,20 +174,30 @@ export function PersonnelPanel() {
               Actor Integrity
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {ACTOR_FIELDS.map((actor) => (
-                <ActorCombobox
-                  key={actor}
-                  fieldLabel={ACTOR_LABELS[actor]}
-                  requiredAtCommit={false}
-                  value={c[actor] != null ? String(c[actor]) : ""}
-                  onChange={(v) => updateField(actor, v)}
-                  roster={roster}
-                  addPlayer={addPlayer}
-                  disabled={false}
-                  inputClassName="h-8 text-sm font-mono"
-                  error={errors[actor]}
-                />
-              ))}
+              {ACTOR_FIELDS.map((actor) => {
+                const actorVal = c[actor] != null ? String(c[actor]) : "";
+                const playerName = actorVal !== "" ? getPlayerName(Number(actorVal)) : null;
+                return (
+                  <div key={actor} className="space-y-0.5">
+                    <ActorCombobox
+                      fieldLabel={ACTOR_LABELS[actor]}
+                      requiredAtCommit={false}
+                      value={actorVal}
+                      onChange={(v) => updateField(actor, v)}
+                      roster={roster}
+                      addPlayer={addPlayer}
+                      disabled={false}
+                      inputClassName="h-8 text-sm font-mono"
+                      error={errors[actor]}
+                    />
+                    {playerName && (
+                      <span className="text-[9px] text-muted-foreground truncate block pl-0.5">
+                        {playerName}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

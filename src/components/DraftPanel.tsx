@@ -783,7 +783,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
               variant="outline"
               className="gap-1"
               onClick={reviewProposal}
-              disabled={touchedFields.size === 0}
+              disabled={activePass >= 2 ? false : touchedFields.size === 0}
             >
               <Eye className="h-3.5 w-3.5" />
               Review Proposal
