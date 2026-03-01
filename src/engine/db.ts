@@ -10,13 +10,13 @@ import { openDB, type IDBPDatabase } from "idb";
 import type {
   PlayRecord, GameMeta, AuditRecord, SeasonMeta,
   LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord,
-  GameInitConfig, SlotMeta, GameAuditRecord, RawInputRecord,
+  GameInitConfig, SlotMeta, GameAuditRecord, RawInputRecord, CoachNote,
 } from "./types";
 import { SCHEMA_VERSION, exportSchemaSnapshot, playSchema } from "./schema";
 import { computeSnapshotHash } from "./hash";
 
 const DB_NAME = "football-engine";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 /** Canonicalize a lookup value for comparison: trim + collapse spaces + lowercase */
 export function canonicalizeLookupValue(value: string): string {
@@ -107,6 +107,12 @@ function getDB(): Promise<IDBPDatabase> {
         if (!db.objectStoreNames.contains("raw_input")) {
           const rawStore = db.createObjectStore("raw_input", { keyPath: ["gameId", "playNum"] });
           rawStore.createIndex("byGame", "gameId");
+        }
+        // Phase 7.2: Coach notes store
+        if (!db.objectStoreNames.contains("coach_notes")) {
+          const notesStore = db.createObjectStore("coach_notes", { keyPath: "id" });
+          notesStore.createIndex("byGame", "gameId");
+          notesStore.createIndex("byGamePlay", ["gameId", "playNum"]);
         }
       },
     });
@@ -505,6 +511,41 @@ export async function getRawInputsByGame(gameId: string): Promise<RawInputRecord
   return db.getAllFromIndex("raw_input", "byGame", gameId);
 }
 
+// ── Phase 7.2: Coach Notes ──
+
+export async function createCoachNote(note: CoachNote): Promise<void> {
+  const db = await getDB();
+  await db.put("coach_notes", note);
+}
+
+export async function updateCoachNote(id: string, patch: { text: string }): Promise<void> {
+  const db = await getDB();
+  const note = await db.get("coach_notes", id) as CoachNote | undefined;
+  if (!note) throw new Error(`Note ${id} not found`);
+  note.text = patch.text;
+  note.updatedAt = new Date().toISOString();
+  await db.put("coach_notes", note);
+}
+
+export async function softDeleteCoachNote(id: string): Promise<void> {
+  const db = await getDB();
+  const note = await db.get("coach_notes", id) as CoachNote | undefined;
+  if (!note) throw new Error(`Note ${id} not found`);
+  note.deletedAt = new Date().toISOString();
+  note.updatedAt = new Date().toISOString();
+  await db.put("coach_notes", note);
+}
+
+export async function getCoachNotesByGame(gameId: string): Promise<CoachNote[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("coach_notes", "byGame", gameId);
+}
+
+export async function getCoachNotesByGameAndPlay(gameId: string, playNum: number): Promise<CoachNote[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("coach_notes", "byGamePlay", [gameId, playNum]);
+}
+
 // ── Debug Export ──
 
 export async function buildDebugExport(gameId: string) {
@@ -541,6 +582,9 @@ export async function buildDebugExport(gameId: string) {
   // Include raw input provenance
   const rawInputs = await getRawInputsByGame(gameId);
 
+  // Include coach notes (all, including soft-deleted)
+  const allNotes = await getCoachNotesByGame(gameId);
+
   return {
     exportType: "Debug / Inspection Export",
     exportedAt: new Date().toISOString(),
@@ -553,6 +597,8 @@ export async function buildDebugExport(gameId: string) {
     audit: audit.sort((a, b) => a.auditSeq - b.auditSeq),
     gameAudit: gameAudits.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
     rawInputs: rawInputs.sort((a, b) => a.playNum - b.playNum),
+    notes: allNotes.sort((a, b) => a.playNum - b.playNum || a.createdAt.localeCompare(b.createdAt)),
+    notesActive: allNotes.filter((n) => !n.deletedAt).sort((a, b) => a.playNum - b.playNum || a.createdAt.localeCompare(b.createdAt)),
     ...seasonData,
   };
 }

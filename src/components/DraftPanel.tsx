@@ -26,6 +26,7 @@ import { PossessionCheckDialog } from "./PossessionCheckDialog";
 import { PersonnelPanel } from "./PersonnelPanel";
 import { BlockingPanel } from "./BlockingPanel";
 import { GradeOverwriteDialog } from "./GradeOverwriteDialog";
+import { CoachNotesPanel } from "./CoachNotesPanel";
 import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 
@@ -689,6 +690,11 @@ PENALTY O-Holding EFF Y 2MIN N`}
             </div>
           </CollapsibleContent>
         </Collapsible>
+      )}
+
+      {/* Coach Notes — visible on all passes, independent of transaction */}
+      {selectedSlotNum !== null && (
+        <CoachNotesPanel selectedSlotNum={selectedSlotNum} />
       )}
 
       <div
