@@ -202,6 +202,17 @@ export interface GameAuditRecord {
   details: Record<string, unknown>;
 }
 
+/** Coach note — separate model, never mutates PlayRecord */
+export interface CoachNote {
+  id: string;
+  gameId: string;
+  playNum: number;
+  text: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string | null;
+  deletedAt: string | null; // soft delete
+}
+
 /** Raw input provenance record */
 export interface RawInputRecord {
   gameId: string;

@@ -4,7 +4,7 @@ import { useGameContext } from "@/engine/gameContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { downloadDebugJSON, downloadPlaysCSV, copyDebugJSON } from "@/engine/export";
+import { downloadDebugJSON, downloadPlaysCSV, copyDebugJSON, downloadNotesCSV } from "@/engine/export";
 import { cn } from "@/lib/utils";
 import { Download, Clipboard } from "lucide-react";
 import { toast } from "sonner";
@@ -77,6 +77,15 @@ export function StatusBar() {
             >
               <Download className="h-3 w-3" />
               CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 gap-1 text-xs"
+              onClick={() => downloadNotesCSV(activeGame.gameId)}
+            >
+              <Download className="h-3 w-3" />
+              Notes
             </Button>
           </div>
         </>
