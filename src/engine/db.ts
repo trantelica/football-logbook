@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import { SCHEMA_VERSION, exportSchemaSnapshot, playSchema } from "./schema";
 import { computeSnapshotHash } from "./hash";
+import { coercePlayToSchemaTypes } from "./coerce";
 
 const DB_NAME = "football-engine";
 const DB_VERSION = 5;
@@ -378,9 +379,11 @@ async function getNextAuditSeq(
 
 /** Commit a play to IndexedDB with full audit trail */
 export async function commitPlay(
-  play: PlayRecord,
+  rawPlay: PlayRecord,
   existingPlay: PlayRecord | null
 ): Promise<AuditRecord> {
+  // Defense-in-depth: coerce integer fields to numbers before persistence
+  const play = coercePlayToSchemaTypes(rawPlay);
   const db = await getDB();
   const isOverwrite = existingPlay !== null;
   const action = isOverwrite ? "overwrite" : "commit";
