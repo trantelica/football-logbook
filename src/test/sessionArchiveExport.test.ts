@@ -6,7 +6,7 @@ import {
   type BuildSessionArchiveParams,
 } from "@/engine/sessionArchiveExport";
 import type { PlayRecord, CoachNote } from "@/engine/types";
-import { APP_VERSION, SCHEMA_VERSION } from "@/engine/schema";
+import { APP_VERSION, SCHEMA_VERSION, exportSchemaSnapshot } from "@/engine/schema";
 
 function makePlay(overrides: Partial<PlayRecord> & { playNum: number; gameId: string }): PlayRecord {
   const base: PlayRecord = {
@@ -89,6 +89,15 @@ describe("sessionArchiveExport", () => {
   it("defaults lookupStoreVersion to unknown", () => {
     const archive = buildSessionArchive(defaultParams);
     expect(archive.meta.lookupStoreVersion).toBe("unknown");
+  });
+
+  // T4b2: schemaSnapshot present and matches exportSchemaSnapshot()
+  it("includes schemaSnapshot matching exportSchemaSnapshot()", () => {
+    const archive = buildSessionArchive(defaultParams);
+    const expected = exportSchemaSnapshot();
+    expect(archive.schemaSnapshot).toEqual(expected);
+    expect(archive.schemaSnapshot.version).toBe(SCHEMA_VERSION);
+    expect(Array.isArray(archive.schemaSnapshot.fields)).toBe(true);
   });
 
   // T4c: game.score is null
