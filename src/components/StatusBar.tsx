@@ -10,7 +10,7 @@ import { downloadDebugJSON, copyDebugJSON } from "@/engine/export";
 import {
   getPlaysByGame, getCoachNotesByGame, getSeason,
   getAllLookups, getRosterBySeason,
-  replaceLookups, replaceRosterBySeason, bumpSeasonRevision,
+  importLookupsReplaceOnly,
 } from "@/engine/db";
 import {
   toHudlCsv, toNotesCsv, validateForExport,
@@ -220,18 +220,13 @@ export function StatusBar() {
     const seasonId = activeSeason.seasonId;
 
     try {
-      // All-or-nothing: replace lookups, replace roster, bump revision
+      // Single atomic transaction: lookups + roster + seasonRevision
       const { lookups, roster } = pendingImport;
-      await replaceLookups(seasonId, [lookups.offForm, lookups.offPlay, lookups.motion]);
-      await replaceRosterBySeason(seasonId, roster ?? []);
-      await bumpSeasonRevision(seasonId);
+      const newRevision = await importLookupsReplaceOnly(seasonId, lookups, roster);
 
       setImportConfirmOpen(false);
       setPendingImport(null);
-      toast.success("Lookups imported successfully — season revision bumped");
-
-      // Force page reload to refresh all contexts
-      window.location.reload();
+      toast.success(`Lookups imported — season revision now ${newRevision}`);
     } catch (err) {
       toast.error(`Import write failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     }

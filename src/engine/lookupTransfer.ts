@@ -188,7 +188,15 @@ export interface BuildLookupsExportParams {
 export function buildLookupsExport(params: BuildLookupsExportParams): LookupsExport {
   const findTable = (fieldName: string): LookupTable | null => {
     const t = params.lookupTables.find((lt) => lt.fieldName === fieldName);
-    return t ? { ...t, values: [...t.values] } : null;
+    if (!t) return null;
+    return {
+      ...t,
+      values: [...t.values],
+      updatedAt: t.updatedAt || new Date().toISOString(),
+      ...(t.entryAttributes
+        ? { entryAttributes: JSON.parse(JSON.stringify(t.entryAttributes)) }
+        : {}),
+    };
   };
 
   return {

@@ -71,6 +71,67 @@ describe("buildLookupsExport", () => {
     expect(result.lookups.motion!.values).toEqual(["Jet"]);
     expect(result.roster).toBeNull();
   });
+
+  it("deep-clones entryAttributes so export shares no references", () => {
+    const attrs = { Shotgun: { personnel: "11" } };
+    const table: LookupTable = {
+      seasonId: "s1",
+      fieldName: "offForm",
+      values: ["Shotgun"],
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      entryAttributes: attrs,
+    };
+
+    const result = buildLookupsExport({
+      seasonId: "s1",
+      seasonRevision: 1,
+      lookupTables: [table],
+      roster: null,
+    });
+
+    // Mutate the export — original must be unaffected
+    (result.lookups.offForm!.entryAttributes as any)["Shotgun"].personnel = "CHANGED";
+    expect(attrs["Shotgun"].personnel).toBe("11");
+  });
+
+  it("fills updatedAt when missing from source table", () => {
+    const table: LookupTable = {
+      seasonId: "s1",
+      fieldName: "offForm",
+      values: ["Pistol"],
+      updatedAt: "",
+    };
+
+    const result = buildLookupsExport({
+      seasonId: "s1",
+      seasonRevision: 1,
+      lookupTables: [table],
+      roster: null,
+    });
+
+    expect(result.lookups.offForm!.updatedAt).toBeTruthy();
+    expect(typeof result.lookups.offForm!.updatedAt).toBe("string");
+  });
+
+  it("T2: selects correct tables by fieldName", () => {
+    const tables = [
+      makeLookup("offForm", ["I-Form"]),
+      makeLookup("motion", ["Jet"]),
+      makeLookup("offPlay", ["Sweep"]),
+    ];
+
+    const result = buildLookupsExport({
+      seasonId: "s1",
+      seasonRevision: 1,
+      lookupTables: tables,
+      roster: null,
+    });
+
+    expect(result.lookups.offForm!.values).toEqual(["I-Form"]);
+    expect(result.lookups.offPlay!.values).toEqual(["Sweep"]);
+    expect(result.lookups.motion!.values).toEqual(["Jet"]);
+    expect(result.roster).toBeNull();
+  });
 });
 
 describe("validateLookupsImport", () => {
