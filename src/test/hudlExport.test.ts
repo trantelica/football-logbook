@@ -97,6 +97,24 @@ describe("toHudlCsv", () => {
     expect(csv.split("\n")).toHaveLength(1);
   });
 
+  it("header row does not include PAT TRY", () => {
+    const csv = toHudlCsv([]);
+    const headerLine = csv.split("\n")[0];
+    expect(headerLine).not.toContain("PAT TRY");
+  });
+
+  it("header row contains position labels 1,2,3,4 (not POS 1..4)", () => {
+    const headers = HUDL_HEADERS.map((h) => h.label);
+    expect(headers).toContain("1");
+    expect(headers).toContain("2");
+    expect(headers).toContain("3");
+    expect(headers).toContain("4");
+    expect(headers).not.toContain("POS 1");
+    expect(headers).not.toContain("POS 2");
+    expect(headers).not.toContain("POS 3");
+    expect(headers).not.toContain("POS 4");
+  });
+
   // ── TEST 2: Sorting ──
 
   it("sorts rows by playNum ascending", () => {
