@@ -610,6 +610,60 @@ export async function bumpSeasonRevision(seasonId: string): Promise<number> {
   return incrementSeasonRevision(seasonId);
 }
 
+/**
+ * Atomic import: replace lookups + roster + bump seasonRevision in ONE IDB transaction.
+ * If any step fails the entire transaction aborts — nothing persists.
+ */
+export async function importLookupsReplaceOnly(
+  seasonId: string,
+  lookups: { offForm: LookupTable | null; offPlay: LookupTable | null; motion: LookupTable | null },
+  roster: RosterEntry[] | null,
+): Promise<number> {
+  const db = await getDB();
+  const tx = db.transaction(["lookups", "roster", "seasons"], "readwrite");
+
+  const lookupStore = tx.objectStore("lookups");
+  const rosterStore = tx.objectStore("roster");
+  const seasonStore = tx.objectStore("seasons");
+
+  // a) Delete existing offForm/offPlay/motion for seasonId
+  for (const fieldName of ["offForm", "offPlay", "motion"] as const) {
+    try { await lookupStore.delete([seasonId, fieldName]); } catch { /* ignore */ }
+  }
+
+  // b) Write new lookup tables (skip nulls)
+  const now = new Date().toISOString();
+  for (const table of [lookups.offForm, lookups.offPlay, lookups.motion]) {
+    if (!table) continue;
+    await lookupStore.put({ ...table, seasonId, updatedAt: now });
+  }
+
+  // c) Delete all roster entries for seasonId
+  const existingRosterKeys = await rosterStore.index("bySeason").getAllKeys(seasonId);
+  for (const key of existingRosterKeys) {
+    await rosterStore.delete(key);
+  }
+
+  // d) Write new roster entries
+  if (roster) {
+    for (const entry of roster) {
+      await rosterStore.put({ ...entry, seasonId });
+    }
+  }
+
+  // e) Increment seasonRevision by 1
+  const season = await seasonStore.get(seasonId) as SeasonMeta | undefined;
+  if (!season) {
+    tx.abort();
+    throw new Error(`Season ${seasonId} not found`);
+  }
+  season.seasonRevision += 1;
+  await seasonStore.put(season);
+
+  await tx.done;
+  return season.seasonRevision;
+}
+
 // ── Debug Export ──
 
 export async function buildDebugExport(gameId: string) {
