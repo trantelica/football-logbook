@@ -6,6 +6,7 @@
  */
 
 export const SCHEMA_VERSION = "2.1.0";
+export const APP_VERSION = "1.0.0";
 
 export type FieldDataType = "integer" | "string" | "boolean" | "enum";
 export type FieldSource = "COACH" | "LOGIC" | "LOOKUP";
