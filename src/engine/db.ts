@@ -549,6 +549,67 @@ export async function getCoachNotesByGameAndPlay(gameId: string, playNum: number
   return db.getAllFromIndex("coach_notes", "byGamePlay", [gameId, playNum]);
 }
 
+// ── Phase 8.3: Lookup/Roster Replace (all-or-nothing) ──
+
+/**
+ * Replace lookup tables for a season atomically.
+ * Deletes existing tables for the given fieldNames, then writes the new ones.
+ */
+export async function replaceLookups(
+  seasonId: string,
+  tables: Array<LookupTable | null>,
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction("lookups", "readwrite");
+  const store = tx.objectStore("lookups");
+
+  // Delete existing for the three canonical fields
+  for (const fieldName of ["offForm", "offPlay", "motion"]) {
+    try { await store.delete([seasonId, fieldName]); } catch { /* ignore if missing */ }
+  }
+
+  // Write new tables (skip nulls)
+  for (const table of tables) {
+    if (!table) continue;
+    await store.put({ ...table, seasonId, updatedAt: new Date().toISOString() });
+  }
+
+  await tx.done;
+}
+
+/**
+ * Replace roster for a season atomically.
+ * Deletes all existing entries, then writes the new ones.
+ */
+export async function replaceRosterBySeason(
+  seasonId: string,
+  roster: RosterEntry[],
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction("roster", "readwrite");
+  const store = tx.objectStore("roster");
+
+  // Delete all existing for this season
+  const existing = await store.index("bySeason").getAllKeys(seasonId);
+  for (const key of existing) {
+    await store.delete(key);
+  }
+
+  // Write new entries
+  for (const entry of roster) {
+    await store.put({ ...entry, seasonId });
+  }
+
+  await tx.done;
+}
+
+/**
+ * Bump season revision by 1. Returns the new revision number.
+ */
+export async function bumpSeasonRevision(seasonId: string): Promise<number> {
+  return incrementSeasonRevision(seasonId);
+}
+
 // ── Debug Export ──
 
 export async function buildDebugExport(gameId: string) {
