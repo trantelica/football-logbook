@@ -6,7 +6,7 @@
  */
 
 import type { PlayRecord, CoachNote, LookupTable, RosterEntry } from "./types";
-import { APP_VERSION, SCHEMA_VERSION } from "./schema";
+import { APP_VERSION, SCHEMA_VERSION, exportSchemaSnapshot } from "./schema";
 
 // ── Constants ──
 
@@ -45,6 +45,7 @@ export interface SessionArchive {
   plays: PlayRecord[];
   notes: CoachNote[];
   lookups: SessionArchiveLookupsSnapshot;
+  schemaSnapshot: ReturnType<typeof exportSchemaSnapshot>;
 }
 
 // ── Validation (A-tier only) ──
@@ -135,5 +136,6 @@ export function buildSessionArchive(params: BuildSessionArchiveParams): SessionA
     plays: sortedPlays,
     notes: notesCopy,
     lookups: { ...params.lookupsSnapshot },
+    schemaSnapshot: exportSchemaSnapshot(),
   };
 }
