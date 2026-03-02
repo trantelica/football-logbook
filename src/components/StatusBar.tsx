@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { downloadDebugJSON, copyDebugJSON } from "@/engine/export";
-import { getPlaysByGame, getCoachNotesByGame, getSeason } from "@/engine/db";
+import { getPlaysByGame, getCoachNotesByGame, getSeason, getAllLookups, getRosterBySeason } from "@/engine/db";
 import {
   toHudlCsv,
   toNotesCsv,
@@ -19,8 +19,14 @@ import {
   EXPORT_MANIFEST_FILENAME,
   type ExportError,
 } from "@/engine/hudlExport";
+import {
+  buildSessionArchive,
+  validateArchiveMinimum,
+  SESSION_ARCHIVE_FILENAME,
+  type ArchiveError,
+} from "@/engine/sessionArchiveExport";
 import { cn } from "@/lib/utils";
-import { Download, Clipboard, FileOutput } from "lucide-react";
+import { Download, Clipboard, FileOutput, Archive } from "lucide-react";
 import { toast } from "sonner";
 
 const STATE_LABELS: Record<string, string> = {
@@ -36,8 +42,9 @@ export function StatusBar() {
   const { state, candidate, committedPlays, inlineErrors, commitErrors } =
     useTransaction();
 
-  const [preflightErrors, setPreflightErrors] = useState<ExportError[]>([]);
+  const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError)[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
+  const [preflightTitle, setPreflightTitle] = useState("Export Blocked");
 
   const errors = { ...inlineErrors, ...commitErrors };
   const errorCount = Object.keys(errors).length;
@@ -67,6 +74,7 @@ export function StatusBar() {
       const validation = validateForExport(plays);
 
       if (!validation.valid) {
+        setPreflightTitle("Export Blocked");
         setPreflightErrors(validation.errors);
         setPreflightOpen(true);
         return;
@@ -104,6 +112,54 @@ export function StatusBar() {
       toast.success("Hudl export complete — 3 files downloaded");
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  const handleSessionArchive = async () => {
+    if (!activeGame) return;
+
+    try {
+      const seasonId = activeSeason?.seasonId ?? "";
+      const [plays, notes, seasonData, lookupTables, roster] = await Promise.all([
+        getPlaysByGame(activeGame.gameId),
+        getCoachNotesByGame(activeGame.gameId),
+        seasonId ? getSeason(seasonId) : Promise.resolve(undefined),
+        seasonId ? getAllLookups(seasonId) : Promise.resolve([]),
+        seasonId ? getRosterBySeason(seasonId) : Promise.resolve([]),
+      ]);
+
+      const validation = validateArchiveMinimum(plays);
+      if (!validation.valid) {
+        setPreflightTitle("Session Archive Blocked");
+        setPreflightErrors(validation.errors);
+        setPreflightOpen(true);
+        return;
+      }
+
+      const findLookup = (name: string) => lookupTables.find((t) => t.fieldName === name) ?? null;
+
+      const archive = buildSessionArchive({
+        gameMeta: { gameId: activeGame.gameId, opponent: activeGame.opponent, date: activeGame.date },
+        plays,
+        notes,
+        lookupsSnapshot: {
+          offForm: findLookup("offForm"),
+          offPlay: findLookup("offPlay"),
+          motion: findLookup("motion"),
+          roster: roster.length > 0 ? roster : null,
+        },
+        seasonRevision: seasonData?.seasonRevision ?? 0,
+      });
+
+      triggerDownload(
+        JSON.stringify(archive, null, 2),
+        SESSION_ARCHIVE_FILENAME,
+        "application/json"
+      );
+
+      toast.success("Session archive downloaded");
+    } catch (err) {
+      toast.error(`Archive failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
@@ -151,6 +207,16 @@ export function StatusBar() {
                 <FileOutput className="h-3 w-3" />
                 Hudl Export
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 text-xs"
+                onClick={handleSessionArchive}
+                disabled={committedPlays.length === 0}
+              >
+                <Archive className="h-3 w-3" />
+                Session Archive
+              </Button>
             </div>
           </>
         )}
@@ -160,6 +226,7 @@ export function StatusBar() {
         open={preflightOpen}
         onOpenChange={setPreflightOpen}
         errors={preflightErrors}
+        title={preflightTitle}
       />
     </>
   );
@@ -171,13 +238,15 @@ function PreflightErrorDialog({
   open,
   onOpenChange,
   errors,
+  title,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  errors: ExportError[];
+  errors: (ExportError | ArchiveError)[];
+  title?: string;
 }) {
   // Group errors by play number
-  const grouped = new Map<number | null, ExportError[]>();
+  const grouped = new Map<number | null, (ExportError | ArchiveError)[]>();
   for (const e of errors) {
     const key = e.playNumber;
     if (!grouped.has(key)) grouped.set(key, []);
@@ -189,7 +258,7 @@ function PreflightErrorDialog({
       <DialogContent className="sm:max-w-md max-h-[70vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-sm text-destructive">
-            Export Blocked — {errors.length} error{errors.length !== 1 ? "s" : ""}
+            {title ?? "Export Blocked"} — {errors.length} error{errors.length !== 1 ? "s" : ""}
           </DialogTitle>
         </DialogHeader>
         <ScrollArea className="flex-1 min-h-0">
