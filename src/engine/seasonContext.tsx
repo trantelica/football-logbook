@@ -22,6 +22,10 @@ interface SeasonContextValue {
   setHasDraft: (v: boolean) => void;
   /** Re-fetch active season meta from DB */
   refreshActiveSeason: () => Promise<void>;
+  /** Re-fetch all seasons list from DB */
+  reloadSeasons: () => Promise<void>;
+  /** Set active season by ID (after import) */
+  setActiveSeasonById: (seasonId: string) => Promise<void>;
 }
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
@@ -91,6 +95,24 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeSeason]);
 
+  const reloadSeasons = useCallback(async () => {
+    const all = await getAllSeasons();
+    setSeasons(all);
+  }, []);
+
+  const setActiveSeasonById = useCallback(async (seasonId: string) => {
+    const fresh = await getSeason(seasonId);
+    if (fresh) {
+      setActiveSeason(fresh);
+      // Ensure it's in the list
+      setSeasons((prev) => {
+        const exists = prev.some((s) => s.seasonId === seasonId);
+        return exists ? prev.map((s) => (s.seasonId === seasonId ? fresh : s)) : [...prev, fresh];
+      });
+      setHasDraft(false);
+    }
+  }, []);
+
   return (
     <SeasonContext.Provider
       value={{
@@ -104,6 +126,8 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
         hasDraft,
         setHasDraft,
         refreshActiveSeason,
+        reloadSeasons,
+        setActiveSeasonById,
       }}
     >
       {children}
