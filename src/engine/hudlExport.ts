@@ -12,6 +12,7 @@ import { patTryToPlayType, validatePATResult } from "./patEngine";
 // ── Constants ──
 
 export const EXPORT_FORMAT_VERSION = "8.1.0";
+// Legacy constants kept for backward compat; StatusBar now builds dynamic filenames
 export const HUDL_PLAYS_FILENAME = "hudl_plays.csv";
 export const HUDL_NOTES_FILENAME = "hudl_notes.csv";
 export const EXPORT_MANIFEST_FILENAME = "export_manifest.json";

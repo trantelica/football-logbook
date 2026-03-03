@@ -6,7 +6,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
+
 import type { GameMeta, GameInitConfig, ODKBlock, QuarterMapping, SlotMeta, PatMode } from "./types";
 import { SCHEMA_VERSION } from "./schema";
 import {
@@ -91,7 +91,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     async (opponent: string, date: string): Promise<GameMeta> => {
       if (!seasonId) throw new Error("No active season");
       const meta: GameMeta = {
-        gameId: uuidv4(),
+        gameId: crypto.randomUUID(),
         seasonId,
         opponent,
         date,
@@ -126,7 +126,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         throw new Error(validationErrors.map((e) => e.message).join("; "));
       }
 
-      const gameId = uuidv4();
+      const gameId = crypto.randomUUID();
       const now = new Date().toISOString();
 
       // 1. Create game meta

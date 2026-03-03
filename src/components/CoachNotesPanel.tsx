@@ -28,7 +28,7 @@ import type { CoachNote } from "@/engine/types";
 import { cn } from "@/lib/utils";
 import { MessageSquare, ChevronDown, Save, X, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { v4 as uuidv4 } from "uuid";
+
 
 interface CoachNotesPanelProps {
   selectedSlotNum: number | null;
@@ -69,7 +69,7 @@ export function CoachNotesPanel({ selectedSlotNum }: CoachNotesPanelProps) {
     if (!text || !gameId || selectedSlotNum === null) return;
 
     const note: CoachNote = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       gameId,
       playNum: selectedSlotNum,
       text,
