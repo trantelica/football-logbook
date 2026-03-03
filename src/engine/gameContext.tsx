@@ -45,6 +45,10 @@ interface GameContextValue {
   cancelSwitch: () => void;
   hasDraft: boolean;
   setHasDraft: (v: boolean) => void;
+  /** Re-fetch all games from DB */
+  reloadGames: () => Promise<void>;
+  /** Set active game by ID (e.g. after import) */
+  setActiveGameById: (gameId: string) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -221,6 +225,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setPendingSwitch(null);
   }, []);
 
+  const reloadGames = useCallback(async () => {
+    const all = await getAllGames();
+    setGames(all);
+  }, []);
+
+  const setActiveGameById = useCallback(async (gameId: string) => {
+    // Ensure games list is fresh
+    const all = await getAllGames();
+    setGames(all);
+    const game = all.find((g) => g.gameId === gameId) ?? null;
+    setActiveGame(game);
+    setHasDraft(false);
+    if (game) {
+      const config = await getGameInit(gameId);
+      setGameInitConfig(config ?? null);
+    }
+  }, []);
+
   return (
     <GameContext.Provider
       value={{
@@ -237,6 +259,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         cancelSwitch,
         hasDraft,
         setHasDraft,
+        reloadGames,
+        setActiveGameById,
       }}
     >
       {children}

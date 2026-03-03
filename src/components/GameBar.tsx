@@ -97,24 +97,23 @@ export function GameBar() {
           <>
             <div className="mx-1 h-5 w-px bg-border" />
 
-            {/* Game selector — only games in this season */}
-            {seasonGames.length > 0 && (
-              <Select
-                value={activeGame?.gameId ?? ""}
-                onValueChange={(v) => switchGame(v)}
-              >
-                <SelectTrigger className="w-[220px] h-8 text-sm">
-                  <SelectValue placeholder="Select game…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasonGames.map((g) => (
-                    <SelectItem key={g.gameId} value={g.gameId}>
-                      vs {g.opponent} — {g.date}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            {/* Game selector — always visible when season active */}
+            <Select
+              value={activeGame?.gameId ?? ""}
+              onValueChange={(v) => switchGame(v)}
+              disabled={seasonGames.length === 0}
+            >
+              <SelectTrigger className="w-[220px] h-8 text-sm">
+                <SelectValue placeholder={seasonGames.length === 0 ? "No games yet" : "Select game…"} />
+              </SelectTrigger>
+              <SelectContent>
+                {seasonGames.map((g) => (
+                  <SelectItem key={g.gameId} value={g.gameId}>
+                    vs {g.opponent} — {g.date}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <Button
               size="sm"
