@@ -37,6 +37,11 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
 
   const fieldKeys = playSchema.map((f) => f.name);
 
+  // Ensure configMode resets whenever dialog closes by any path (ESC, overlay, etc.)
+  useEffect(() => {
+    if (!open) setConfigMode(false);
+  }, [open, setConfigMode]);
+
   useEffect(() => {
     if (!open || !seasonId) return;
     setConfigMode(true);
