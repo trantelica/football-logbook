@@ -46,7 +46,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 export function StatusBar() {
-  const { activeGame } = useGameContext();
+  const { activeGame, reloadGames, setActiveGameById } = useGameContext();
   const { activeSeason, refreshActiveSeason, reloadSeasons, setActiveSeasonById } = useSeason();
   const { reload: reloadLookups } = useLookup();
   const { reload: reloadRoster } = useRoster();
@@ -324,11 +324,17 @@ export function StatusBar() {
   const handleConfirmSeasonImport = async () => {
     if (!pendingSeasonImport) return;
     try {
-      const { newSeasonId } = await importSeasonPackageNewSeason(pendingSeasonImport.normalized);
+      const { newSeasonId, newGameIds } = await importSeasonPackageNewSeason(pendingSeasonImport.normalized);
       // Refresh contexts
       await reloadSeasons();
       await setActiveSeasonById(newSeasonId);
+      await reloadGames();
       await Promise.all([reloadLookups(), reloadRoster()]);
+
+      // Auto-select first imported game if available
+      if (newGameIds.length > 0) {
+        await setActiveGameById(newGameIds[0]);
+      }
 
       setSeasonImportConfirmOpen(false);
       setPendingSeasonImport(null);

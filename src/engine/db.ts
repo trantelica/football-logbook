@@ -718,11 +718,14 @@ export async function buildSeasonPackageExport(seasonId: string): Promise<import
  */
 export async function importSeasonPackageNewSeason(
   pkg: import("./seasonTransfer").NormalizedSeasonPackage,
-): Promise<{ newSeasonId: string }> {
+): Promise<{ newSeasonId: string; newGameIds: string[] }> {
   const newSeasonId = crypto.randomUUID();
   const gameIdMap = new Map<string, string>();
+  const newGameIds: string[] = [];
   for (const g of pkg.games) {
-    gameIdMap.set(g.gameId, crypto.randomUUID());
+    const newId = crypto.randomUUID();
+    gameIdMap.set(g.gameId, newId);
+    newGameIds.push(newId);
   }
 
   const db = await getDB();
@@ -793,7 +796,7 @@ export async function importSeasonPackageNewSeason(
   }
 
   await tx.done;
-  return { newSeasonId };
+  return { newSeasonId, newGameIds };
 }
 
 // ── Debug Export ──
