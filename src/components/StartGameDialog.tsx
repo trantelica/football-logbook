@@ -182,13 +182,14 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Field Size *</Label>
+                <Label className="text-xs">Field Size</Label>
                 <ToggleGroup
                   type="single"
                   value={fieldSize}
-                  onValueChange={(val) => { if (val) setFieldSize(val as "80" | "100"); }}
+                  onValueChange={() => {}}
                   size="sm"
                   className="justify-start"
+                  disabled
                 >
                   <ToggleGroupItem value="80" className="text-xs px-3 h-7 font-medium">
                     80 yards
@@ -198,7 +199,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
                   </ToggleGroupItem>
                 </ToggleGroup>
                 <p className="text-[10px] text-muted-foreground">
-                  Used for yardline prediction. Immutable after creation.
+                  Field size is set at the season level.
                 </p>
               </div>
               <div className="space-y-1">
