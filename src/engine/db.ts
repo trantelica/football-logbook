@@ -719,12 +719,10 @@ export async function buildSeasonPackageExport(seasonId: string): Promise<import
 export async function importSeasonPackageNewSeason(
   pkg: import("./seasonTransfer").NormalizedSeasonPackage,
 ): Promise<{ newSeasonId: string }> {
-  const { v4: uuidv4 } = await import("uuid");
-
-  const newSeasonId = uuidv4();
+  const newSeasonId = crypto.randomUUID();
   const gameIdMap = new Map<string, string>();
   for (const g of pkg.games) {
-    gameIdMap.set(g.gameId, uuidv4());
+    gameIdMap.set(g.gameId, crypto.randomUUID());
   }
 
   const db = await getDB();
@@ -744,11 +742,19 @@ export async function importSeasonPackageNewSeason(
   };
   await tx.objectStore("seasons").put(newSeason);
 
-  // 2) Lookups
+  // 2) Lookups — force fieldName from key, deep-clone entryAttributes
   const lookupStore = tx.objectStore("lookups");
-  for (const [fieldName, table] of Object.entries(pkg.lookups)) {
+  for (const [key, table] of Object.entries(pkg.lookups)) {
     if (!table) continue;
-    await lookupStore.put({ ...table, seasonId: newSeasonId, fieldName, updatedAt: now });
+    await lookupStore.put({
+      seasonId: newSeasonId,
+      fieldName: key,
+      values: [...(table.values ?? [])],
+      updatedAt: table.updatedAt || now,
+      ...(table.entryAttributes
+        ? { entryAttributes: JSON.parse(JSON.stringify(table.entryAttributes)) }
+        : {}),
+    });
   }
 
   // 3) Roster
@@ -782,7 +788,7 @@ export async function importSeasonPackageNewSeason(
     const newGameId = gameIdMap.get(oldGameId);
     if (!newGameId) continue;
     for (const n of notes) {
-      await noteStore.put({ ...n, id: uuidv4(), gameId: newGameId });
+      await noteStore.put({ ...n, id: crypto.randomUUID(), gameId: newGameId });
     }
   }
 

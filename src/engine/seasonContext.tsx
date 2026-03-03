@@ -5,7 +5,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
+
 import type { SeasonMeta } from "./types";
 import { createSeason as dbCreateSeason, getAllSeasons, getSeason, initDefaultLookups } from "./db";
 import { playSchema } from "./schema";
@@ -47,7 +47,7 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
 
   const createNewSeason = useCallback(async (label: string): Promise<SeasonMeta> => {
     const meta: SeasonMeta = {
-      seasonId: uuidv4(),
+      seasonId: crypto.randomUUID(),
       label,
       createdAt: new Date().toISOString(),
       seasonRevision: 0,

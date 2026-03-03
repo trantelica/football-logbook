@@ -18,21 +18,22 @@ import {
 import {
   toHudlCsv, toNotesCsv, validateForExport,
   buildExportManifest, triggerDownload,
-  HUDL_PLAYS_FILENAME, HUDL_NOTES_FILENAME, EXPORT_MANIFEST_FILENAME,
   type ExportError,
 } from "@/engine/hudlExport";
 import {
   buildSessionArchive, validateArchiveMinimum,
-  SESSION_ARCHIVE_FILENAME, type ArchiveError,
+  type ArchiveError,
 } from "@/engine/sessionArchiveExport";
 import {
   buildLookupsExport, validateLookupsImport, normalizeLookupsImport,
-  LOOKUP_TRANSFER_FILENAME, type ImportValidationError,
+  type ImportValidationError,
 } from "@/engine/lookupTransfer";
 import {
   validateSeasonPackageImport, normalizeSeasonPackageImport,
-  SEASON_PACKAGE_FILENAME, type SeasonImportValidationError,
+  type SeasonImportValidationError,
 } from "@/engine/seasonTransfer";
+import { slugify, dateStamp } from "@/engine/filenameHelpers";
+import { SCHEMA_VERSION } from "@/engine/schema";
 import { cn } from "@/lib/utils";
 import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus } from "lucide-react";
 import { toast } from "sonner";
@@ -119,9 +120,17 @@ export function StatusBar() {
         playCount: plays.length,
         noteCount: activeNotes.length,
       });
-      triggerDownload(playsCsv, HUDL_PLAYS_FILENAME, "text/csv");
-      triggerDownload(notesCsv, HUDL_NOTES_FILENAME, "text/csv");
-      triggerDownload(JSON.stringify(manifest, null, 2), EXPORT_MANIFEST_FILENAME, "application/json");
+
+      const oppSlug = slugify(activeGame.opponent ?? "unknown");
+      const gameDate = activeGame.date ?? dateStamp();
+
+      const playsFile = `hudl_plays_${oppSlug}_${gameDate}.csv`;
+      const notesFile = `hudl_notes_${oppSlug}_${gameDate}.csv`;
+      const manifestFile = `hudl_manifest_${oppSlug}_${gameDate}_schema-${SCHEMA_VERSION}.json`;
+
+      triggerDownload(playsCsv, playsFile, "text/csv");
+      triggerDownload(notesCsv, notesFile, "text/csv");
+      triggerDownload(JSON.stringify(manifest, null, 2), manifestFile, "application/json");
       toast.success("Hudl export complete — 3 files downloaded");
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
@@ -159,7 +168,13 @@ export function StatusBar() {
         },
         seasonRevision: seasonData?.seasonRevision ?? 0,
       });
-      triggerDownload(JSON.stringify(archive, null, 2), SESSION_ARCHIVE_FILENAME, "application/json");
+      const oppSlug = slugify(activeGame.opponent ?? "unknown");
+      const gameDate = activeGame.date ?? dateStamp();
+      const stamp = dateStamp();
+      const sessionFile = gameDate === stamp
+        ? `session_${oppSlug}_${gameDate}_schema-${SCHEMA_VERSION}.json`
+        : `session_${oppSlug}_${gameDate}_${stamp}_schema-${SCHEMA_VERSION}.json`;
+      triggerDownload(JSON.stringify(archive, null, 2), sessionFile, "application/json");
       toast.success("Session archive downloaded");
     } catch (err) {
       toast.error(`Archive failed: ${err instanceof Error ? err.message : "Unknown error"}`);
@@ -185,7 +200,9 @@ export function StatusBar() {
         lookupTables,
         roster: roster.length > 0 ? roster : null,
       });
-      triggerDownload(JSON.stringify(exportObj, null, 2), LOOKUP_TRANSFER_FILENAME, "application/json");
+      const seasonSlug = slugify(activeSeason.label);
+      const lookupsFile = `lookups_${seasonSlug}_${dateStamp()}_schema-${SCHEMA_VERSION}.json`;
+      triggerDownload(JSON.stringify(exportObj, null, 2), lookupsFile, "application/json");
       toast.success("Lookups export downloaded");
     } catch (err) {
       toast.error(`Lookups export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
@@ -261,7 +278,9 @@ export function StatusBar() {
     }
     try {
       const pkg = await buildSeasonPackageExport(activeSeason.seasonId);
-      triggerDownload(JSON.stringify(pkg, null, 2), SEASON_PACKAGE_FILENAME, "application/json");
+      const seasonSlug = slugify(activeSeason.label);
+      const seasonFile = `season_${seasonSlug}_${dateStamp()}_schema-${SCHEMA_VERSION}.json`;
+      triggerDownload(JSON.stringify(pkg, null, 2), seasonFile, "application/json");
       toast.success("Season package exported");
     } catch (err) {
       toast.error(`Season export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
