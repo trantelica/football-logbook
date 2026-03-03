@@ -13,6 +13,7 @@ import {
   getPlaysByGame, getCoachNotesByGame, getSeason,
   getAllLookups, getRosterBySeason,
   importLookupsReplaceOnly,
+  buildSeasonPackageExport, importSeasonPackageNewSeason,
 } from "@/engine/db";
 import {
   toHudlCsv, toNotesCsv, validateForExport,
@@ -28,8 +29,12 @@ import {
   buildLookupsExport, validateLookupsImport, normalizeLookupsImport,
   LOOKUP_TRANSFER_FILENAME, type ImportValidationError,
 } from "@/engine/lookupTransfer";
+import {
+  validateSeasonPackageImport, normalizeSeasonPackageImport,
+  SEASON_PACKAGE_FILENAME, type SeasonImportValidationError,
+} from "@/engine/seasonTransfer";
 import { cn } from "@/lib/utils";
-import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup } from "lucide-react";
+import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus } from "lucide-react";
 import { toast } from "sonner";
 
 const STATE_LABELS: Record<string, string> = {
@@ -41,17 +46,17 @@ const STATE_LABELS: Record<string, string> = {
 
 export function StatusBar() {
   const { activeGame } = useGameContext();
-  const { activeSeason, refreshActiveSeason } = useSeason();
+  const { activeSeason, refreshActiveSeason, reloadSeasons, setActiveSeasonById } = useSeason();
   const { reload: reloadLookups } = useLookup();
   const { reload: reloadRoster } = useRoster();
   const { state, candidate, committedPlays, inlineErrors, commitErrors } =
     useTransaction();
 
-  const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError)[]>([]);
+  const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError)[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [preflightTitle, setPreflightTitle] = useState("Export Blocked");
 
-  // Import confirmation state
+  // Lookup import confirmation state
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<{
     lookups: ReturnType<typeof normalizeLookupsImport>["lookups"];
@@ -60,7 +65,16 @@ export function StatusBar() {
     sourceRevision: number;
   } | null>(null);
 
+  // Season package import state
+  const [seasonImportConfirmOpen, setSeasonImportConfirmOpen] = useState(false);
+  const [pendingSeasonImport, setPendingSeasonImport] = useState<{
+    normalized: ReturnType<typeof normalizeSeasonPackageImport>;
+    sourceLabel: string;
+    gameCount: number;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const seasonFileInputRef = useRef<HTMLInputElement>(null);
 
   const errors = { ...inlineErrors, ...commitErrors };
   const errorCount = Object.keys(errors).length;
@@ -239,6 +253,72 @@ export function StatusBar() {
     }
   };
 
+  // ── Export Season Package ──
+  const handleExportSeason = async () => {
+    if (!activeSeason) {
+      toast.error("No active season");
+      return;
+    }
+    try {
+      const pkg = await buildSeasonPackageExport(activeSeason.seasonId);
+      triggerDownload(JSON.stringify(pkg, null, 2), SEASON_PACKAGE_FILENAME, "application/json");
+      toast.success("Season package exported");
+    } catch (err) {
+      toast.error(`Season export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  // ── Load Season Package ──
+  const handleLoadSeason = () => {
+    seasonFileInputRef.current?.click();
+  };
+
+  const handleSeasonFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (seasonFileInputRef.current) seasonFileInputRef.current.value = "";
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+
+      const validation = validateSeasonPackageImport(payload);
+      if (!validation.valid) {
+        setPreflightTitle("Season Import Blocked");
+        setPreflightErrors(validation.errors);
+        setPreflightOpen(true);
+        return;
+      }
+
+      const normalized = normalizeSeasonPackageImport(payload);
+      setPendingSeasonImport({
+        normalized,
+        sourceLabel: normalized.season.label,
+        gameCount: normalized.games.length,
+      });
+      setSeasonImportConfirmOpen(true);
+    } catch (err) {
+      toast.error(`Season import failed: ${err instanceof Error ? err.message : "Invalid JSON file"}`);
+    }
+  };
+
+  const handleConfirmSeasonImport = async () => {
+    if (!pendingSeasonImport) return;
+    try {
+      const { newSeasonId } = await importSeasonPackageNewSeason(pendingSeasonImport.normalized);
+      // Refresh contexts
+      await reloadSeasons();
+      await setActiveSeasonById(newSeasonId);
+      await Promise.all([reloadLookups(), reloadRoster()]);
+
+      setSeasonImportConfirmOpen(false);
+      setPendingSeasonImport(null);
+      toast.success("Season imported as new season");
+    } catch (err) {
+      toast.error(`Season import failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
   return (
     <>
       <footer className="flex items-center gap-3 border-t bg-card px-4 py-1.5 text-xs text-muted-foreground">
@@ -290,16 +370,31 @@ export function StatusBar() {
             onClick={handleImportLookups} disabled={!activeSeason}>
             <Upload className="h-3 w-3" /> Import Lookups
           </Button>
+          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
+            onClick={handleExportSeason} disabled={!activeSeason}>
+            <PackageOpen className="h-3 w-3" /> Export Season
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
+            onClick={handleLoadSeason}>
+            <PackagePlus className="h-3 w-3" /> Load Season
+          </Button>
         </div>
       </footer>
 
-      {/* Hidden file input for import */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
         accept=".json"
         className="hidden"
         onChange={handleFileSelected}
+      />
+      <input
+        ref={seasonFileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleSeasonFileSelected}
       />
 
       <PreflightErrorDialog
@@ -316,13 +411,21 @@ export function StatusBar() {
         sourceSeasonId={pendingImport?.sourceSeasonId ?? ""}
         sourceRevision={pendingImport?.sourceRevision ?? 0}
       />
+
+      <ImportSeasonConfirmDialog
+        open={seasonImportConfirmOpen}
+        onOpenChange={setSeasonImportConfirmOpen}
+        onConfirm={handleConfirmSeasonImport}
+        sourceLabel={pendingSeasonImport?.sourceLabel ?? ""}
+        gameCount={pendingSeasonImport?.gameCount ?? 0}
+      />
     </>
   );
 }
 
 // ── Preflight Error Dialog ──
 
-type AnyError = ExportError | ArchiveError | ImportValidationError;
+type AnyError = ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError;
 
 function isPlayError(e: AnyError): e is ExportError | ArchiveError {
   return "playNumber" in e;
@@ -338,7 +441,7 @@ function PreflightErrorDialog({
 }) {
   // Separate play-grouped errors from path-based errors
   const playErrors = errors.filter(isPlayError);
-  const pathErrors = errors.filter((e): e is ImportValidationError => !isPlayError(e));
+  const pathErrors = errors.filter((e): e is ImportValidationError | SeasonImportValidationError => !isPlayError(e));
 
   const grouped = new Map<number | null, (ExportError | ArchiveError)[]>();
   for (const e of playErrors) {
@@ -419,6 +522,45 @@ function ImportConfirmDialog({
         <div className="flex justify-end gap-2 pt-2">
           <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button size="sm" variant="destructive" onClick={onConfirm}>Replace</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Import Season Confirmation Dialog ──
+
+function ImportSeasonConfirmDialog({
+  open, onOpenChange, onConfirm, sourceLabel, gameCount,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+  sourceLabel: string;
+  gameCount: number;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Load Season Package</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p className="font-medium">
+            This will create a <span className="font-semibold">NEW season</span> and import all games,
+            plays, notes, lookups, and roster. It will NOT overwrite existing seasons.
+          </p>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>Source season: <span className="font-mono">{sourceLabel}</span></p>
+            <p>Games: <span className="font-mono">{gameCount}</span></p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The imported season will be labeled "{sourceLabel} (Imported)".
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={onConfirm}>Import</Button>
         </div>
       </DialogContent>
     </Dialog>

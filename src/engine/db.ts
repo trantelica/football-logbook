@@ -664,6 +664,132 @@ export async function importLookupsReplaceOnly(
   return season.seasonRevision;
 }
 
+// ── Phase 8.4: Season Package helpers ──
+
+export async function getGamesBySeason(seasonId: string): Promise<GameMeta[]> {
+  const db = await getDB();
+  const all = await db.getAll("games") as GameMeta[];
+  return all.filter((g) => g.seasonId === seasonId);
+}
+
+/**
+ * Gather all data for a season and build a SeasonPackage (pure export).
+ */
+export async function buildSeasonPackageExport(seasonId: string): Promise<import("./seasonTransfer").SeasonPackage> {
+  const { buildSeasonPackage } = await import("./seasonTransfer");
+
+  const db = await getDB();
+  const [seasonData, lookupTables, roster, games] = await Promise.all([
+    db.get("seasons", seasonId) as Promise<SeasonMeta | undefined>,
+    getAllLookups(seasonId),
+    getRosterBySeason(seasonId),
+    getGamesBySeason(seasonId),
+  ]);
+
+  if (!seasonData) throw new Error(`Season ${seasonId} not found`);
+
+  // Fetch plays and notes per game in parallel
+  const gameIds = games.map((g) => g.gameId);
+  const [playsArrays, notesArrays] = await Promise.all([
+    Promise.all(gameIds.map((id) => getPlaysByGame(id))),
+    Promise.all(gameIds.map((id) => getCoachNotesByGame(id))),
+  ]);
+
+  const playsByGame: Record<string, PlayRecord[]> = {};
+  const notesByGame: Record<string, CoachNote[]> = {};
+  for (let i = 0; i < gameIds.length; i++) {
+    playsByGame[gameIds[i]] = playsArrays[i];
+    notesByGame[gameIds[i]] = notesArrays[i];
+  }
+
+  return buildSeasonPackage({
+    season: seasonData,
+    lookupTables,
+    roster: roster.length > 0 ? roster : null,
+    games,
+    playsByGame,
+    notesByGame,
+  });
+}
+
+/**
+ * Import a normalized season package as a NEW season.
+ * Remaps all IDs. Single IDB transaction across all stores.
+ */
+export async function importSeasonPackageNewSeason(
+  pkg: import("./seasonTransfer").NormalizedSeasonPackage,
+): Promise<{ newSeasonId: string }> {
+  const { v4: uuidv4 } = await import("uuid");
+
+  const newSeasonId = uuidv4();
+  const gameIdMap = new Map<string, string>();
+  for (const g of pkg.games) {
+    gameIdMap.set(g.gameId, uuidv4());
+  }
+
+  const db = await getDB();
+  const tx = db.transaction(
+    ["seasons", "lookups", "roster", "games", "plays", "coach_notes"],
+    "readwrite",
+  );
+
+  const now = new Date().toISOString();
+
+  // 1) Season meta
+  const newSeason: SeasonMeta = {
+    seasonId: newSeasonId,
+    label: pkg.season.label + " (Imported)",
+    createdAt: now,
+    seasonRevision: 0,
+  };
+  await tx.objectStore("seasons").put(newSeason);
+
+  // 2) Lookups
+  const lookupStore = tx.objectStore("lookups");
+  for (const [fieldName, table] of Object.entries(pkg.lookups)) {
+    if (!table) continue;
+    await lookupStore.put({ ...table, seasonId: newSeasonId, fieldName, updatedAt: now });
+  }
+
+  // 3) Roster
+  if (pkg.roster) {
+    const rosterStore = tx.objectStore("roster");
+    for (const entry of pkg.roster) {
+      await rosterStore.put({ ...entry, seasonId: newSeasonId });
+    }
+  }
+
+  // 4) Games
+  const gameStore = tx.objectStore("games");
+  for (const g of pkg.games) {
+    const newGameId = gameIdMap.get(g.gameId)!;
+    await gameStore.put({ ...g, gameId: newGameId, seasonId: newSeasonId });
+  }
+
+  // 5) Plays (remapped gameId)
+  const playStore = tx.objectStore("plays");
+  for (const [oldGameId, plays] of Object.entries(pkg.playsByGame)) {
+    const newGameId = gameIdMap.get(oldGameId);
+    if (!newGameId) continue;
+    for (const p of plays) {
+      await playStore.put({ ...p, gameId: newGameId });
+    }
+  }
+
+  // 6) Notes (remapped gameId, new note id)
+  const noteStore = tx.objectStore("coach_notes");
+  for (const [oldGameId, notes] of Object.entries(pkg.notesByGame)) {
+    const newGameId = gameIdMap.get(oldGameId);
+    if (!newGameId) continue;
+    for (const n of notes) {
+      await noteStore.put({ ...n, id: uuidv4(), gameId: newGameId });
+    }
+  }
+
+  await tx.done;
+  return { newSeasonId };
+}
+
 // ── Debug Export ──
 
 export async function buildDebugExport(gameId: string) {
