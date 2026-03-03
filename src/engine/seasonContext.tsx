@@ -26,6 +26,9 @@ interface SeasonContextValue {
   reloadSeasons: () => Promise<void>;
   /** Set active season by ID (after import) */
   setActiveSeasonById: (seasonId: string) => Promise<void>;
+  /** Config mode flag — blocks commit/propose while true */
+  configMode: boolean;
+  setConfigMode: (v: boolean) => void;
 }
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
@@ -40,6 +43,7 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
   const [seasons, setSeasons] = useState<SeasonMeta[]>([]);
   const [pendingSwitchSeason, setPendingSwitchSeason] = useState<string | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
+  const [configMode, setConfigMode] = useState(false);
 
   useEffect(() => {
     getAllSeasons().then(setSeasons);
@@ -128,6 +132,8 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
         refreshActiveSeason,
         reloadSeasons,
         setActiveSeasonById,
+        configMode,
+        setConfigMode,
       }}
     >
       {children}

@@ -22,6 +22,7 @@ import { validateInitConfig, type InitValidationError } from "@/engine/slotEngin
 import { ODK_VALUES } from "@/engine/schema";
 import type { ODKBlock } from "@/engine/types";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
+import { getSeasonConfig } from "@/engine/db";
 import { toast } from "sonner";
 
 interface StartGameDialogProps {
@@ -37,6 +38,14 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [totalPlays, setTotalPlays] = useState("");
   const [fieldSize, setFieldSize] = useState<"80" | "100">("80");
+
+  // Load fieldSize from season config on open
+  React.useEffect(() => {
+    if (!open || !activeSeason) return;
+    getSeasonConfig(activeSeason.seasonId).then((cfg) => {
+      if (cfg) setFieldSize(String(cfg.fieldSize) as "80" | "100");
+    });
+  }, [open, activeSeason]);
   const [patMode, setPatMode] = useState<"none" | "youth_1_2" | "hs_kick">("none");
   const [q1Start, setQ1Start] = useState("1");
   const [q2Start, setQ2Start] = useState("");

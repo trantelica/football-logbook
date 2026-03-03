@@ -1,12 +1,12 @@
 
 
-## Phase 9.1 — Season Configuration Persistence + Audit Backbone
+## Phase 9.1 — Season Configuration Persistence + Audit Backbone ✅
 
 ### Summary of Changes
 
 9 files touched (3 new, 6 modified). IDB bumped from v5 to v6. Adds season-level config persistence, config audit trail, config mode UI with commit gating, and fieldSize lock based on committed play count.
 
-### Files to Create
+### Files Created
 
 **A) `src/engine/configStore.ts`** — Pure types + helpers
 - `SeasonConfig` type with `seasonId`, `version`, `updatedAt`, `updatedBy: "local"`, `fieldSize: 80|100`, `activeFields: Record<string, boolean>`
@@ -28,7 +28,7 @@
 - `diffConfig` detects changed nested `activeFields.offForm`
 - `diffConfig` returns empty for identical configs
 
-### Files to Modify
+### Files Modified
 
 **D) `src/engine/db.ts`** — IDB v5 → v6
 - Bump `DB_VERSION` to 6
@@ -36,7 +36,7 @@
 - Add `getSeasonConfig(seasonId): Promise<SeasonConfig | undefined>`
 - Add `saveSeasonConfig(after, before)`: single tx on `["config", "config_audit"]` — calls `diffConfig`, skips if no changes, otherwise increments version, sets updatedAt/updatedBy, puts config, adds audit record with UUID eventId
 - Add `getConfigAuditBySeason(seasonId): Promise<ConfigAuditRecord[]>`
-- Add `countSeasonCommittedPlays(seasonId)`: gets all games where `seasonId` matches, then for each game counts plays via `byGame` index on the `plays` store, returns total. Note: all rows in the `plays` store are committed — drafts/proposals exist only in React state and never persist to IDB, so this correctly counts only committed plays.
+- Add `countSeasonCommittedPlays(seasonId)`: gets all games where `seasonId` matches, then for each game counts plays via `byGame` index on the `plays` store, returns total. Plays store ONLY contains committed rows.
 - Extend `buildDebugExport` to include `config` and `configAudit` when season data present
 - Extend `buildSeasonPackageExport` to include optional `config` if found
 - Extend `importSeasonPackageNewSeason` to write config under `newSeasonId` if present in package; add `"config"` to the tx store list
@@ -46,8 +46,8 @@
 
 **F) `src/engine/transaction.tsx`**
 - Import `useSeason`, read `configMode`
-- At top of `reviewProposal` callback (line ~304): if `configMode`, toast "Exit Configuration Mode first." and return
-- At top of `commitProposal` callback (line ~488): same guard
+- At top of `reviewProposal` callback: if `configMode`, toast "Exit Configuration Mode first." and return
+- At top of `commitProposal` callback: same guard
 
 **G) `src/components/GameBar.tsx`**
 - Import `ConfigModeDialog`, add `configOpen` state
@@ -55,29 +55,9 @@
 - Render `<ConfigModeDialog open={configOpen} onOpenChange={setConfigOpen} />`
 
 **H) `src/components/StartGameDialog.tsx`**
-- On dialog open (or form init), load `getSeasonConfig(activeSeason.seasonId)` and if found, use its `fieldSize` as the default for the local `fieldSize` state instead of hardcoded "80". Also stamps `GameMeta.fieldSize` from this value on creation, keeping game snapshots consistent with season config.
+- On dialog open, load `getSeasonConfig(activeSeason.seasonId)` and if found, use its `fieldSize` as the default for the local `fieldSize` state instead of hardcoded "80".
 
 **I) `src/engine/seasonTransfer.ts`**
 - Import `SeasonConfig` type from configStore
 - Add optional `config?: SeasonConfig` to both `SeasonPackage` and `NormalizedSeasonPackage` types
 - In `normalizeSeasonPackageImport`, pass through `config` if present in payload
-
-### Technical Details
-
-```text
-countSeasonCommittedPlays(seasonId) implementation:
-  1. const games = all from "games" store filtered by seasonId
-  2. For each game, get plays count via plays.index("byGame").count(gameId)
-  3. Return sum
-  
-  Safety: plays store ONLY contains committed rows.
-  Drafts/proposals live in React state (candidate in TransactionProvider).
-  commitPlay() is the only write path to the plays store.
-  Therefore count = committed plays count. No status filter needed.
-
-Commit gating locations in transaction.tsx:
-  reviewProposal (currently line 304)
-  commitProposal (currently line 488)
-  Both get configMode check + toast at top, before any other logic.
-```
-

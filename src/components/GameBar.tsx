@@ -23,7 +23,8 @@ import { Label } from "@/components/ui/label";
 import { useGameContext } from "@/engine/gameContext";
 import { useSeason } from "@/engine/seasonContext";
 import { StartGameDialog } from "./StartGameDialog";
-import { CalendarDays, Flag } from "lucide-react";
+import { ConfigModeDialog } from "./ConfigModeDialog";
+import { CalendarDays, Flag, Settings } from "lucide-react";
 
 export function GameBar() {
   const {
@@ -47,6 +48,7 @@ export function GameBar() {
 
   const [startGameOpen, setStartGameOpen] = useState(false);
   const [newSeasonOpen, setNewSeasonOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [newSeasonLabel, setNewSeasonLabel] = useState("");
 
   const handleCreateSeason = async () => {
@@ -95,6 +97,16 @@ export function GameBar() {
 
         {activeSeason && (
           <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1"
+              onClick={() => setConfigOpen(true)}
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Config
+            </Button>
+
             <div className="mx-1 h-5 w-px bg-border" />
 
             {/* Game selector — always visible when season active */}
@@ -136,6 +148,7 @@ export function GameBar() {
 
       
       <StartGameDialog open={startGameOpen} onOpenChange={setStartGameOpen} />
+      <ConfigModeDialog open={configOpen} onOpenChange={setConfigOpen} />
 
       {/* New Season Dialog */}
       <Dialog open={newSeasonOpen} onOpenChange={setNewSeasonOpen}>
