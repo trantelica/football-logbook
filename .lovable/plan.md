@@ -1,102 +1,83 @@
 
 
-## Phase 8.1: Hudl Export Contract + Versioned Manifest
+## Phase 9.1 — Season Configuration Persistence + Audit Backbone
 
-### Files to Create (2)
+### Summary of Changes
 
-1. **`src/engine/hudlExport.ts`** — Pure export functions (no DB imports)
-2. **`src/test/hudlExport.test.ts`** — Deterministic tests
+9 files touched (3 new, 6 modified). IDB bumped from v5 to v6. Adds season-level config persistence, config audit trail, config mode UI with commit gating, and fieldSize lock based on committed play count.
 
-### Files to Modify (2)
+### Files to Create
 
-3. **`src/engine/schema.ts`** — Add `APP_VERSION = "1.0.0"`
-4. **`src/components/StatusBar.tsx`** — Replace CSV+Notes buttons with "Hudl Export" button; add preflight error dialog; orchestration fetches from DB here
+**A) `src/engine/configStore.ts`** — Pure types + helpers
+- `SeasonConfig` type with `seasonId`, `version`, `updatedAt`, `updatedBy: "local"`, `fieldSize: 80|100`, `activeFields: Record<string, boolean>`
+- `ConfigAuditRecord` type with `id?`, `seasonId`, `eventId`, `at`, `type: "CONFIG_CHANGE"`, `versionBefore`, `versionAfter`, `changes: Array<{ key, before, after }>`
+- `buildDefaultConfig(seasonId, fieldKeys)` — returns version=1, fieldSize=80, all keys true
+- `diffConfig(before, after)` — compares top-level `fieldSize` + nested `activeFields.<key>` diffs; returns changes array, empty if identical
 
----
+**B) `src/components/ConfigModeDialog.tsx`** — Modal dialog
+- Props: `open`, `onOpenChange`
+- On open: loads config via `getSeasonConfig(seasonId)` or falls back to `buildDefaultConfig`; sets `configMode = true` in season context
+- On close: sets `configMode = false`
+- UI: fieldSize toggle (80/100) + activeFields checklist from `playSchema.map(f => f.name)`
+- **fieldSize lock**: on open, calls `countSeasonCommittedPlays(seasonId)`. If count > 0, disables fieldSize control and shows helper text: "Field size is locked after plays have been committed to protect determinism."
+- Save: diffs against loaded config, calls `saveSeasonConfig(after, before)`, toasts success, closes
 
-### `src/engine/schema.ts`
+**C) `src/test/configStore.test.ts`** — Unit tests
+- `buildDefaultConfig` returns version=1, fieldSize=80, all keys true
+- `diffConfig` detects changed `fieldSize`
+- `diffConfig` detects changed nested `activeFields.offForm`
+- `diffConfig` returns empty for identical configs
 
-Add `export const APP_VERSION = "1.0.0";` near `SCHEMA_VERSION`.
+### Files to Modify
 
-### `src/engine/hudlExport.ts`
+**D) `src/engine/db.ts`** — IDB v5 → v6
+- Bump `DB_VERSION` to 6
+- Add stores in upgrade: `config` (keyPath `seasonId`), `config_audit` (autoIncrement, index `bySeason` on `seasonId`)
+- Add `getSeasonConfig(seasonId): Promise<SeasonConfig | undefined>`
+- Add `saveSeasonConfig(after, before)`: single tx on `["config", "config_audit"]` — calls `diffConfig`, skips if no changes, otherwise increments version, sets updatedAt/updatedBy, puts config, adds audit record with UUID eventId
+- Add `getConfigAuditBySeason(seasonId): Promise<ConfigAuditRecord[]>`
+- Add `countSeasonCommittedPlays(seasonId)`: gets all games where `seasonId` matches, then for each game counts plays via `byGame` index on the `plays` store, returns total. Note: all rows in the `plays` store are committed — drafts/proposals exist only in React state and never persist to IDB, so this correctly counts only committed plays.
+- Extend `buildDebugExport` to include `config` and `configAudit` when season data present
+- Extend `buildSeasonPackageExport` to include optional `config` if found
+- Extend `importSeasonPackageNewSeason` to write config under `newSeasonId` if present in package; add `"config"` to the tx store list
 
-Pure module, no DB imports. Contains:
+**E) `src/engine/seasonContext.tsx`**
+- Add `configMode: boolean` state (default false) + `setConfigMode: (v: boolean) => void` to context interface and provider
 
-**Constants:**
-- `EXPORT_FORMAT_VERSION = "8.1.0"`
-- `HUDL_PLAYS_FILENAME = "hudl_plays.csv"`
-- `HUDL_NOTES_FILENAME = "hudl_notes.csv"`
-- `EXPORT_MANIFEST_FILENAME = "export_manifest.json"`
+**F) `src/engine/transaction.tsx`**
+- Import `useSeason`, read `configMode`
+- At top of `reviewProposal` callback (line ~304): if `configMode`, toast "Exit Configuration Mode first." and return
+- At top of `commitProposal` callback (line ~488): same guard
 
-**`HUDL_HEADERS`** — Frozen array matching current `playsToCSV` column contract exactly (all 48 fields from `playSchema` in order):
+**G) `src/components/GameBar.tsx`**
+- Import `ConfigModeDialog`, add `configOpen` state
+- Add "Config" button next to season controls, visible when `activeSeason` exists (no game gate)
+- Render `<ConfigModeDialog open={configOpen} onOpenChange={setConfigOpen} />`
+
+**H) `src/components/StartGameDialog.tsx`**
+- On dialog open (or form init), load `getSeasonConfig(activeSeason.seasonId)` and if found, use its `fieldSize` as the default for the local `fieldSize` state instead of hardcoded "80". Also stamps `GameMeta.fieldSize` from this value on creation, keeping game snapshots consistent with season config.
+
+**I) `src/engine/seasonTransfer.ts`**
+- Import `SeasonConfig` type from configStore
+- Add optional `config?: SeasonConfig` to both `SeasonPackage` and `NormalizedSeasonPackage` types
+- In `normalizeSeasonPackageImport`, pass through `config` if present in payload
+
+### Technical Details
+
+```text
+countSeasonCommittedPlays(seasonId) implementation:
+  1. const games = all from "games" store filtered by seasonId
+  2. For each game, get plays count via plays.index("byGame").count(gameId)
+  3. Return sum
+  
+  Safety: plays store ONLY contains committed rows.
+  Drafts/proposals live in React state (candidate in TransactionProvider).
+  commitPlay() is the only write path to the plays store.
+  Therefore count = committed plays count. No status filter needed.
+
+Commit gating locations in transaction.tsx:
+  reviewProposal (currently line 304)
+  commitProposal (currently line 488)
+  Both get configMode check + toast at top, before any other logic.
 ```
-PLAY #, QTR, ODK, SERIES, YARD LN, DN, DIST, HASH,
-OFF FORM, OFF PLAY, MOTION, RESULT, GN/LS, 2 MIN,
-RUSHER, PASSER, RECEIVER, PENALTY, PEN YARDS, EFF,
-OFF STR, PERSONNEL, PLAY TYPE, PLAY DIR, MOTION DIR, PAT TRY,
-LT, LG, C, RG, RT, X, Y, POS 1, POS 2, POS 3, POS 4, RETURNER,
-LT GRADE, LG GRADE, C GRADE, RG GRADE, RT GRADE,
-X GRADE, Y GRADE, 1 GRADE, 2 GRADE, 3 GRADE, 4 GRADE
-```
-Each entry: `{ key: string, label: string }`. Object.freeze'd.
-
-**`NOTES_HEADERS`** — Same columns as existing `NOTES_CSV_COLUMNS`.
-
-**`escapeCSV(value)`** — Same logic as existing.
-
-**`toHudlCsv(plays: PlayRecord[]): string`**
-- Sort by playNum asc
-- Map through HUDL_HEADERS only
-- null/undefined → empty string
-- Empty plays → header row only (not empty string like current)
-
-**`toNotesCsv(plays, notes): string`**
-- Filter soft-deleted, exclude notes with no matching play
-- Join derived context from plays
-- Sort by playNum then createdAt
-
-**`validateForExport(plays): { valid, errors[] }`**
-Tiers:
-- A) Always: playNum present/integer/>0, unique; enum fields if present must be in allowedValues
-- B) Conditional: patTry present → playType must equal `patTryToPlayType(patTry)`; patTry present OR playType in ["Extra Pt.", "2 Pt."] → result must be null/blank or in `PAT_RESULTS`
-- C) Do NOT require optional fields, offense-only fields when odk≠"O", or lookup defaults
-
-**`buildExportManifest(params): ExportManifest`**
-```ts
-{
-  appVersion: string,
-  exportFormatVersion: string,
-  lookupStoreVersion: string,  // "unknown" for now (no semver store yet)
-  seasonRevision: number,
-  exportedAt: string,          // ISO
-  counts: { plays: number, notes: number }
-}
-```
-`lookupStoreVersion` = `"unknown"` (real semver deferred until lookup governance tracks one). `seasonRevision` = integer passed in from season context.
-
-**`triggerDownload(content, filename, mimeType)`** — Anchor-click helper.
-
-### `src/components/StatusBar.tsx`
-
-- Remove CSV and Notes buttons
-- Add "Hudl Export" button (disabled when committedPlays.length === 0)
-- On click:
-  1. Fetch plays via `getPlaysByGame`, notes via `getCoachNotesByGame`, season from context for `seasonRevision`
-  2. `validateForExport(plays)`
-  3. Invalid → open error dialog (scrollable, grouped by play#)
-  4. Valid → `toHudlCsv`, `toNotesCsv`, `buildExportManifest`, trigger 3 downloads, toast success
-- Keep Debug JSON + Copy buttons unchanged
-- Add `PreflightErrorDialog` component within file
-
-### `src/test/hudlExport.test.ts`
-
-1. Header stability: `toHudlCsv([])` → exactly HUDL_HEADERS labels as header row
-2. Sorting: unordered → sorted by playNum
-3. Blank handling: null/undefined → empty cells, never "null"/"undefined"
-4. No mutation: deep-clone, export, compare unchanged (both `toHudlCsv` and `validateForExport`)
-5. Preflight: missing playNum → invalid; duplicate playNum → error
-6. PAT consistency: patTry="1" + playType≠"Extra Pt." → error
-7. PAT override: playType="Extra Pt." + patTry="1" → passes
-8. Notes: excludes soft-deleted + missing-play notes
-9. Manifest: correct keys/types, lookupStoreVersion="unknown", seasonRevision is number
 
