@@ -571,15 +571,23 @@ export async function getSeasonConfig(seasonId: string): Promise<SeasonConfig | 
 }
 
 export async function saveSeasonConfig(after: SeasonConfig, before: SeasonConfig | null): Promise<void> {
-  const changes = before ? diffConfig(before, after) : [{ key: "_init", before: null, after: "created" }];
-  if (before && changes.length === 0) return; // no-op
+  // If caller passes null for before, check if config already exists to avoid duplicate _init audits
+  let effectiveBefore = before;
+  if (!effectiveBefore) {
+    effectiveBefore = await getSeasonConfig(after.seasonId) ?? null;
+  }
+
+  const changes = effectiveBefore
+    ? diffConfig(effectiveBefore, after)
+    : [{ key: "_init", before: null, after: "created" }];
+  if (effectiveBefore && changes.length === 0) return; // no-op
 
   const db = await getDB();
   const tx = db.transaction(["config", "config_audit"], "readwrite");
 
   const saved: SeasonConfig = {
     ...after,
-    version: before ? before.version + 1 : after.version,
+    version: effectiveBefore ? effectiveBefore.version + 1 : after.version,
     updatedAt: new Date().toISOString(),
     updatedBy: "local",
   };
@@ -590,7 +598,7 @@ export async function saveSeasonConfig(after: SeasonConfig, before: SeasonConfig
     eventId: crypto.randomUUID(),
     at: new Date().toISOString(),
     type: "CONFIG_CHANGE",
-    versionBefore: before?.version ?? 0,
+    versionBefore: effectiveBefore?.version ?? 0,
     versionAfter: saved.version,
     changes,
   };

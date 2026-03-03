@@ -42,9 +42,11 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
   // Load fieldSize from season config on open
   React.useEffect(() => {
     if (!open || !activeSeason) return;
-    getSeasonConfig(activeSeason.seasonId).then((cfg) => {
-      if (cfg) setFieldSize(String(cfg.fieldSize) as "80" | "100");
-    });
+    getSeasonConfig(activeSeason.seasonId)
+      .then((cfg) => {
+        if (cfg) setFieldSize(String(cfg.fieldSize) as "80" | "100");
+      })
+      .catch(() => {});
   }, [open, activeSeason]);
   const [patMode, setPatMode] = useState<"none" | "youth_1_2" | "hs_kick">("none");
   const [q1Start, setQ1Start] = useState("1");

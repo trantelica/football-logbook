@@ -106,6 +106,19 @@ function emptyCandidate(gameId: string): CandidateData {
   return { gameId };
 }
 
+/** Returns true when a play row is an empty placeholder (all key fields null/empty) */
+function isEmptySlotPlay(play: PlayRecord): boolean {
+  return (
+    play.yardLn === null &&
+    play.dn === null &&
+    play.dist === null &&
+    play.offPlay === null &&
+    play.playType === null &&
+    play.result === null &&
+    play.gainLoss === null
+  );
+}
+
 /** Fields that are scaffolded (seeded at init) and should warn on edit */
 const SCAFFOLDED_FIELDS = new Set(["odk", "series", "qtr"]);
 
@@ -663,7 +676,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     const normalized = result.normalizedPlay!;
 
     const existing = await getPlay(gameId, normalized.playNum);
-    if (existing) {
+    if (existing && !isEmptySlotPlay(existing)) {
       setExistingPlay(existing);
       setPendingNormalized(normalized);
       setState("overwrite-review");
