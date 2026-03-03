@@ -26,6 +26,8 @@ interface LookupContextValue {
   hasValue: (fieldName: string, value: string) => boolean;
   /** Get entry attributes for a specific value in a lookup table */
   getEntryAttributes: (fieldName: string, value: string) => Record<string, string> | undefined;
+  /** Re-fetch lookups from DB */
+  reload: () => Promise<void>;
   loading: boolean;
 }
 
@@ -125,6 +127,7 @@ export function LookupProvider({ children }: { children: React.ReactNode }) {
         isLookupField,
         hasValue,
         getEntryAttributes,
+        reload,
         loading,
       }}
     >

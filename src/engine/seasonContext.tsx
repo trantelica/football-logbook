@@ -7,7 +7,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { SeasonMeta } from "./types";
-import { createSeason as dbCreateSeason, getAllSeasons, initDefaultLookups } from "./db";
+import { createSeason as dbCreateSeason, getAllSeasons, getSeason, initDefaultLookups } from "./db";
 import { playSchema } from "./schema";
 
 interface SeasonContextValue {
@@ -20,6 +20,8 @@ interface SeasonContextValue {
   cancelSeasonSwitch: () => void;
   hasDraft: boolean;
   setHasDraft: (v: boolean) => void;
+  /** Re-fetch active season meta from DB */
+  refreshActiveSeason: () => Promise<void>;
 }
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
@@ -80,6 +82,15 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
     setPendingSwitchSeason(null);
   }, []);
 
+  const refreshActiveSeason = useCallback(async () => {
+    if (!activeSeason) return;
+    const fresh = await getSeason(activeSeason.seasonId);
+    if (fresh) {
+      setActiveSeason(fresh);
+      setSeasons((prev) => prev.map((s) => (s.seasonId === fresh.seasonId ? fresh : s)));
+    }
+  }, [activeSeason]);
+
   return (
     <SeasonContext.Provider
       value={{
@@ -92,6 +103,7 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
         cancelSeasonSwitch,
         hasDraft,
         setHasDraft,
+        refreshActiveSeason,
       }}
     >
       {children}

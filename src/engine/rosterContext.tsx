@@ -20,6 +20,8 @@ interface RosterContextValue {
   removePlayer: (jerseyNumber: number) => Promise<void>;
   updatePlayer: (jerseyNumber: number, playerName: string) => Promise<void>;
   getPlayer: (jerseyNumber: number) => RosterEntry | undefined;
+  /** Re-fetch roster from DB */
+  reload: () => Promise<void>;
   loading: boolean;
 }
 
@@ -86,6 +88,7 @@ export function RosterProvider({ children }: { children: React.ReactNode }) {
         removePlayer,
         updatePlayer,
         getPlayer,
+        reload,
         loading,
       }}
     >

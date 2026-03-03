@@ -2,6 +2,8 @@ import React, { useState, useRef } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { useSeason } from "@/engine/seasonContext";
+import { useLookup } from "@/engine/lookupContext";
+import { useRoster } from "@/engine/rosterContext";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,7 +41,9 @@ const STATE_LABELS: Record<string, string> = {
 
 export function StatusBar() {
   const { activeGame } = useGameContext();
-  const { activeSeason } = useSeason();
+  const { activeSeason, refreshActiveSeason } = useSeason();
+  const { reload: reloadLookups } = useLookup();
+  const { reload: reloadRoster } = useRoster();
   const { state, candidate, committedPlays, inlineErrors, commitErrors } =
     useTransaction();
 
@@ -224,6 +228,9 @@ export function StatusBar() {
       const { lookups, roster } = pendingImport;
       const newRevision = await importLookupsReplaceOnly(seasonId, lookups, roster);
 
+      // Refresh all contexts to reflect imported data
+      await Promise.all([reloadLookups(), reloadRoster(), refreshActiveSeason()]);
+
       setImportConfirmOpen(false);
       setPendingImport(null);
       toast.success(`Lookups imported — season revision now ${newRevision}`);
@@ -254,8 +261,12 @@ export function StatusBar() {
                 <span>Play #{String(candidate.playNum)}</span>
               </>
             )}
+          </>
+        )}
 
-            <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex gap-1">
+          {activeGame && (
+            <>
               <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
                 onClick={() => downloadDebugJSON(activeGame.gameId)}>
                 <Download className="h-3 w-3" /> JSON
@@ -269,17 +280,17 @@ export function StatusBar() {
                 onClick={handleSessionArchive} disabled={committedPlays.length === 0}>
                 <Archive className="h-3 w-3" /> Session Archive
               </Button>
-              <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-                onClick={handleExportLookups} disabled={!activeSeason}>
-                <DatabaseBackup className="h-3 w-3" /> Export Lookups
-              </Button>
-              <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-                onClick={handleImportLookups} disabled={!activeSeason}>
-                <Upload className="h-3 w-3" /> Import Lookups
-              </Button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
+            onClick={handleExportLookups} disabled={!activeSeason}>
+            <DatabaseBackup className="h-3 w-3" /> Export Lookups
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
+            onClick={handleImportLookups} disabled={!activeSeason}>
+            <Upload className="h-3 w-3" /> Import Lookups
+          </Button>
+        </div>
       </footer>
 
       {/* Hidden file input for import */}
