@@ -46,10 +46,16 @@ export function GameBar() {
     cancelSeasonSwitch,
   } = useSeason();
 
+  const { setConfigMode } = useSeason();
   const [startGameOpen, setStartGameOpen] = useState(false);
   const [newSeasonOpen, setNewSeasonOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [newSeasonLabel, setNewSeasonLabel] = useState("");
+
+  const handleConfigOpenChange = (v: boolean) => {
+    if (!v) setConfigMode(false);
+    setConfigOpen(v);
+  };
 
   const handleCreateSeason = async () => {
     if (!newSeasonLabel.trim()) return;
@@ -148,7 +154,7 @@ export function GameBar() {
 
       
       <StartGameDialog open={startGameOpen} onOpenChange={setStartGameOpen} />
-      <ConfigModeDialog open={configOpen} onOpenChange={setConfigOpen} />
+      <ConfigModeDialog open={configOpen} onOpenChange={handleConfigOpenChange} />
 
       {/* New Season Dialog */}
       <Dialog open={newSeasonOpen} onOpenChange={setNewSeasonOpen}>
