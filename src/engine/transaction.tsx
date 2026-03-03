@@ -16,6 +16,7 @@ import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForG
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
 import { useRoster } from "./rosterContext";
+import { useSeason } from "./seasonContext";
 import { playSchema, getFieldDef, PENALTY_YARDS_MAP } from "./schema";
 import { computePrediction } from "./prediction";
 import { toCoachMessages, type CoachMessage } from "./predictionMessages";
@@ -23,6 +24,7 @@ import { computeEff } from "./eff";
 import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 import { possessionGuardrail } from "./possession";
+import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 // normalizeToSchema imported for potential future use; grade normalization is inline
@@ -111,6 +113,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const { activeGame, setHasDraft, isSlotMode: gameIsSlotMode } = useGameContext();
   const { getLookupMap, lookupTables } = useLookup();
   const { roster } = useRoster();
+  const { configMode } = useSeason();
   const gameId = activeGame?.gameId ?? "";
 
   const rosterNumbers = React.useMemo(
@@ -302,6 +305,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
+    if (configMode) {
+      toast.error("Exit Configuration Mode first.");
+      return;
+    }
     // ── Pass 3: Grade-only review ──
     if (activePass === 3) {
       // Only validate touched grade fields
@@ -431,7 +438,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
 
     setState("proposal");
-  }, [candidate, touchedFields, getLookupMap, fieldSize, patContext, selectedSlotNum, committedPlays, odkFilter, activePass, rosterNumbers]);
+  }, [candidate, touchedFields, getLookupMap, fieldSize, patContext, selectedSlotNum, committedPlays, odkFilter, activePass, rosterNumbers, configMode]);
 
   const backToEdit = useCallback(() => {
     if (state === "proposal") {
@@ -486,6 +493,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [gameId, selectedSlotNum, slotMetaMap, clearDraft]);
 
   const commitProposal = useCallback(async (): Promise<boolean> => {
+    if (configMode) {
+      toast.error("Exit Configuration Mode first.");
+      return false;
+    }
     if (state !== "proposal") return false;
 
     // ── Pass 3: Field-scoped grade commit ──
@@ -664,7 +675,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays, rosterNumbers, commitGradeFields]);
+  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays, rosterNumbers, commitGradeFields, configMode]);
 
   const confirmOverwrite = useCallback(async (): Promise<boolean> => {
     if (!pendingNormalized || !existingPlay) return false;

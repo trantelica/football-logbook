@@ -12,12 +12,14 @@ import type {
   LookupTable, LookupAuditRecord, RosterEntry, RosterAuditRecord,
   GameInitConfig, SlotMeta, GameAuditRecord, RawInputRecord, CoachNote,
 } from "./types";
+import type { SeasonConfig, ConfigAuditRecord } from "./configStore";
+import { diffConfig } from "./configStore";
 import { SCHEMA_VERSION, exportSchemaSnapshot, playSchema } from "./schema";
 import { computeSnapshotHash } from "./hash";
 import { coercePlayToSchemaTypes } from "./coerce";
 
 const DB_NAME = "football-engine";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 /** Canonicalize a lookup value for comparison: trim + collapse spaces + lowercase */
 export function canonicalizeLookupValue(value: string): string {
@@ -114,6 +116,18 @@ function getDB(): Promise<IDBPDatabase> {
           const notesStore = db.createObjectStore("coach_notes", { keyPath: "id" });
           notesStore.createIndex("byGame", "gameId");
           notesStore.createIndex("byGamePlay", ["gameId", "playNum"]);
+        }
+        // Phase 9.1: Config store
+        if (!db.objectStoreNames.contains("config")) {
+          db.createObjectStore("config", { keyPath: "seasonId" });
+        }
+        // Phase 9.1: Config audit store
+        if (!db.objectStoreNames.contains("config_audit")) {
+          const configAuditStore = db.createObjectStore("config_audit", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          configAuditStore.createIndex("bySeason", "seasonId");
         }
       },
     });
@@ -549,6 +563,62 @@ export async function getCoachNotesByGameAndPlay(gameId: string, playNum: number
   return db.getAllFromIndex("coach_notes", "byGamePlay", [gameId, playNum]);
 }
 
+// ── Phase 9.1: Season Config ──
+
+export async function getSeasonConfig(seasonId: string): Promise<SeasonConfig | undefined> {
+  const db = await getDB();
+  return db.get("config", seasonId);
+}
+
+export async function saveSeasonConfig(after: SeasonConfig, before: SeasonConfig | null): Promise<void> {
+  const changes = before ? diffConfig(before, after) : [{ key: "_init", before: null, after: "created" }];
+  if (before && changes.length === 0) return; // no-op
+
+  const db = await getDB();
+  const tx = db.transaction(["config", "config_audit"], "readwrite");
+
+  const saved: SeasonConfig = {
+    ...after,
+    version: before ? before.version + 1 : after.version,
+    updatedAt: new Date().toISOString(),
+    updatedBy: "local",
+  };
+  await tx.objectStore("config").put(saved);
+
+  const auditRecord: Omit<ConfigAuditRecord, "id"> = {
+    seasonId: after.seasonId,
+    eventId: crypto.randomUUID(),
+    at: new Date().toISOString(),
+    type: "CONFIG_CHANGE",
+    versionBefore: before?.version ?? 0,
+    versionAfter: saved.version,
+    changes,
+  };
+  await tx.objectStore("config_audit").add(auditRecord);
+  await tx.done;
+}
+
+export async function getConfigAuditBySeason(seasonId: string): Promise<ConfigAuditRecord[]> {
+  const db = await getDB();
+  return db.getAllFromIndex("config_audit", "bySeason", seasonId);
+}
+
+/**
+ * Count committed plays for a season.
+ * The plays store ONLY contains committed rows — drafts/proposals live in React state.
+ */
+export async function countSeasonCommittedPlays(seasonId: string): Promise<number> {
+  const db = await getDB();
+  const allGames = await db.getAll("games") as GameMeta[];
+  const seasonGames = allGames.filter((g) => g.seasonId === seasonId);
+  let total = 0;
+  for (const game of seasonGames) {
+    const count = await db.countFromIndex("plays", "byGame", game.gameId);
+    total += count;
+  }
+  return total;
+}
+
 // ── Phase 8.3: Lookup/Roster Replace (all-or-nothing) ──
 
 /**
@@ -702,7 +772,10 @@ export async function buildSeasonPackageExport(seasonId: string): Promise<import
     notesByGame[gameIds[i]] = notesArrays[i];
   }
 
-  return buildSeasonPackage({
+  // Fetch season config if available
+  const configData = await getSeasonConfig(seasonId);
+
+  const pkg = buildSeasonPackage({
     season: seasonData,
     lookupTables,
     roster: roster.length > 0 ? roster : null,
@@ -710,6 +783,13 @@ export async function buildSeasonPackageExport(seasonId: string): Promise<import
     playsByGame,
     notesByGame,
   });
+
+  // Attach config if present
+  if (configData) {
+    pkg.config = configData;
+  }
+
+  return pkg;
 }
 
 /**
@@ -730,7 +810,7 @@ export async function importSeasonPackageNewSeason(
 
   const db = await getDB();
   const tx = db.transaction(
-    ["seasons", "lookups", "roster", "games", "plays", "coach_notes"],
+    ["seasons", "lookups", "roster", "games", "plays", "coach_notes", "config"],
     "readwrite",
   );
 
@@ -795,6 +875,11 @@ export async function importSeasonPackageNewSeason(
     }
   }
 
+  // 7) Config (optional)
+  if (pkg.config) {
+    await tx.objectStore("config").put({ ...pkg.config, seasonId: newSeasonId });
+  }
+
   await tx.done;
   return { newSeasonId, newGameIds };
 }
@@ -816,12 +901,14 @@ export async function buildDebugExport(gameId: string) {
   let seasonData = {};
   if (gameMeta?.seasonId) {
     const sid = gameMeta.seasonId;
-    const [season, lookups, lookupAudit, roster, rosterAudit] = await Promise.all([
+    const [season, lookups, lookupAudit, roster, rosterAudit, config, configAudit] = await Promise.all([
       db.get("seasons", sid),
       getAllLookups(sid),
       db.getAllFromIndex("lookup_audit", "bySeason", sid) as Promise<LookupAuditRecord[]>,
       getRosterBySeason(sid),
       db.getAllFromIndex("roster_audit", "bySeason", sid) as Promise<RosterAuditRecord[]>,
+      getSeasonConfig(sid),
+      getConfigAuditBySeason(sid),
     ]);
     seasonData = {
       season,
@@ -829,6 +916,8 @@ export async function buildDebugExport(gameId: string) {
       lookupAudit: lookupAudit.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
       roster: roster.sort((a, b) => a.jerseyNumber - b.jerseyNumber),
       rosterAudit: rosterAudit.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
+      config: config ?? null,
+      configAudit: configAudit.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)),
     };
   }
 

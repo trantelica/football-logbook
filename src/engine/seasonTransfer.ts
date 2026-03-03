@@ -6,6 +6,7 @@
  */
 
 import type { SeasonMeta, GameMeta, PlayRecord, CoachNote, LookupTable, RosterEntry } from "./types";
+import type { SeasonConfig } from "./configStore";
 import { APP_VERSION, SCHEMA_VERSION } from "./schema";
 
 // ── Constants ──
@@ -30,6 +31,7 @@ export interface SeasonPackage {
   games: GameMeta[];
   playsByGame: Record<string, PlayRecord[]>;
   notesByGame: Record<string, CoachNote[]>;
+  config?: SeasonConfig;
 }
 
 export interface SeasonImportValidationError {
@@ -49,6 +51,7 @@ export interface NormalizedSeasonPackage {
   games: GameMeta[];
   playsByGame: Record<string, PlayRecord[]>;
   notesByGame: Record<string, CoachNote[]>;
+  config?: SeasonConfig;
 }
 
 // ── Validation ──
@@ -186,7 +189,9 @@ export function normalizeSeasonPackageImport(payload: unknown): NormalizedSeason
   const playsByGame = (cloned.playsByGame as Record<string, PlayRecord[]>) ?? {};
   const notesByGame = (cloned.notesByGame as Record<string, CoachNote[]>) ?? {};
 
-  return { season, lookups, roster, games, playsByGame, notesByGame };
+  const config = cloned.config as SeasonConfig | undefined;
+
+  return { season, lookups, roster, games, playsByGame, notesByGame, ...(config ? { config } : {}) };
 }
 
 // ── Builder ──
