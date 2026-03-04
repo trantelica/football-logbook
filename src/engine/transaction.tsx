@@ -12,7 +12,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 
 import type { CandidateData, PlayRecord, TransactionState, ValidationErrors, SlotMeta } from "./types";
 import { validateInline, validateCommitGate } from "./validation";
-import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit } from "./db";
+import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit, getSeasonConfig } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
 import { useRoster } from "./rosterContext";
@@ -117,6 +117,25 @@ function isEmptySlotPlay(play: PlayRecord): boolean {
     play.result === null &&
     play.gainLoss === null
   );
+}
+
+/**
+ * 9.2B: Merge inactive fields — preserves committed values for deactivated fields.
+ * For each inactive field, copies the existing committed value instead of the candidate value.
+ */
+function mergeInactiveFields(
+  normalized: PlayRecord,
+  existingPlay: PlayRecord | null,
+  activeFields: Record<string, boolean> | undefined
+): PlayRecord {
+  if (!activeFields || !existingPlay) return normalized;
+  const merged = { ...normalized } as unknown as Record<string, unknown>;
+  for (const f of playSchema) {
+    if (activeFields[f.name] === false) {
+      merged[f.name] = (existingPlay as unknown as Record<string, unknown>)[f.name];
+    }
+  }
+  return merged as unknown as PlayRecord;
 }
 
 /** Fields that are scaffolded (seeded at init) and should warn on edit */
@@ -585,6 +604,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return commitGradeFields(gradeSnapshot, committedRow);
     }
 
+    // 9.2B: Load season config for inactive field merge
+    const seasonId = activeGame?.seasonId;
+    const seasonCfg = seasonId ? await getSeasonConfig(seasonId) : undefined;
+    const cfgActiveFields = seasonCfg?.activeFields;
+
     if (isSlotMode && selectedSlotNum !== null) {
       // Slot-mode commit: field-level commit state
       const result = validateCommitGate(candidate, activePass, getLookupMap(), rosterNumbers);
@@ -593,12 +617,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         return false;
       }
 
-      const normalized = result.normalizedPlay!;
+      let normalized = result.normalizedPlay!;
 
       const meta = slotMetaMap.get(selectedSlotNum);
       const committedFields = meta?.committedFields ?? [];
 
       const existingSlot = committedPlays.find((p) => p.playNum === selectedSlotNum);
+
+      // 9.2B: Merge inactive fields from existing committed play
+      normalized = mergeInactiveFields(normalized, existingSlot ?? null, cfgActiveFields);
       
       if (existingSlot) {
         const isNoop = playSchema.every((f) => {
@@ -618,6 +645,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       if (existingSlot) {
         for (const fieldName of committedFields) {
           if (fieldName === "playNum" || fieldName === "gameId") continue;
+          // 9.2C: Skip inactive fields from overwrite detection
+          if (cfgActiveFields && cfgActiveFields[fieldName] === false) continue;
           const oldVal = (existingSlot as unknown as Record<string, unknown>)[fieldName];
           const newVal = (normalized as unknown as Record<string, unknown>)[fieldName];
           const oldStr = oldVal === null || oldVal === undefined ? "" : String(oldVal);
@@ -673,22 +702,29 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return false;
     }
 
-    const normalized = result.normalizedPlay!;
+    let normalized = result.normalizedPlay!;
 
     const existing = await getPlay(gameId, normalized.playNum);
     if (existing && !isEmptySlotPlay(existing)) {
+      // 9.2B: Merge inactive fields before overwrite review
+      normalized = mergeInactiveFields(normalized, existing, cfgActiveFields);
       setExistingPlay(existing);
       setPendingNormalized(normalized);
       setState("overwrite-review");
       return false;
     }
 
-    await dbCommitPlay(normalized, null);
+    // 9.2B: Merge inactive fields for empty slot / first commit
+    if (existing) {
+      normalized = mergeInactiveFields(normalized, existing, cfgActiveFields);
+    }
+
+    await dbCommitPlay(normalized, existing ?? null);
     const plays = await getPlaysByGame(gameId);
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
     return true;
-  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays, rosterNumbers, commitGradeFields, configMode]);
+  }, [candidate, activePass, gameId, clearDraft, state, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, committedPlays, rosterNumbers, commitGradeFields, configMode, activeGame?.seasonId]);
 
   const confirmOverwrite = useCallback(async (): Promise<boolean> => {
     if (!pendingNormalized || !existingPlay) return false;
@@ -842,12 +878,19 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
         const prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, halfTimeBoundary);
         
+        // 9.3: Load active fields for prediction filtering
+        const slotSeasonId = activeGame?.seasonId;
+        const slotSeasonCfg = slotSeasonId ? await getSeasonConfig(slotSeasonId) : undefined;
+        const slotActiveFields = slotSeasonCfg?.activeFields;
+
         const newPredicted = new Set<string>();
         if (prediction.eligible) {
           const meta = slotMetaMap.get(playNum);
           const committedFieldSet = new Set(meta?.committedFields ?? []);
           
           for (const [field, val] of Object.entries({ yardLn: prediction.yardLn, dn: prediction.dn, dist: prediction.dist })) {
+            // 9.3: Do not output predicted values into inactive fields
+            if (slotActiveFields && slotActiveFields[field] === false) continue;
             if (val !== null && !committedFieldSet.has(field)) {
               const currentVal = (newCandidate as Record<string, unknown>)[field];
               if (currentVal === null || currentVal === undefined || currentVal === "") {
@@ -933,7 +976,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setAdjustments([]);
       setState("candidate");
     },
-    [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter, activePass, lastPass2CommitPlayNum]
+    [committedPlays, gameId, fieldSize, slotMetaMap, patMode, odkFilter, activePass, lastPass2CommitPlayNum, activeGame?.seasonId]
   );
 
   const deselectSlot = useCallback(() => {

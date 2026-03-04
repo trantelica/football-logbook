@@ -1,6 +1,7 @@
 /**
  * Start Game Dialog — Phase 3 game initialization wizard.
  * Collects opponent, date, total plays, quarter starts, and ODK blocks.
+ * Field size and PAT mode are read-only from season config (9.1.2).
  */
 
 import React, { useState } from "react";
@@ -20,7 +21,7 @@ import { useGameContext } from "@/engine/gameContext";
 import { useSeason } from "@/engine/seasonContext";
 import { validateInitConfig, type InitValidationError } from "@/engine/slotEngine";
 import { ODK_VALUES } from "@/engine/schema";
-import type { ODKBlock } from "@/engine/types";
+import type { ODKBlock, PatMode } from "@/engine/types";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { getSeasonConfig } from "@/engine/db";
 import { toast } from "sonner";
@@ -38,17 +39,21 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [totalPlays, setTotalPlays] = useState("");
   const [fieldSize, setFieldSize] = useState<"80" | "100">("80");
+  const [patMode, setPatMode] = useState<PatMode>("none");
 
-  // Load fieldSize from season config on open
+  // Load fieldSize and patMode from season config on open
   React.useEffect(() => {
     if (!open || !activeSeason) return;
     getSeasonConfig(activeSeason.seasonId)
       .then((cfg) => {
-        if (cfg) setFieldSize(String(cfg.fieldSize) as "80" | "100");
+        if (cfg) {
+          setFieldSize(String(cfg.fieldSize) as "80" | "100");
+          setPatMode(cfg.patMode ?? "none");
+        }
       })
       .catch(() => {});
   }, [open, activeSeason]);
-  const [patMode, setPatMode] = useState<"none" | "youth_1_2" | "hs_kick">("none");
+
   const [q1Start, setQ1Start] = useState("1");
   const [q2Start, setQ2Start] = useState("");
   const [q3Start, setQ3Start] = useState("");
@@ -122,6 +127,8 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
       )
     );
   };
+
+  const patModeLabel = patMode === "none" ? "None" : patMode === "youth_1_2" ? "Youth (1/2 Pt.)" : "HS Kick";
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
@@ -207,9 +214,10 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
                 <ToggleGroup
                   type="single"
                   value={patMode}
-                  onValueChange={(val) => { if (val) setPatMode(val as "none" | "youth_1_2" | "hs_kick"); }}
+                  onValueChange={() => {}}
                   size="sm"
                   className="justify-start"
+                  disabled
                 >
                   <ToggleGroupItem value="none" className="text-xs px-3 h-7 font-medium">
                     None
@@ -222,7 +230,7 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
                   </ToggleGroupItem>
                 </ToggleGroup>
                 <p className="text-[10px] text-muted-foreground">
-                  Controls PAT handling after touchdowns. Immutable after creation.
+                  PAT mode is set at the season level. Current: {patModeLabel}
                 </p>
               </div>
             </fieldset>

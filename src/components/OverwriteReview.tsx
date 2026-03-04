@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -10,15 +10,29 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { useTransaction } from "@/engine/transaction";
+import { useSeason } from "@/engine/seasonContext";
+import { getSeasonConfig } from "@/engine/db";
 import { playSchema, QTR_DISPLAY } from "@/engine/schema";
 
 export function OverwriteReview() {
   const { state, existingPlay, pendingNormalized, confirmOverwrite, cancelOverwrite } =
     useTransaction();
+  const { activeSeason } = useSeason();
+
+  const [activeFieldsMap, setActiveFieldsMap] = useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    if (state !== "overwrite-review" || !activeSeason) return;
+    getSeasonConfig(activeSeason.seasonId)
+      .then((cfg) => setActiveFieldsMap(cfg?.activeFields ?? null))
+      .catch(() => setActiveFieldsMap(null));
+  }, [state, activeSeason]);
 
   if (state !== "overwrite-review" || !existingPlay || !pendingNormalized) return null;
 
   const changedFields = playSchema.filter((f) => {
+    // 9.2C: Exclude inactive fields from overwrite review
+    if (activeFieldsMap && activeFieldsMap[f.name] === false) return false;
     const oldVal = (existingPlay as unknown as Record<string, unknown>)[f.name];
     const newVal = (pendingNormalized as unknown as Record<string, unknown>)[f.name];
     return String(oldVal ?? "") !== String(newVal ?? "");
