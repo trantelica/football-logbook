@@ -88,7 +88,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const seasonGames = games.filter((g) => g.seasonId === seasonId);
 
-  const isSlotMode = gameInitConfig !== null;
+  const isSlotMode = gameInitConfig !== null || (activeGame?.totalPlays != null && activeGame.totalPlays > 0);
 
   // Legacy game creation (Phase 2 compat)
   const createNewGame = useCallback(
@@ -143,6 +143,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         schemaVersion: SCHEMA_VERSION,
         fieldSize,
         patMode,
+        totalPlays,
       };
       await dbCreateGame(meta);
 

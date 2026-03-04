@@ -83,6 +83,8 @@ export interface GameMeta {
   fieldSize?: 80 | 100;
   /** PAT mode. Immutable after creation. Default "none". */
   patMode?: PatMode;
+  /** Total plays (slot-mode indicator). Set during game initialization. */
+  totalPlays?: number;
 }
 
 /** Season metadata */
