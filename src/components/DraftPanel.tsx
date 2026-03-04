@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,9 @@ import { useGameContext } from "@/engine/gameContext";
 import { useLookup } from "@/engine/lookupContext";
 import { useRoster } from "@/engine/rosterContext";
 import { useRawInput } from "@/engine/rawInputContext";
+import { useSeason } from "@/engine/seasonContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
-import { canonicalizeLookupValue } from "@/engine/db";
+import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
 import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
@@ -49,6 +50,7 @@ const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
 
 export function DraftPanel() {
   const { activeGame } = useGameContext();
+  const { activeSeason } = useSeason();
   const {
     state,
     candidate,
@@ -95,6 +97,21 @@ export function DraftPanel() {
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
   const { saveInput } = useRawInput();
+
+  // 9.2A: Load active fields from season config
+  const [activeFieldsMap, setActiveFieldsMap] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    if (!activeSeason) { setActiveFieldsMap(null); return; }
+    getSeasonConfig(activeSeason.seasonId)
+      .then((cfg) => setActiveFieldsMap(cfg?.activeFields ?? null))
+      .catch(() => setActiveFieldsMap(null));
+  }, [activeSeason?.seasonId]);
+
+  /** Check if a field is inactive per season config */
+  const isFieldInactive = (fieldName: string): boolean => {
+    if (!activeFieldsMap) return false;
+    return activeFieldsMap[fieldName] === false;
+  };
 
   const [confirmDialog, setConfirmDialog] = useState<{
     fieldName: string;
@@ -301,6 +318,9 @@ export function DraftPanel() {
     ) : null;
 
   const renderField = (fieldName: string) => {
+    // 9.2A: Hide inactive fields from editable input grid (NOT banner)
+    if (isFieldInactive(fieldName)) return null;
+
     // PAT context: hide RESULT (set via dialog), hide playType (auto-set), hide patTry (auto-set)
     if (patContext && (fieldName === "result" || fieldName === "playType" || fieldName === "patTry")) {
       return null;

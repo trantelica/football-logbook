@@ -10,6 +10,7 @@ export interface SeasonConfig {
   updatedAt: string;
   updatedBy: "local";
   fieldSize: 80 | 100;
+  patMode: "none" | "youth_1_2" | "hs_kick";
   activeFields: Record<string, boolean>;
 }
 
@@ -35,6 +36,7 @@ export function buildDefaultConfig(seasonId: string, fieldKeys: string[]): Seaso
     updatedAt: new Date().toISOString(),
     updatedBy: "local",
     fieldSize: 80,
+    patMode: "none",
     activeFields,
   };
 }
@@ -51,6 +53,11 @@ export function diffConfig(before: SeasonConfig, after: SeasonConfig): ConfigCha
   // Top-level fieldSize
   if (before.fieldSize !== after.fieldSize) {
     changes.push({ key: "fieldSize", before: before.fieldSize, after: after.fieldSize });
+  }
+
+  // Top-level patMode
+  if (before.patMode !== after.patMode) {
+    changes.push({ key: "patMode", before: before.patMode, after: after.patMode });
   }
 
   // Nested activeFields

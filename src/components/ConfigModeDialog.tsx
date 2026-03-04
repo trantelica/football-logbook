@@ -1,5 +1,5 @@
 /**
- * ConfigModeDialog — Season configuration modal (Phase 9.1)
+ * ConfigModeDialog — Season configuration modal (Phase 9.1 / 9.1.2)
  */
 
 import React, { useState, useEffect } from "react";
@@ -31,8 +31,9 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
 
   const [loadedConfig, setLoadedConfig] = useState<SeasonConfig | null>(null);
   const [fieldSize, setFieldSize] = useState<"80" | "100">("80");
+  const [patMode, setPatMode] = useState<"none" | "youth_1_2" | "hs_kick">("none");
   const [activeFields, setActiveFields] = useState<Record<string, boolean>>({});
-  const [fieldSizeLocked, setFieldSizeLocked] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const fieldKeys = playSchema.map((f) => f.name);
@@ -57,8 +58,9 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
       const config = existing ?? buildDefaultConfig(seasonId, fieldKeys);
       setLoadedConfig(config);
       setFieldSize(String(config.fieldSize) as "80" | "100");
+      setPatMode(config.patMode ?? "none");
       setActiveFields({ ...config.activeFields });
-      setFieldSizeLocked(playCount > 0);
+      setLocked(playCount > 0);
     })();
 
     return () => { cancelled = true; };
@@ -77,6 +79,7 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
       const after: SeasonConfig = {
         ...loadedConfig,
         fieldSize: Number(fieldSize) as 80 | 100,
+        patMode,
         activeFields: { ...activeFields },
       };
       await saveSeasonConfig(after, loadedConfig);
@@ -113,7 +116,7 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
               onValueChange={(val) => { if (val) setFieldSize(val as "80" | "100"); }}
               size="sm"
               className="justify-start"
-              disabled={fieldSizeLocked}
+              disabled={locked}
             >
               <ToggleGroupItem value="80" className="text-xs px-3 h-7 font-medium">
                 80 yards
@@ -122,9 +125,39 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
                 100 yards
               </ToggleGroupItem>
             </ToggleGroup>
-            {fieldSizeLocked && (
+            {locked && (
               <p className="text-[10px] text-muted-foreground">
                 Field size is locked after plays have been committed to protect determinism.
+              </p>
+            )}
+          </div>
+
+          {/* PAT Mode */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              PAT Mode
+            </Label>
+            <ToggleGroup
+              type="single"
+              value={patMode}
+              onValueChange={(val) => { if (val) setPatMode(val as "none" | "youth_1_2" | "hs_kick"); }}
+              size="sm"
+              className="justify-start"
+              disabled={locked}
+            >
+              <ToggleGroupItem value="none" className="text-xs px-3 h-7 font-medium">
+                None
+              </ToggleGroupItem>
+              <ToggleGroupItem value="youth_1_2" className="text-xs px-3 h-7 font-medium">
+                Youth (1/2 Pt.)
+              </ToggleGroupItem>
+              <ToggleGroupItem value="hs_kick" className="text-xs px-3 h-7 font-medium">
+                HS Kick
+              </ToggleGroupItem>
+            </ToggleGroup>
+            {locked && (
+              <p className="text-[10px] text-muted-foreground">
+                PAT configuration is locked after plays have been committed to protect determinism.
               </p>
             )}
           </div>

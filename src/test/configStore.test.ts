@@ -2,10 +2,11 @@ import { describe, it, expect } from "vitest";
 import { buildDefaultConfig, diffConfig, type SeasonConfig } from "../engine/configStore";
 
 describe("buildDefaultConfig", () => {
-  it("returns version=1, fieldSize=80, all keys true", () => {
+  it("returns version=1, fieldSize=80, patMode=none, all keys true", () => {
     const cfg = buildDefaultConfig("s1", ["offForm", "offPlay", "motion"]);
     expect(cfg.version).toBe(1);
     expect(cfg.fieldSize).toBe(80);
+    expect(cfg.patMode).toBe("none");
     expect(cfg.seasonId).toBe("s1");
     expect(cfg.updatedBy).toBe("local");
     expect(cfg.activeFields).toEqual({ offForm: true, offPlay: true, motion: true });
@@ -19,6 +20,7 @@ describe("diffConfig", () => {
     updatedAt: "2025-01-01",
     updatedBy: "local",
     fieldSize: 80,
+    patMode: "none",
     activeFields: { offForm: true, offPlay: true, motion: true },
   };
 
@@ -37,5 +39,11 @@ describe("diffConfig", () => {
   it("returns empty for identical configs", () => {
     const changes = diffConfig(base, { ...base });
     expect(changes).toEqual([]);
+  });
+
+  it("detects changed patMode", () => {
+    const after = { ...base, patMode: "youth_1_2" as const };
+    const changes = diffConfig(base, after);
+    expect(changes).toEqual([{ key: "patMode", before: "none", after: "youth_1_2" }]);
   });
 });
