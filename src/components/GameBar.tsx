@@ -136,7 +136,7 @@ export function GameBar() {
             <Button
               size="sm"
               variant="default"
-              className="h-8 gap-1"
+              className="h-8 gap-1 bg-committed text-committed-foreground hover:bg-committed/90"
               onClick={() => setStartGameOpen(true)}
             >
               <Flag className="h-3.5 w-3.5" />
