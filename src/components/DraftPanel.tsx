@@ -754,6 +754,99 @@ PENALTY O-Holding EFF Y 2MIN N`}
         </Collapsible>
       )}
 
+      {/* Dev-only AI Patch test buttons */}
+      {import.meta.env.DEV && activePass >= 1 && selectedSlotNum !== null && (
+        <div className="mb-3 rounded-lg border border-dashed border-sky-400/50 p-3 space-y-2 bg-sky-50/30 dark:bg-sky-950/20">
+          <span className="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-semibold">Dev: AI Patch Testing</span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+              disabled={isProposal}
+              onClick={() => {
+                const collisions = applySystemPatch(
+                  { dn: "1", dist: "10", yardLn: "-10", rusher: "10" },
+                  {
+                    evidence: {
+                      dn: { snippet: "first down" },
+                      dist: { snippet: "and 10" },
+                      yardLn: { snippet: "on our 10" },
+                      rusher: { snippet: "ball carrier 10" },
+                    },
+                  }
+                );
+                if (collisions.length > 0) {
+                  setAiCollisionState({
+                    collisions: collisions.map((c) => ({
+                      fieldName: c.fieldName,
+                      currentValue: c.currentValue,
+                      proposedValue: c.proposedValue,
+                    })),
+                    nonCollisionCount: 4 - collisions.length,
+                    evidence: {
+                      dn: { snippet: "first down" },
+                      dist: { snippet: "and 10" },
+                      yardLn: { snippet: "on our 10" },
+                      rusher: { snippet: "ball carrier 10" },
+                    },
+                  });
+                } else {
+                  toast.success("AI patch applied (4 fields, no collisions)");
+                }
+              }}
+            >
+              <Bot className="h-3 w-3" />
+              Dev: Apply AI Patch (safe)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+              disabled={isProposal}
+              onClick={() => {
+                applySystemPatch(
+                  { offForm: "Purple" },
+                  { evidence: { offForm: { snippet: "formation Purple" } } }
+                );
+                toast.info("AI patch sent — should trigger lookup interrupt");
+              }}
+            >
+              <Bot className="h-3 w-3" />
+              Dev: Apply AI Patch (unknown lookup)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+              disabled={isProposal}
+              onClick={() => {
+                const collisions = applySystemPatch(
+                  { dist: "7" },
+                  { evidence: { dist: { snippet: "7 yards" } } }
+                );
+                if (collisions.length > 0) {
+                  setAiCollisionState({
+                    collisions: collisions.map((c) => ({
+                      fieldName: c.fieldName,
+                      currentValue: c.currentValue,
+                      proposedValue: c.proposedValue,
+                    })),
+                    nonCollisionCount: 0,
+                    evidence: { dist: { snippet: "7 yards" } },
+                  });
+                } else {
+                  toast.success("AI patch applied (dist=7, no collision)");
+                }
+              }}
+            >
+              <Bot className="h-3 w-3" />
+              Dev: Apply AI Patch (collision)
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Coach Notes — visible on all passes, independent of transaction */}
       {selectedSlotNum !== null && (
         <CoachNotesPanel selectedSlotNum={selectedSlotNum} />
