@@ -1047,6 +1047,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setInlineErrors({});
     setCommitErrors({});
     setScaffoldedWarning(null);
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
     setState(gameId ? "idle" : "idle");
   }, [gameId]);
 
