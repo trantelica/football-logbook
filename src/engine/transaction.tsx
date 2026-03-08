@@ -387,6 +387,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPatLockedTry(null);
     setCarriedForwardFields(new Set());
     setCarriedForwardFromPlayNum(null);
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
   }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
