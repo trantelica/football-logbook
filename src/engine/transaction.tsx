@@ -339,12 +339,31 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
+      // Phase 10: Coach edit converts AI-proposed → touched, clears evidence
+      setAiProposedFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
+      setAiEvidenceByField((prev) => {
+        if (fieldName in prev) {
+          const next = { ...prev };
+          delete next[fieldName];
+          return next;
+        }
+        return prev;
+      });
       setState("candidate");
       setCommitErrors({});
 
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
-      setInlineErrors(validateInline(newCandidate, newTouched, getLookupMap()));
+      // Validate union of touched + aiProposed
+      const validationFields = new Set([...newTouched, ...aiProposedFields]);
+      setInlineErrors(validateInline(newCandidate, validationFields, getLookupMap()));
     },
     [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
   );
