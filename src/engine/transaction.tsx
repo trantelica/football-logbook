@@ -368,7 +368,61 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
   );
 
-  const clearDraft = useCallback(() => {
+  // Phase 10: Apply system/AI patch without marking fields as touched
+  const applySystemPatch = useCallback(
+    (patch: Record<string, unknown>, options?: SystemPatchOptions): SystemPatchCollision[] => {
+      const fillOnly = options?.fillOnly !== false; // default true
+      const evidence = options?.evidence;
+      const collisions: SystemPatchCollision[] = [];
+      const fieldsToApply: Record<string, unknown> = {};
+      const newAiFields = new Set<string>();
+
+      for (const [fieldName, proposedValue] of Object.entries(patch)) {
+        if (fieldName === "gameId" || fieldName === "playNum") continue;
+        const currentValue = (candidate as Record<string, unknown>)[fieldName];
+        const hasExisting = currentValue !== null && currentValue !== undefined && currentValue !== "";
+
+        if (fillOnly && hasExisting && String(currentValue) !== String(proposedValue)) {
+          collisions.push({ fieldName, currentValue, proposedValue });
+          continue;
+        }
+
+        fieldsToApply[fieldName] = proposedValue;
+        newAiFields.add(fieldName);
+      }
+
+      if (Object.keys(fieldsToApply).length > 0) {
+        setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
+        setAiProposedFields((prev) => {
+          const next = new Set(prev);
+          for (const f of newAiFields) next.add(f);
+          return next;
+        });
+
+        if (evidence) {
+          setAiEvidenceByField((prev) => {
+            const next = { ...prev };
+            for (const f of newAiFields) {
+              if (evidence[f]) next[f] = evidence[f];
+            }
+            return next;
+          });
+        }
+
+        // Recompute inline errors with union of all active field sets
+        const updatedCandidate = { ...candidate, ...fieldsToApply };
+        const validationFields = new Set([...touchedFields, ...aiProposedFields, ...newAiFields]);
+        setInlineErrors(validateInline(updatedCandidate as CandidateData, validationFields, getLookupMap()));
+
+        setState("candidate");
+        setCommitErrors({});
+      }
+
+      return collisions;
+    },
+    [candidate, touchedFields, aiProposedFields, getLookupMap]
+  );
+
     setCandidate(emptyCandidate(gameId));
     setTouchedFields(new Set());
     setPredictedFields(new Set());
