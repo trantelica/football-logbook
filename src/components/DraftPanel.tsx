@@ -386,10 +386,12 @@ export function DraftPanel() {
     );
 
     const predicted = isPredicted(fieldName);
+    const aiProposed = isAiProposed(fieldName);
     const inputClasses = cn(
       "h-8 text-sm font-mono",
       predicted && !touched && !error && "bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700",
-      touched && !error && !predicted && "bg-field-touched",
+      aiProposed && !touched && !error && !predicted && "bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-700",
+      touched && !error && !predicted && !aiProposed && "bg-field-touched",
       error && "border-destructive"
     );
 
