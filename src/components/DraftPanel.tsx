@@ -17,7 +17,7 @@ import { useSeason } from "@/engine/seasonContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
 import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
