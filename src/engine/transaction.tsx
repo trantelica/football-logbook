@@ -290,11 +290,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setHasDraft(isDirty);
   }, [touchedFields, aiProposedFields, setHasDraft]);
 
+  // Phase 10D: Lookup interrupt state
+  const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string } | null>(null);
+  const clearLookupInterrupt = useCallback(() => setLookupInterruptPending(null), []);
+
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
     const validationFields = new Set([...touchedFields, ...aiProposedFields]);
     if (validationFields.size > 0) {
       setInlineErrors(validateInline(candidate, validationFields, getLookupMap()));
+    } else {
+      setInlineErrors({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookupTables]);
