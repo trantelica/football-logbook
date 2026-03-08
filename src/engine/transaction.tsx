@@ -424,7 +424,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    const errors = validateInline(candidate, touchedFields, getLookupMap());
+    // Validate union of touched + aiProposed fields
+    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    const errors = validateInline(candidate, validationFields, getLookupMap());
     setInlineErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
