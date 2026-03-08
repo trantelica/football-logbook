@@ -869,8 +869,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 activePass === 3
                   ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
                   : activePass >= 2
-                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0)
-                    : touchedFields.size === 0
+                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && aiProposedFields.size === 0)
+                    : (touchedFields.size === 0 && aiProposedFields.size === 0)
               }
             >
               <Eye className="h-3.5 w-3.5" />
