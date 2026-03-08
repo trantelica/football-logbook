@@ -1262,6 +1262,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             setPossessionPrevPlayInfo(null);
             setCarriedForwardFields(seededFields);
             setCarriedForwardFromPlayNum(currentSlotNum);
+            setAiProposedFields(new Set());
+            setAiEvidenceByField({});
             setState("candidate");
             return { committed: true, hasNext: true };
           }
