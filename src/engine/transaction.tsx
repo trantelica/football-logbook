@@ -28,6 +28,28 @@ import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 // normalizeToSchema imported for potential future use; grade normalization is inline
+/** Evidence for a single AI-proposed field */
+export interface AIFieldEvidence {
+  snippet: string;
+  semanticRole?: string;
+  utteranceId?: string;
+}
+
+/** Options for applySystemPatch */
+export interface SystemPatchOptions {
+  /** When true (default), only fill empty/null fields; non-empty fields become collisions */
+  fillOnly?: boolean;
+  /** Evidence keyed by field name */
+  evidence?: Record<string, AIFieldEvidence>;
+}
+
+/** Collision returned by applySystemPatch */
+export interface SystemPatchCollision {
+  fieldName: string;
+  currentValue: unknown;
+  proposedValue: unknown;
+}
+
 interface TransactionContextValue {
   state: TransactionState;
   candidate: CandidateData;
@@ -48,6 +70,11 @@ interface TransactionContextValue {
   slotMetaMap: Map<number, SlotMeta>;
   isSlotMode: boolean;
   scaffoldedWarning: string | null;
+
+  // Phase 10: AI/system patch provenance
+  aiProposedFields: Set<string>;
+  aiEvidenceByField: Record<string, AIFieldEvidence>;
+  applySystemPatch: (patch: Record<string, unknown>, options?: SystemPatchOptions) => SystemPatchCollision[];
   
   // Phase 4: Workflow stage & ODK filter
   activePass: number;
@@ -196,6 +223,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
   const [lastPass2CommitPlayNum, setLastPass2CommitPlayNum] = useState<number | null>(null);
 
+  // Phase 10: AI/system patch state
+  const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
+  const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+
   // Stage setter — no carry-forward here, just clear Pass 1 prompts
   const setActivePass = useCallback((pass: number) => {
     setActivePassRaw(pass);
@@ -233,6 +264,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAdjustments([]);
     setActivePassRaw(1);
     setOdkFilter("ALL");
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
@@ -248,16 +281,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
   }, [gameId, gameIsSlotMode]);
 
-  // Track draft status
+  // Track draft status — dirty when touched OR aiProposed
   useEffect(() => {
-    const isDirty = touchedFields.size > 0;
+    const isDirty = touchedFields.size > 0 || aiProposedFields.size > 0;
     setHasDraft(isDirty);
-  }, [touchedFields, setHasDraft]);
+  }, [touchedFields, aiProposedFields, setHasDraft]);
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
-    if (touchedFields.size > 0) {
-      setInlineErrors(validateInline(candidate, touchedFields, getLookupMap()));
+    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    if (validationFields.size > 0) {
+      setInlineErrors(validateInline(candidate, validationFields, getLookupMap()));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookupTables]);
@@ -305,14 +339,88 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
+      // Phase 10: Coach edit converts AI-proposed → touched, clears evidence
+      setAiProposedFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
+      setAiEvidenceByField((prev) => {
+        if (fieldName in prev) {
+          const next = { ...prev };
+          delete next[fieldName];
+          return next;
+        }
+        return prev;
+      });
       setState("candidate");
       setCommitErrors({});
 
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
-      setInlineErrors(validateInline(newCandidate, newTouched, getLookupMap()));
+      // Validate union of touched + aiProposed
+      const validationFields = new Set([...newTouched, ...aiProposedFields]);
+      setInlineErrors(validateInline(newCandidate, validationFields, getLookupMap()));
     },
     [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
+  );
+
+  // Phase 10: Apply system/AI patch without marking fields as touched
+  const applySystemPatch = useCallback(
+    (patch: Record<string, unknown>, options?: SystemPatchOptions): SystemPatchCollision[] => {
+      const fillOnly = options?.fillOnly !== false; // default true
+      const evidence = options?.evidence;
+      const collisions: SystemPatchCollision[] = [];
+      const fieldsToApply: Record<string, unknown> = {};
+      const newAiFields = new Set<string>();
+
+      for (const [fieldName, proposedValue] of Object.entries(patch)) {
+        if (fieldName === "gameId" || fieldName === "playNum") continue;
+        const currentValue = (candidate as Record<string, unknown>)[fieldName];
+        const hasExisting = currentValue !== null && currentValue !== undefined && currentValue !== "";
+
+        if (fillOnly && hasExisting && String(currentValue) !== String(proposedValue)) {
+          collisions.push({ fieldName, currentValue, proposedValue });
+          continue;
+        }
+
+        fieldsToApply[fieldName] = proposedValue;
+        newAiFields.add(fieldName);
+      }
+
+      if (Object.keys(fieldsToApply).length > 0) {
+        setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
+        setAiProposedFields((prev) => {
+          const next = new Set(prev);
+          for (const f of newAiFields) next.add(f);
+          return next;
+        });
+
+        if (evidence) {
+          setAiEvidenceByField((prev) => {
+            const next = { ...prev };
+            for (const f of newAiFields) {
+              if (evidence[f]) next[f] = evidence[f];
+            }
+            return next;
+          });
+        }
+
+        // Recompute inline errors with union of all active field sets
+        const updatedCandidate = { ...candidate, ...fieldsToApply };
+        const validationFields = new Set([...touchedFields, ...aiProposedFields, ...newAiFields]);
+        setInlineErrors(validateInline(updatedCandidate as CandidateData, validationFields, getLookupMap()));
+
+        setState("candidate");
+        setCommitErrors({});
+      }
+
+      return collisions;
+    },
+    [candidate, touchedFields, aiProposedFields, getLookupMap]
   );
 
   const clearDraft = useCallback(() => {
@@ -334,6 +442,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPatLockedTry(null);
     setCarriedForwardFields(new Set());
     setCarriedForwardFromPlayNum(null);
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
   }, [gameId, isSlotMode]);
 
   const reviewProposal = useCallback(() => {
@@ -369,7 +479,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    const errors = validateInline(candidate, touchedFields, getLookupMap());
+    // Validate union of touched + aiProposed fields
+    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    const errors = validateInline(candidate, validationFields, getLookupMap());
     setInlineErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -990,6 +1102,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setInlineErrors({});
     setCommitErrors({});
     setScaffoldedWarning(null);
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
     setState(gameId ? "idle" : "idle");
   }, [gameId]);
 
@@ -1203,6 +1317,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             setPossessionPrevPlayInfo(null);
             setCarriedForwardFields(seededFields);
             setCarriedForwardFromPlayNum(currentSlotNum);
+            setAiProposedFields(new Set());
+            setAiEvidenceByField({});
             setState("candidate");
             return { committed: true, hasNext: true };
           }
@@ -1236,6 +1352,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         slotMetaMap,
         isSlotMode,
         scaffoldedWarning,
+        aiProposedFields,
+        aiEvidenceByField,
+        applySystemPatch,
         activePass,
         setActivePass,
         odkFilter,

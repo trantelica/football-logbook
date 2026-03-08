@@ -17,7 +17,7 @@ import { useSeason } from "@/engine/seasonContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
 import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
@@ -93,6 +93,8 @@ export function DraftPanel() {
     gradeOverwriteDiffs,
     confirmGradeOverwrite,
     cancelGradeOverwrite,
+    aiProposedFields,
+    aiEvidenceByField,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -199,6 +201,10 @@ export function DraftPanel() {
     return predictedFields.has(field);
   }
 
+  function isAiProposed(field: string) {
+    return aiProposedFields.has(field);
+  }
+
   function isMinimalField(field: string) {
     return (SEGMENT_REQUIRED_FIELDS as readonly string[]).includes(field) || field === "playNum";
   }
@@ -277,7 +283,7 @@ export function DraftPanel() {
 
   const renderFieldLabel = (fieldName: string, label: string, required: boolean) => (
     <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-      {isFieldCommitted(fieldName) && !isPredicted(fieldName) && (
+      {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -297,6 +303,24 @@ export function DraftPanel() {
               </span>
             </TooltipTrigger>
             <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {isAiProposed(fieldName) && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                <Bot className="h-2.5 w-2.5" />
+                AI
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>AI-proposed value. Editable.</p>
+              {aiEvidenceByField[fieldName]?.snippet && (
+                <p className="text-[10px] mt-1 opacity-80 font-mono">{aiEvidenceByField[fieldName].snippet}</p>
+              )}
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
@@ -362,10 +386,12 @@ export function DraftPanel() {
     );
 
     const predicted = isPredicted(fieldName);
+    const aiProposed = isAiProposed(fieldName);
     const inputClasses = cn(
       "h-8 text-sm font-mono",
       predicted && !touched && !error && "bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700",
-      touched && !error && !predicted && "bg-field-touched",
+      aiProposed && !touched && !error && !predicted && "bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-700",
+      touched && !error && !predicted && !aiProposed && "bg-field-touched",
       error && "border-destructive"
     );
 
@@ -845,8 +871,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 activePass === 3
                   ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
                   : activePass >= 2
-                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0)
-                    : touchedFields.size === 0
+                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && aiProposedFields.size === 0)
+                    : (touchedFields.size === 0 && aiProposedFields.size === 0)
               }
             >
               <Eye className="h-3.5 w-3.5" />
