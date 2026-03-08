@@ -386,8 +386,19 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       const fieldsToApply: Record<string, unknown> = {};
       const newAiFields = new Set<string>();
 
+      const ACTOR_FIELD_NAMES = new Set(["rusher", "passer", "receiver", "returner"]);
+
       for (const [fieldName, proposedValue] of Object.entries(patch)) {
         if (fieldName === "gameId" || fieldName === "playNum") continue;
+
+        // 10-1C: Respect pass locking — same gate as updateField
+        const fieldDef = getFieldDef(fieldName);
+        if (fieldDef && fieldDef.defaultPassEntry > activePass) {
+          if (!(activePass >= 2 && ACTOR_FIELD_NAMES.has(fieldName))) {
+            continue; // skip out-of-pass fields
+          }
+        }
+
         const currentValue = (candidate as Record<string, unknown>)[fieldName];
         const hasExisting = currentValue !== null && currentValue !== undefined && currentValue !== "";
 
@@ -425,11 +436,31 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
         setState("candidate");
         setCommitErrors({});
+
+        // 10-1D: Immediate lookup interrupt for governed lookup fields with unknown values
+        const lookupMap = getLookupMap();
+        for (const [fieldName, value] of Object.entries(fieldsToApply)) {
+          if (!lookupMap.has(fieldName)) continue; // not a governed lookup field
+          const knownValues = lookupMap.get(fieldName) ?? [];
+          const valStr = String(value).trim();
+          if (valStr === "") continue;
+          const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
+          const found = knownValues.some((v) => v.toLowerCase().replace(/\s+/g, " ") === canonical);
+          if (!found) {
+            const fd = getFieldDef(fieldName);
+            setLookupInterruptPending({
+              fieldName,
+              fieldLabel: fd?.label ?? fieldName,
+              value: valStr,
+            });
+            break; // one interrupt at a time
+          }
+        }
       }
 
       return collisions;
     },
-    [candidate, touchedFields, aiProposedFields, getLookupMap]
+    [candidate, touchedFields, aiProposedFields, getLookupMap, activePass]
   );
 
   const clearDraft = useCallback(() => {
