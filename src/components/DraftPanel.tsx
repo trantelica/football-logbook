@@ -133,6 +133,13 @@ export function DraftPanel() {
     report: { anchor: string; rawValue: string; status: string; matchedValue?: string }[];
   } | null>(null);
 
+  // Phase 10: AI system patch collision state
+  const [aiCollisionState, setAiCollisionState] = useState<{
+    collisions: Collision[];
+    nonCollisionCount: number;
+    evidence?: Record<string, import("@/engine/transaction").AIFieldEvidence>;
+  } | null>(null);
+
   if (!activeGame) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
