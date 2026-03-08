@@ -75,6 +75,9 @@ interface TransactionContextValue {
   aiProposedFields: Set<string>;
   aiEvidenceByField: Record<string, AIFieldEvidence>;
   applySystemPatch: (patch: Record<string, unknown>, options?: SystemPatchOptions) => SystemPatchCollision[];
+  /** Lookup interrupt: an AI-patched field has an unknown governed lookup value */
+  lookupInterruptPending: { fieldName: string; fieldLabel: string; value: string } | null;
+  clearLookupInterrupt: () => void;
   
   // Phase 4: Workflow stage & ODK filter
   activePass: number;
