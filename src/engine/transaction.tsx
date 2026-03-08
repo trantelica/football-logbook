@@ -423,6 +423,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     [candidate, touchedFields, aiProposedFields, getLookupMap]
   );
 
+  const clearDraft = useCallback(() => {
     setCandidate(emptyCandidate(gameId));
     setTouchedFields(new Set());
     setPredictedFields(new Set());
