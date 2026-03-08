@@ -264,6 +264,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAdjustments([]);
     setActivePassRaw(1);
     setOdkFilter("ALL");
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
