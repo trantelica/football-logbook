@@ -1395,6 +1395,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         aiProposedFields,
         aiEvidenceByField,
         applySystemPatch,
+        lookupInterruptPending,
+        clearLookupInterrupt,
         activePass,
         setActivePass,
         odkFilter,
