@@ -223,6 +223,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
   const [lastPass2CommitPlayNum, setLastPass2CommitPlayNum] = useState<number | null>(null);
 
+  // Phase 10: AI/system patch state
+  const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
+  const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+
   // Stage setter — no carry-forward here, just clear Pass 1 prompts
   const setActivePass = useCallback((pass: number) => {
     setActivePassRaw(pass);
