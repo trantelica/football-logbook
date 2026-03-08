@@ -93,6 +93,8 @@ export function DraftPanel() {
     gradeOverwriteDiffs,
     confirmGradeOverwrite,
     cancelGradeOverwrite,
+    aiProposedFields,
+    aiEvidenceByField,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
