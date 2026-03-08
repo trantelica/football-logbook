@@ -1,4 +1,10 @@
 import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -95,6 +101,9 @@ export function DraftPanel() {
     cancelGradeOverwrite,
     aiProposedFields,
     aiEvidenceByField,
+    applySystemPatch,
+    lookupInterruptPending,
+    clearLookupInterrupt,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -128,6 +137,13 @@ export function DraftPanel() {
     nonCollisionPatch: Record<string, unknown>;
     fullPatch: Record<string, unknown>;
     report: { anchor: string; rawValue: string; status: string; matchedValue?: string }[];
+  } | null>(null);
+
+  // Phase 10: AI system patch collision state
+  const [aiCollisionState, setAiCollisionState] = useState<{
+    collisions: Collision[];
+    nonCollisionCount: number;
+    evidence?: Record<string, import("@/engine/transaction").AIFieldEvidence>;
   } | null>(null);
 
   if (!activeGame) {
@@ -992,6 +1008,96 @@ PENALTY O-Holding EFF Y 2MIN N`}
           onConfirm={confirmGradeOverwrite}
           onCancel={cancelGradeOverwrite}
         />
+      )}
+
+      {/* Phase 10: AI system patch collision dialog */}
+      {aiCollisionState && (
+        <RawInputCollisionDialog
+          open
+          collisions={aiCollisionState.collisions}
+          nonCollisionCount={aiCollisionState.nonCollisionCount}
+          onConfirm={(selectedFields) => {
+            // Build overwrite patch from selected collision fields only
+            const overwritePatch: Record<string, unknown> = {};
+            for (const c of aiCollisionState.collisions) {
+              if (selectedFields.has(c.fieldName)) {
+                overwritePatch[c.fieldName] = c.proposedValue;
+              }
+            }
+            if (Object.keys(overwritePatch).length > 0) {
+              applySystemPatch(overwritePatch, { fillOnly: false, evidence: aiCollisionState.evidence });
+            }
+            toast.success(`Applied ${selectedFields.size + aiCollisionState.nonCollisionCount} AI field(s)`);
+            setAiCollisionState(null);
+          }}
+          onCancel={() => setAiCollisionState(null)}
+        />
+      )}
+
+      {/* Phase 10D: Lookup interrupt dialog for AI patches */}
+      {lookupInterruptPending && (
+        <Dialog open onOpenChange={(o) => { if (!o) clearLookupInterrupt(); }}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-semibold">
+                Unknown Lookup Value
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              The AI-proposed value{" "}
+              <span className="font-mono font-semibold text-foreground">
+                &ldquo;{lookupInterruptPending.value}&rdquo;
+              </span>{" "}
+              for{" "}
+              <span className="font-semibold text-foreground">
+                {lookupInterruptPending.fieldLabel}
+              </span>{" "}
+              is not in the lookup table.
+            </p>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="justify-start gap-2"
+                onClick={() => {
+                  const li = lookupInterruptPending;
+                  clearLookupInterrupt();
+                  setConfirmDialog({
+                    fieldName: li.fieldName,
+                    fieldLabel: li.fieldLabel,
+                    value: li.value,
+                  });
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add new lookup value
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="justify-start gap-2"
+                onClick={() => {
+                  clearLookupInterrupt();
+                }}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Correct play details manually
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="justify-start gap-2 text-destructive"
+                onClick={() => {
+                  clearLookupInterrupt();
+                  clearDraft();
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+                Exit play logging
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );
