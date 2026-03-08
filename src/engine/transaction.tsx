@@ -28,6 +28,28 @@ import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 // normalizeToSchema imported for potential future use; grade normalization is inline
+/** Evidence for a single AI-proposed field */
+export interface AIFieldEvidence {
+  snippet: string;
+  semanticRole?: string;
+  utteranceId?: string;
+}
+
+/** Options for applySystemPatch */
+export interface SystemPatchOptions {
+  /** When true (default), only fill empty/null fields; non-empty fields become collisions */
+  fillOnly?: boolean;
+  /** Evidence keyed by field name */
+  evidence?: Record<string, AIFieldEvidence>;
+}
+
+/** Collision returned by applySystemPatch */
+export interface SystemPatchCollision {
+  fieldName: string;
+  currentValue: unknown;
+  proposedValue: unknown;
+}
+
 interface TransactionContextValue {
   state: TransactionState;
   candidate: CandidateData;
@@ -48,6 +70,11 @@ interface TransactionContextValue {
   slotMetaMap: Map<number, SlotMeta>;
   isSlotMode: boolean;
   scaffoldedWarning: string | null;
+
+  // Phase 10: AI/system patch provenance
+  aiProposedFields: Set<string>;
+  aiEvidenceByField: Record<string, AIFieldEvidence>;
+  applySystemPatch: (patch: Record<string, unknown>, options?: SystemPatchOptions) => SystemPatchCollision[];
   
   // Phase 4: Workflow stage & ODK filter
   activePass: number;
