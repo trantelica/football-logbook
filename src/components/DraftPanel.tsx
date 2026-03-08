@@ -95,6 +95,9 @@ export function DraftPanel() {
     cancelGradeOverwrite,
     aiProposedFields,
     aiEvidenceByField,
+    applySystemPatch,
+    lookupInterruptPending,
+    clearLookupInterrupt,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
