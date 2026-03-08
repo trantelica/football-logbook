@@ -283,7 +283,7 @@ export function DraftPanel() {
 
   const renderFieldLabel = (fieldName: string, label: string, required: boolean) => (
     <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-      {isFieldCommitted(fieldName) && !isPredicted(fieldName) && (
+      {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -303,6 +303,24 @@ export function DraftPanel() {
               </span>
             </TooltipTrigger>
             <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {isAiProposed(fieldName) && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                <Bot className="h-2.5 w-2.5" />
+                AI
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>AI-proposed value. Editable.</p>
+              {aiEvidenceByField[fieldName]?.snippet && (
+                <p className="text-[10px] mt-1 opacity-80 font-mono">{aiEvidenceByField[fieldName].snippet}</p>
+              )}
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
