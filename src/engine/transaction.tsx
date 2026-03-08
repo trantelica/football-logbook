@@ -281,16 +281,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
   }, [gameId, gameIsSlotMode]);
 
-  // Track draft status
+  // Track draft status — dirty when touched OR aiProposed
   useEffect(() => {
-    const isDirty = touchedFields.size > 0;
+    const isDirty = touchedFields.size > 0 || aiProposedFields.size > 0;
     setHasDraft(isDirty);
-  }, [touchedFields, setHasDraft]);
+  }, [touchedFields, aiProposedFields, setHasDraft]);
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
-    if (touchedFields.size > 0) {
-      setInlineErrors(validateInline(candidate, touchedFields, getLookupMap()));
+    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    if (validationFields.size > 0) {
+      setInlineErrors(validateInline(candidate, validationFields, getLookupMap()));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookupTables]);
