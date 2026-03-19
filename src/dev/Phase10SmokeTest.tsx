@@ -123,6 +123,8 @@ export function Phase10SmokeTest() {
     inlineErrors, reviewProposal, state,
   ]);
 
+  if (!import.meta.env.DEV) return null;
+
   if (selectedSlotNum === null) {
     return (
       <Card className="border-dashed border-amber-500/50">
