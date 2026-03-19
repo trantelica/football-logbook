@@ -2,7 +2,7 @@
  * Dev-only Phase 10 smoke test harness.
  * Renders nothing in production builds.
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTransaction } from "@/engine/transaction";
@@ -10,44 +10,51 @@ import { toast } from "sonner";
 import { FlaskConical } from "lucide-react";
 
 interface TestResult {
-  label: string;
-  pass: boolean;
+  ok: boolean;
+  name: string;
+  detail?: string;
+}
+
+async function nextTick() {
+  await new Promise((r) => setTimeout(r, 0));
 }
 
 export function Phase10SmokeTest() {
-  const {
-    selectedSlotNum,
-    clearDraft,
-    applySystemPatch,
-    aiProposedFields,
-    touchedFields,
-    updateField,
-    lookupInterruptPending,
-    clearLookupInterrupt,
-    inlineErrors,
-    reviewProposal,
-    state,
-  } = useTransaction();
+  const txn = useTransaction();
+  const txnRef = useRef(txn);
+  txnRef.current = txn;
 
   const [results, setResults] = useState<TestResult[]>([]);
   const [running, setRunning] = useState(false);
 
+  const snapshot = () => {
+    const t = txnRef.current;
+    return JSON.stringify({
+      selectedSlotNum: t.selectedSlotNum,
+      activePass: (t as any).activePass ?? null,
+      touched: [...t.touchedFields],
+      ai: [...t.aiProposedFields],
+      lookupInterruptPending: t.lookupInterruptPending,
+    });
+  };
+
   const runTests = useCallback(async () => {
-    if (selectedSlotNum === null) return;
+    if (txnRef.current.selectedSlotNum === null) return;
     setRunning(true);
     const out: TestResult[] = [];
 
-    const assert = (cond: boolean, msg: string) => {
-      out.push({ label: msg, pass: cond });
+    const assert = (cond: boolean, name: string) => {
+      const entry: TestResult = { ok: cond, name };
+      if (!cond) entry.detail = snapshot();
+      out.push(entry);
     };
 
     // A) clearDraft
-    clearDraft();
-    // Need to wait for state to settle — use microtask
-    await new Promise((r) => setTimeout(r, 50));
+    txnRef.current.clearDraft();
+    await nextTick();
 
     // B) Safe AI patch
-    const safeCollisions = applySystemPatch(
+    const safeCollisions = txnRef.current.applySystemPatch(
       { dn: "1", dist: "10", yardLn: "-10", rusher: "10" },
       {
         evidence: {
@@ -58,74 +65,68 @@ export function Phase10SmokeTest() {
         },
       }
     );
-    assert(safeCollisions.length === 0, "B: Safe patch has no collisions");
-    await new Promise((r) => setTimeout(r, 50));
+    assert(safeCollisions.length === 0, "B0 safe patch returns no collisions");
+    await nextTick();
 
-    // Check aiProposedFields — read from transaction context
-    // Note: we're reading from the closure so we need fresh refs.
-    // Since state updates are async in React, we rely on the fact that
-    // applySystemPatch calls setState synchronously within the callback.
-    // We'll check after a tick.
-    assert(aiProposedFields.has("dn"), "B: aiProposedFields has 'dn'");
-    assert(aiProposedFields.has("dist"), "B: aiProposedFields has 'dist'");
-    assert(aiProposedFields.has("yardLn"), "B: aiProposedFields has 'yardLn'");
-    assert(aiProposedFields.has("rusher"), "B: aiProposedFields has 'rusher'");
-    assert(touchedFields.size === 0, "B: touchedFields still empty");
+    assert(txnRef.current.aiProposedFields.has("dn"), "B1 aiProposedFields contains dn");
+    assert(txnRef.current.aiProposedFields.has("dist"), "B2 aiProposedFields contains dist");
+    assert(txnRef.current.aiProposedFields.has("yardLn"), "B3 aiProposedFields contains yardLn");
+    assert(txnRef.current.aiProposedFields.has("rusher"), "B4 aiProposedFields contains rusher");
+    assert(txnRef.current.touchedFields.size === 0, "B5 touchedFields still empty");
 
     // C) Promote AI→touched
-    updateField("dist", "9");
-    await new Promise((r) => setTimeout(r, 50));
-    assert(!aiProposedFields.has("dist"), "C: 'dist' removed from aiProposedFields");
-    assert(touchedFields.has("dist"), "C: 'dist' added to touchedFields");
+    txnRef.current.updateField("dist", "9");
+    await nextTick();
+    assert(!txnRef.current.aiProposedFields.has("dist"), "C1 dist removed from aiProposedFields");
+    assert(txnRef.current.touchedFields.has("dist"), "C2 dist added to touchedFields");
 
-    // D) Collision detection
-    updateField("dist", "10");
-    await new Promise((r) => setTimeout(r, 50));
-    const collisionResult = applySystemPatch(
+    // D) Collision detection — set dist explicitly then patch over it
+    txnRef.current.updateField("dist", "10");
+    await nextTick();
+    const collisionResult = txnRef.current.applySystemPatch(
       { dist: "7" },
       { fillOnly: true, evidence: { dist: { snippet: "7 yards" } } }
     );
-    assert(collisionResult.length > 0, "D: Collision detected for filled field");
+    assert(collisionResult.length > 0, "D1 collision detected for filled field");
 
     // E) Lookup interrupt
-    applySystemPatch(
+    txnRef.current.applySystemPatch(
       { offForm: "Purple" },
       { evidence: { offForm: { snippet: "formation Purple" } } }
     );
-    await new Promise((r) => setTimeout(r, 50));
-    assert(lookupInterruptPending != null, "E: lookupInterruptPending is set");
-    clearLookupInterrupt();
-    await new Promise((r) => setTimeout(r, 50));
-    assert(lookupInterruptPending == null, "E: lookupInterruptPending cleared");
+    await nextTick();
+    assert(txnRef.current.lookupInterruptPending != null, "E1 lookupInterruptPending is set");
+    txnRef.current.clearLookupInterrupt();
+    await nextTick();
+    assert(txnRef.current.lookupInterruptPending == null, "E2 lookupInterruptPending cleared");
 
-    // F) Union validation blocks bad proposal
-    applySystemPatch({ dn: "BAD" });
-    await new Promise((r) => setTimeout(r, 50));
-    reviewProposal();
-    await new Promise((r) => setTimeout(r, 50));
-    const hasErrors = Object.keys(inlineErrors).length > 0;
-    const notProposal = state !== "proposal";
-    assert(hasErrors || notProposal, "F: Bad value blocks proposal (errors or state not proposal)");
+    // F) Union validation blocks bad enum value
+    txnRef.current.applySystemPatch({ result: "NotARealEnum" });
+    await nextTick();
+    txnRef.current.reviewProposal();
+    await nextTick();
+    const hasErrors = Object.keys(txnRef.current.inlineErrors).length > 0;
+    const notProposal = txnRef.current.state !== "proposal";
+    assert(hasErrors || notProposal, "F1 bad enum blocks proposal");
 
     setResults(out);
     setRunning(false);
 
-    const passed = out.filter((r) => r.pass).length;
+    const passed = out.filter((r) => r.ok).length;
     const total = out.length;
+    const summary = { passed, total, results: out };
+    console.log("[Phase10SmokeTest]", summary);
+
     if (passed === total) {
       toast.success(`Phase 10 Smoke Test: ${passed}/${total} PASSED`);
     } else {
       toast.error(`Phase 10 Smoke Test: ${passed}/${total} passed, ${total - passed} FAILED`);
     }
-  }, [
-    selectedSlotNum, clearDraft, applySystemPatch, aiProposedFields,
-    touchedFields, updateField, lookupInterruptPending, clearLookupInterrupt,
-    inlineErrors, reviewProposal, state,
-  ]);
+  }, []);
 
   if (!import.meta.env.DEV) return null;
 
-  if (selectedSlotNum === null) {
+  if (txnRef.current.selectedSlotNum === null) {
     return (
       <Card className="border-dashed border-amber-500/50">
         <CardContent className="py-3 text-xs text-muted-foreground text-center">
@@ -155,14 +156,21 @@ export function Phase10SmokeTest() {
         </Button>
 
         {results.length > 0 && (
-          <div className="space-y-0.5 text-[11px] font-mono max-h-48 overflow-y-auto">
+          <div className="space-y-0.5 text-[11px] font-mono max-h-60 overflow-y-auto">
             {results.map((r, i) => (
-              <div key={i} className={r.pass ? "text-green-600 dark:text-green-400" : "text-destructive"}>
-                {r.pass ? "✅" : "❌"} {r.label}
+              <div key={i}>
+                <div className={r.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}>
+                  {r.ok ? "✅" : "❌"} {r.name}
+                </div>
+                {r.detail && (
+                  <div className="ml-5 text-[10px] text-muted-foreground break-all">
+                    {r.detail}
+                  </div>
+                )}
               </div>
             ))}
             <div className="pt-1 border-t border-border/50 font-semibold">
-              {results.filter((r) => r.pass).length}/{results.length} passed
+              {results.filter((r) => r.ok).length}/{results.length} passed
             </div>
           </div>
         )}
