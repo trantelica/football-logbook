@@ -15,8 +15,6 @@ interface TestResult {
 }
 
 export function Phase10SmokeTest() {
-  if (!import.meta.env.DEV) return null;
-
   const {
     selectedSlotNum,
     clearDraft,
