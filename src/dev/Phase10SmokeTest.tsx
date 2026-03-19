@@ -35,6 +35,7 @@ export function Phase10SmokeTest() {
 
   const [results, setResults] = useState<TestResult[]>([]);
   const [running, setRunning] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const snapshot = () => {
     const t = txnRef.current;
