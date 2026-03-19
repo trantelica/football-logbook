@@ -36,6 +36,7 @@ import { GradeOverwriteDialog } from "./GradeOverwriteDialog";
 import { CoachNotesPanel } from "./CoachNotesPanel";
 import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
+import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
