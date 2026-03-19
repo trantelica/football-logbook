@@ -12,7 +12,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { useTransaction } from "@/engine/transaction";
 import { toast } from "sonner";
@@ -121,6 +120,7 @@ export function Phase10SmokeTest() {
 
     setResults(out);
     setRunning(false);
+    setModalOpen(true);
 
     const passed = out.filter((r) => r.ok).length;
     const total = out.length;
@@ -146,45 +146,81 @@ export function Phase10SmokeTest() {
     );
   }
 
-  return (
-    <Card className="border-dashed border-amber-500/50">
-      <CardHeader className="py-2 px-3">
-        <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-          <FlaskConical className="h-3.5 w-3.5" />
-          Phase 10 Smoke Test
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-3 pb-3 space-y-2">
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs w-full border-amber-400 dark:border-amber-600"
-          onClick={runTests}
-          disabled={running}
-        >
-          {running ? "Running…" : "Run Phase 10 Smoke Test"}
-        </Button>
+  const passed = results.filter((r) => r.ok).length;
+  const failed = results.length - passed;
 
-        {results.length > 0 && (
-          <div className="space-y-0.5 text-[11px] font-mono max-h-60 overflow-y-auto">
+  return (
+    <>
+      <Card className="border-dashed border-amber-500/50">
+        <CardHeader className="py-2 px-3">
+          <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+            <FlaskConical className="h-3.5 w-3.5" />
+            Phase 10 Smoke Test
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-3 pb-3 space-y-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs w-full border-amber-400 dark:border-amber-600"
+            onClick={runTests}
+            disabled={running}
+          >
+            {running ? "Running…" : "Run Phase 10 Smoke Test"}
+          </Button>
+          {results.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[11px] w-full text-muted-foreground"
+              onClick={() => setModalOpen(true)}
+            >
+              View Results ({passed}✅ {failed > 0 ? `${failed}❌` : ""})
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <FlaskConical className="h-4 w-4 text-amber-500" />
+              Phase 10 Smoke Test Results
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {passed}/{results.length} checks passed
+              {failed > 0 && ` · ${failed} failed`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1 max-h-[60vh] overflow-y-auto pr-1">
             {results.map((r, i) => (
-              <div key={i}>
-                <div className={r.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}>
-                  {r.ok ? "✅" : "❌"} {r.name}
-                </div>
-                {r.detail && (
-                  <div className="ml-5 text-[10px] text-muted-foreground break-all">
-                    {r.detail}
-                  </div>
+              <div key={i} className="flex items-start gap-2 py-1">
+                {r.ok ? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-green-600 dark:text-green-400" />
+                ) : (
+                  <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
                 )}
+                <div className="min-w-0">
+                  <div className="text-xs font-medium">{r.name}</div>
+                  {r.detail && (
+                    <pre className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap break-all font-mono bg-muted/50 rounded px-1.5 py-1">
+                      {r.detail}
+                    </pre>
+                  )}
+                </div>
               </div>
             ))}
-            <div className="pt-1 border-t border-border/50 font-semibold">
-              {results.filter((r) => r.ok).length}/{results.length} passed
-            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <DialogFooter>
+            <Button size="sm" variant="outline" onClick={() => setModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
