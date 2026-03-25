@@ -43,6 +43,10 @@ export interface SystemPatchOptions {
   evidence?: Record<string, AIFieldEvidence>;
 }
 
+interface ClearDraftOptions {
+  preserveSelection?: boolean;
+}
+
 /** Collision returned by applySystemPatch */
 export interface SystemPatchCollision {
   fieldName: string;
@@ -111,7 +115,7 @@ interface TransactionContextValue {
   cancelGradeOverwrite: () => void;
   
   updateField: (fieldName: string, value: unknown) => void;
-  clearDraft: () => void;
+  clearDraft: (options?: ClearDraftOptions) => void;
   reviewProposal: () => void;
   backToEdit: () => void;
   commitProposal: () => Promise<boolean>;
@@ -463,7 +467,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     [candidate, touchedFields, aiProposedFields, getLookupMap, activePass]
   );
 
-  const clearDraft = useCallback(() => {
+  const clearDraft = useCallback((options?: ClearDraftOptions) => {
+    const preserveSelection = options?.preserveSelection === true && isSlotMode && selectedSlotNum !== null;
+
     setCandidate(emptyCandidate(gameId));
     setTouchedFields(new Set());
     setPredictedFields(new Set());
@@ -472,10 +478,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAdjustments([]);
     setInlineErrors({});
     setCommitErrors({});
-    setState(gameId ? (isSlotMode ? "idle" : "candidate") : "idle");
+    setState(gameId ? (preserveSelection ? "candidate" : isSlotMode ? "idle" : "candidate") : "idle");
     setExistingPlay(null);
     setPendingNormalized(null);
-    setSelectedSlotNum(null);
+    if (!preserveSelection) {
+      setSelectedSlotNum(null);
+    }
     setScaffoldedWarning(null);
     setPatContext(false);
     setPatTryPending(false);
@@ -484,7 +492,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
-  }, [gameId, isSlotMode]);
+  }, [gameId, isSlotMode, selectedSlotNum]);
 
   const reviewProposal = useCallback(() => {
     if (configMode) {
