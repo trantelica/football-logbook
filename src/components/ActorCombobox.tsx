@@ -35,6 +35,7 @@ export function ActorCombobox({
   inputClassName,
   error,
   committedDot,
+  provenanceBadge,
 }: ActorComboboxProps) {
   const [open, setOpen] = useState(false);
   const [addingName, setAddingName] = useState(false);
