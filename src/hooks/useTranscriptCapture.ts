@@ -1,5 +1,5 @@
 /**
- * useTranscriptCapture — Isolated transcript buffer for voice/typed input.
+ * useTranscriptCapture — Editable transcript buffer for voice/typed input.
  *
  * This hook manages speech recognition and a typed-fallback transcript buffer.
  * It is intentionally separated from the raw-input pipeline:
@@ -8,7 +8,8 @@
  *   - Does NOT invoke applySystemPatch
  *   - Does NOT affect committed rows or proposal state
  *
- * Transcript lines are held in local React state only.
+ * The transcript is an editable working draft. Parsing is triggered
+ * explicitly via a separate Parse action (not managed here).
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -42,32 +43,32 @@ function getSpeechRecognition(): (new () => SpeechRecognitionInstance) | null {
 }
 
 export interface TranscriptCaptureState {
-  /** Finalized transcript lines */
-  lines: string[];
+  /** The editable working transcript text */
+  text: string;
   /** In-progress interim text from speech recognition */
   interim: string;
   /** Whether the mic is actively listening */
   listening: boolean;
   /** Whether the Web Speech API is available */
   supported: boolean;
-  /** Full transcript as a single string */
-  fullText: string;
   /** Whether there is any captured content */
   hasContent: boolean;
+  /** Update the working transcript text (editable) */
+  setText: (text: string) => void;
+  /** Append text (from speech finalization or typed submit) */
+  appendText: (addition: string) => void;
   /** Start speech recognition */
   startListening: () => void;
   /** Stop speech recognition */
   stopListening: () => void;
   /** Toggle listening on/off */
   toggleListening: () => void;
-  /** Clear all captured transcript lines and interim */
+  /** Clear all captured transcript */
   clear: () => void;
-  /** Append a line from typed fallback input */
-  appendLine: (text: string) => void;
 }
 
 export function useTranscriptCapture(): TranscriptCaptureState {
-  const [lines, setLines] = useState<string[]>([]);
+  const [text, setText] = useState("");
   const [interim, setInterim] = useState("");
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
@@ -79,17 +80,20 @@ export function useTranscriptCapture(): TranscriptCaptureState {
   }, []);
 
   const clear = useCallback(() => {
-    setLines([]);
+    setText("");
     setInterim("");
   }, []);
 
-  const appendLine = useCallback((text: string) => {
-    const trimmed = text.trim();
-    if (trimmed) setLines((prev) => [...prev, trimmed]);
+  const appendText = useCallback((addition: string) => {
+    const trimmed = addition.trim();
+    if (!trimmed) return;
+    setText((prev) => {
+      if (!prev.trim()) return trimmed;
+      return prev.trimEnd() + "\n" + trimmed;
+    });
   }, []);
 
   const startListening = useCallback(() => {
-    // Guard: prevent duplicate sessions
     if (recognitionRef.current) return;
 
     const SpeechRec = getSpeechRecognition();
@@ -109,7 +113,13 @@ export function useTranscriptCapture(): TranscriptCaptureState {
         const result = event.results[i];
         const transcript = result[0].transcript;
         if (result.isFinal) {
-          setLines((prev) => [...prev, transcript.trim()]);
+          const trimmed = transcript.trim();
+          if (trimmed) {
+            setText((prev) => {
+              if (!prev.trim()) return trimmed;
+              return prev.trimEnd() + "\n" + trimmed;
+            });
+          }
           setInterim("");
         } else {
           interimText += transcript;
@@ -121,7 +131,6 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.warn("[TranscriptCapture] SpeechRecognition error:", event.error);
       if (event.error === "not-allowed") {
-        // Mic permission denied — degrade gracefully to typed-only
         recognitionRef.current = null;
         setListening(false);
         setSupported(false);
@@ -134,7 +143,6 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     };
 
     recognition.onend = () => {
-      // Auto-restart if still in listening mode
       if (recognitionRef.current === recognition) {
         try {
           recognition.start();
@@ -150,7 +158,6 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       recognition.start();
       setListening(true);
     } catch {
-      // start() can throw if permissions blocked synchronously
       recognitionRef.current = null;
       setListening(false);
       setSupported(false);
@@ -165,10 +172,13 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       recognition.abort();
     }
     setListening(false);
-    // Flush remaining interim to lines
+    // Flush remaining interim to text
     setInterim((prev) => {
       if (prev.trim()) {
-        setLines((l) => [...l, prev.trim()]);
+        setText((t) => {
+          if (!t.trim()) return prev.trim();
+          return t.trimEnd() + "\n" + prev.trim();
+        });
       }
       return "";
     });
@@ -179,20 +189,19 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     else startListening();
   }, [listening, startListening, stopListening]);
 
-  const fullText = lines.join(" ");
-  const hasContent = lines.length > 0 || interim.length > 0;
+  const hasContent = text.trim().length > 0 || interim.length > 0;
 
   return {
-    lines,
+    text,
     interim,
     listening,
     supported,
-    fullText,
     hasContent,
+    setText,
+    appendText,
     startListening,
     stopListening,
     toggleListening,
     clear,
-    appendLine,
   };
 }
