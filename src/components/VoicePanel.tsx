@@ -39,6 +39,8 @@ interface VoicePanelProps {
   /** Ref to allow parent to call clearTranscript on commit */
   clearRef: React.MutableRefObject<(() => void) | null>;
   disabled?: boolean;
+  /** Called when coach clicks "Parse transcript" with the full transcript text */
+  onParse?: (transcriptText: string) => void;
 }
 
 export function VoicePanel({ clearRef, disabled }: VoicePanelProps) {
