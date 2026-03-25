@@ -760,7 +760,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
       )}
 
       {/* Dev-only AI Patch test buttons */}
-      {import.meta.env.DEV && activePass >= 1 && selectedSlotNum !== null && (
+      {isDevMode() && activePass >= 1 && selectedSlotNum !== null && (
         <div className="mb-3 rounded-lg border border-dashed border-sky-400/50 p-3 space-y-2 bg-sky-50/30 dark:bg-sky-950/20">
           <span className="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-semibold">Dev: AI Patch Testing</span>
           <div className="flex flex-wrap gap-2">

@@ -135,7 +135,7 @@ export function Phase10SmokeTest() {
     }
   }, []);
 
-  if (!import.meta.env.DEV) return null;
+  if (!isDevMode()) return null;
 
   if (txnRef.current.selectedSlotNum === null) {
     return (
