@@ -654,8 +654,11 @@ export function DraftPanel() {
 
   const handleCommitAndNext = async () => {
     const result = await commitAndNext();
-    if (result.committed && !result.hasNext) {
-      toast("End of filtered list.");
+    if (result.committed) {
+      voiceClearRef.current?.();
+      if (!result.hasNext) {
+        toast("End of filtered list.");
+      }
     }
   };
 
