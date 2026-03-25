@@ -21,6 +21,7 @@ interface ActorComboboxProps {
   inputClassName: string;
   error?: string;
   committedDot?: React.ReactNode;
+  provenanceBadge?: React.ReactNode;
 }
 
 export function ActorCombobox({
