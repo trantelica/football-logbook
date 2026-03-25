@@ -752,6 +752,18 @@ export function DraftPanel() {
       toast.warning(`Parse issues: ${msgs.join("; ")}`);
     }
 
+    // Filter out derived/calculated fields — only allow coach-observed fields
+    const ALLOWED_VOICE_FIELDS = new Set([
+      "dn", "dist", "yardLn", "hash", "qtr", "odk", "series",
+      "offForm", "offPlay", "motion", "result", "gainLoss",
+      "penalty", "penYards", "rusher", "passer", "receiver", "returner", "twoMin",
+    ]);
+    for (const key of Object.keys(result.patch)) {
+      if (!ALLOWED_VOICE_FIELDS.has(key)) {
+        delete result.patch[key];
+      }
+    }
+
     if (Object.keys(result.patch).length === 0) {
       toast("No anchors recognized in transcript.");
       return;
