@@ -86,6 +86,7 @@ export function ActorCombobox({
     <div ref={wrapperRef} className="relative">
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
         {committedDot}
+        {provenanceBadge}
         {fieldLabel}
         {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
       </Label>
