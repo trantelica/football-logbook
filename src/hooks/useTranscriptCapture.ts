@@ -89,6 +89,9 @@ export function useTranscriptCapture(): TranscriptCaptureState {
   }, []);
 
   const startListening = useCallback(() => {
+    // Guard: prevent duplicate sessions
+    if (recognitionRef.current) return;
+
     const SpeechRec = getSpeechRecognition();
     if (!SpeechRec) {
       setSupported(false);
@@ -117,7 +120,15 @@ export function useTranscriptCapture(): TranscriptCaptureState {
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.warn("[TranscriptCapture] SpeechRecognition error:", event.error);
+      if (event.error === "not-allowed") {
+        // Mic permission denied — degrade gracefully to typed-only
+        recognitionRef.current = null;
+        setListening(false);
+        setSupported(false);
+        return;
+      }
       if (event.error !== "no-speech" && event.error !== "aborted") {
+        recognitionRef.current = null;
         setListening(false);
       }
     };
@@ -128,14 +139,22 @@ export function useTranscriptCapture(): TranscriptCaptureState {
         try {
           recognition.start();
         } catch {
+          recognitionRef.current = null;
           setListening(false);
         }
       }
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      // start() can throw if permissions blocked synchronously
+      recognitionRef.current = null;
+      setListening(false);
+      setSupported(false);
+    }
   }, []);
 
   const stopListening = useCallback(() => {
