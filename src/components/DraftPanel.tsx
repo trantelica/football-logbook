@@ -328,6 +328,19 @@ export function DraftPanel() {
           </Tooltip>
         </TooltipProvider>
       )}
+      {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+                <ArrowRightLeft className="h-2.5 w-2.5" />
+                CF
+              </span>
+            </TooltipTrigger>
+            <TooltipContent><p>Carried forward from play {carriedForwardFromPlayNum ?? "?"}. Editable.</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       {isAiProposed(fieldName) && (
         <TooltipProvider>
           <Tooltip>
