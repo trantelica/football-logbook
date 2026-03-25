@@ -60,6 +60,7 @@ const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
 export function DraftPanel() {
   const { activeGame } = useGameContext();
   const { activeSeason } = useSeason();
+  const voiceClearRef = React.useRef<(() => void) | null>(null);
   const {
     state,
     candidate,
