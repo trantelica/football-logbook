@@ -204,7 +204,7 @@ export function TranscriptPanel() {
 
       {/* Parse status indicators */}
       {isDirtyAfterParse && (
-        <div className="flex items-center gap-1 text-[10px] text-amber-500 dark:text-amber-400">
+        <div className="flex items-center gap-1 text-[10px] text-destructive">
           <AlertTriangle className="h-3 w-3" />
           Transcript changed since last parse. Press Parse to re-parse.
         </div>
