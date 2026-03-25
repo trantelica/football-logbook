@@ -92,7 +92,7 @@ export function Phase10SmokeTest() {
 
     // A) clearDraft
     txnRef.current.clearDraftPreservingSelection();
-    await nextTick();
+    await sleep(0);
 
     // B) Safe AI patch
     const safeCollisions = txnRef.current.applySystemPatch(
@@ -107,23 +107,33 @@ export function Phase10SmokeTest() {
       }
     );
     assert(safeCollisions.length === 0, "B0", "Safe patch returns no collisions");
-    await nextTick();
+
+    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("dn"), "B1 wait dn");
+    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("dist"), "B2 wait dist");
+    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("yardLn"), "B3 wait yardLn");
+    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("rusher"), "B4 wait rusher");
 
     assert(txnRef.current.aiProposedFields.has("dn"), "B1", "aiProposedFields contains dn");
     assert(txnRef.current.aiProposedFields.has("dist"), "B2", "aiProposedFields contains dist");
     assert(txnRef.current.aiProposedFields.has("yardLn"), "B3", "aiProposedFields contains yardLn");
     assert(txnRef.current.aiProposedFields.has("rusher"), "B4", "aiProposedFields contains rusher");
+    await sleep(0);
     assert(txnRef.current.touchedFields.size === 0, "B5", "touchedFields still empty after AI patch");
 
     // C) Promote AI→touched
     txnRef.current.updateField("dist", "9");
-    await nextTick();
+    await waitFor(txnRef, () => !txnRef.current.aiProposedFields.has("dist"), "C1 wait dist removed from ai");
+    await waitFor(txnRef, () => txnRef.current.touchedFields.has("dist"), "C2 wait dist touched");
     assert(!txnRef.current.aiProposedFields.has("dist"), "C1", "dist removed from aiProposedFields after edit");
     assert(txnRef.current.touchedFields.has("dist"), "C2", "dist added to touchedFields after edit");
 
     // D) Collision detection
     txnRef.current.updateField("dist", "10");
-    await nextTick();
+    await waitFor(
+      txnRef,
+      () => txnRef.current.touchedFields.has("dist") && String((txnRef.current.candidate as any).dist) === "10",
+      "D0 wait dist=10"
+    );
     const collisionResult = txnRef.current.applySystemPatch(
       { dist: "7" },
       { fillOnly: true, evidence: { dist: { snippet: "7 yards" } } }
@@ -135,17 +145,17 @@ export function Phase10SmokeTest() {
       { offForm: "Purple" },
       { evidence: { offForm: { snippet: "formation Purple" } } }
     );
-    await nextTick();
+    await waitFor(txnRef, () => txnRef.current.lookupInterruptPending != null, "E1 wait lookup interrupt");
     assert(txnRef.current.lookupInterruptPending != null, "E1", "lookupInterruptPending set for unknown governed value");
     txnRef.current.clearLookupInterrupt();
-    await nextTick();
+    await waitFor(txnRef, () => txnRef.current.lookupInterruptPending == null, "E2 wait clear");
     assert(txnRef.current.lookupInterruptPending == null, "E2", "lookupInterruptPending cleared after dismiss");
 
     // F) Union validation blocks bad enum
     txnRef.current.applySystemPatch({ result: "NotARealEnum" });
-    await nextTick();
+    await sleep(50);
     txnRef.current.reviewProposal();
-    await nextTick();
+    await sleep(50);
     const hasErrors = Object.keys(txnRef.current.inlineErrors).length > 0;
     const notProposal = txnRef.current.state !== "proposal";
     assert(hasErrors || notProposal, "F1", "Bad enum value blocks proposal / produces validation error");
