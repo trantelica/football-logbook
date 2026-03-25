@@ -79,7 +79,7 @@ export function Phase10SmokeTest() {
     };
 
     // A) clearDraft
-    txnRef.current.clearDraft();
+    txnRef.current.clearDraftPreservingSelection();
     await nextTick();
 
     // B) Safe AI patch

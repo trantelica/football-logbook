@@ -112,6 +112,7 @@ interface TransactionContextValue {
   
   updateField: (fieldName: string, value: unknown) => void;
   clearDraft: () => void;
+  clearDraftPreservingSelection: () => void;
   reviewProposal: () => void;
   backToEdit: () => void;
   commitProposal: () => Promise<boolean>;
@@ -485,6 +486,33 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
   }, [gameId, isSlotMode]);
+
+  const clearDraftPreservingSelection = useCallback(() => {
+    if (!(isSlotMode && selectedSlotNum !== null)) {
+      clearDraft();
+      return;
+    }
+
+    setCandidate(emptyCandidate(gameId));
+    setTouchedFields(new Set());
+    setPredictedFields(new Set());
+    setPredictionExplanations([]);
+    setPredictionCoachMessages([]);
+    setAdjustments([]);
+    setInlineErrors({});
+    setCommitErrors({});
+    setState(gameId ? "candidate" : "idle");
+    setExistingPlay(null);
+    setPendingNormalized(null);
+    setScaffoldedWarning(null);
+    setPatContext(false);
+    setPatTryPending(false);
+    setPatLockedTry(null);
+    setCarriedForwardFields(new Set());
+    setCarriedForwardFromPlayNum(null);
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
+  }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
   const reviewProposal = useCallback(() => {
     if (configMode) {
@@ -1403,6 +1431,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         setOdkFilter,
         updateField,
         clearDraft,
+        clearDraftPreservingSelection,
         reviewProposal,
         backToEdit,
         commitProposal,
