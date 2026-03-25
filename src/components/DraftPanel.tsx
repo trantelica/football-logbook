@@ -102,6 +102,7 @@ export function DraftPanel() {
     confirmPossessionOffense,
     cancelPossessionCheck,
     carriedForwardFields,
+    carriedForwardFromPlayNum,
     gradeOverwriteDiffs,
     confirmGradeOverwrite,
     cancelGradeOverwrite,
