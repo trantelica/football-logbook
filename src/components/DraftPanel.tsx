@@ -741,7 +741,8 @@ export function DraftPanel() {
       toast("No transcript to parse.");
       return;
     }
-    const result = parseRawInput(transcriptText.trim());
+    const normalized = normalizeTranscriptForParse(transcriptText.trim());
+    const result = parseRawInput(normalized);
 
     // Report unrecognized/ambiguous
     const issues = result.report.filter((r) => r.status !== "matched");
