@@ -3,6 +3,7 @@
  * Renders nothing in production builds.
  */
 import React, { useState, useCallback, useRef } from "react";
+import { isDevMode } from "@/engine/devMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
