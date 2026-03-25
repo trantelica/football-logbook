@@ -706,7 +706,7 @@ export function DraftPanel() {
       {stageSelector}
 
       {/* Phase 10: Dev-only smoke test harness */}
-      {import.meta.env.DEV && <Phase10SmokeTest />}
+      {isDevMode() && <Phase10SmokeTest />}
 
       {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
