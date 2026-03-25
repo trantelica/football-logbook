@@ -5,7 +5,7 @@
  */
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Trash2 } from "lucide-react";
+import { Mic, MicOff, Trash2, Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Extend Window for webkitSpeechRecognition
