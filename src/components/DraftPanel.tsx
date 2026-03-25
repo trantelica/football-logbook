@@ -746,7 +746,7 @@ export function DraftPanel() {
       {/* Voice Transcription Panel — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
         <div className="mb-3">
-          <VoicePanel clearRef={voiceClearRef} disabled={isProposal} />
+          <VoicePanel clearRef={voiceClearRef} disabled={isProposal} onParse={handleVoiceParse} />
         </div>
       )}
 
