@@ -3,6 +3,7 @@
  * Renders nothing in production builds.
  */
 import React, { useState, useCallback, useRef } from "react";
+import { isDevMode } from "@/engine/devMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -123,18 +124,25 @@ export function Phase10SmokeTest() {
     setModalOpen(true);
 
     const passed = out.filter((r) => r.ok).length;
+    const failed = out.filter((r) => !r.ok);
     const total = out.length;
-    const summary = { passed, total, results: out };
-    console.log("[Phase10SmokeTest]", summary);
+    console.log("[Phase10SmokeTest]", { passed, total, results: out });
 
-    if (passed === total) {
-      toast.success(`Phase 10 Smoke Test: ${passed}/${total} PASSED`);
+    if (failed.length > 0) {
+      console.group("[Phase10SmokeTest] FAILURES");
+      failed.forEach((f) => {
+        console.error(`❌ ${f.name}`, f.detail ?? "");
+      });
+      console.groupEnd();
+
+      const failNames = failed.map((f) => f.name).join(", ");
+      toast.error(`Smoke Test: ${passed}/${total} passed. Failed: ${failNames}`, { duration: 10000 });
     } else {
-      toast.error(`Phase 10 Smoke Test: ${passed}/${total} passed, ${total - passed} FAILED`);
+      toast.success(`Smoke Test: ${passed}/${total} PASSED`);
     }
   }, []);
 
-  if (!import.meta.env.DEV) return null;
+  if (!isDevMode()) return null;
 
   if (txnRef.current.selectedSlotNum === null) {
     return (
