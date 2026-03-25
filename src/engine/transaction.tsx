@@ -43,10 +43,6 @@ export interface SystemPatchOptions {
   evidence?: Record<string, AIFieldEvidence>;
 }
 
-interface ClearDraftOptions {
-  preserveSelection?: boolean;
-}
-
 /** Collision returned by applySystemPatch */
 export interface SystemPatchCollision {
   fieldName: string;
@@ -115,7 +111,8 @@ interface TransactionContextValue {
   cancelGradeOverwrite: () => void;
   
   updateField: (fieldName: string, value: unknown) => void;
-  clearDraft: (options?: ClearDraftOptions) => void;
+  clearDraft: () => void;
+  clearDraftPreservingSelection: () => void;
   reviewProposal: () => void;
   backToEdit: () => void;
   commitProposal: () => Promise<boolean>;
@@ -467,8 +464,34 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     [candidate, touchedFields, aiProposedFields, getLookupMap, activePass]
   );
 
-  const clearDraft = useCallback((options?: ClearDraftOptions) => {
-    const preserveSelection = options?.preserveSelection === true && isSlotMode && selectedSlotNum !== null;
+  const clearDraft = useCallback(() => {
+    setCandidate(emptyCandidate(gameId));
+    setTouchedFields(new Set());
+    setPredictedFields(new Set());
+    setPredictionExplanations([]);
+    setPredictionCoachMessages([]);
+    setAdjustments([]);
+    setInlineErrors({});
+    setCommitErrors({});
+    setState(gameId ? (isSlotMode ? "idle" : "candidate") : "idle");
+    setExistingPlay(null);
+    setPendingNormalized(null);
+    setSelectedSlotNum(null);
+    setScaffoldedWarning(null);
+    setPatContext(false);
+    setPatTryPending(false);
+    setPatLockedTry(null);
+    setCarriedForwardFields(new Set());
+    setCarriedForwardFromPlayNum(null);
+    setAiProposedFields(new Set());
+    setAiEvidenceByField({});
+  }, [gameId, isSlotMode]);
+
+  const clearDraftPreservingSelection = useCallback(() => {
+    if (!(isSlotMode && selectedSlotNum !== null)) {
+      clearDraft();
+      return;
+    }
 
     setCandidate(emptyCandidate(gameId));
     setTouchedFields(new Set());
@@ -478,12 +501,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAdjustments([]);
     setInlineErrors({});
     setCommitErrors({});
-    setState(gameId ? (preserveSelection ? "candidate" : isSlotMode ? "idle" : "candidate") : "idle");
+    setState(gameId ? "candidate" : "idle");
     setExistingPlay(null);
     setPendingNormalized(null);
-    if (!preserveSelection) {
-      setSelectedSlotNum(null);
-    }
     setScaffoldedWarning(null);
     setPatContext(false);
     setPatTryPending(false);
@@ -492,7 +512,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
-  }, [gameId, isSlotMode, selectedSlotNum]);
+  }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
   const reviewProposal = useCallback(() => {
     if (configMode) {
@@ -1411,6 +1431,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         setOdkFilter,
         updateField,
         clearDraft,
+        clearDraftPreservingSelection,
         reviewProposal,
         backToEdit,
         commitProposal,
