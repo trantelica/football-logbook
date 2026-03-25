@@ -23,7 +23,7 @@ import { useSeason } from "@/engine/seasonContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
 import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot, ArrowRightLeft } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
@@ -102,6 +102,7 @@ export function DraftPanel() {
     confirmPossessionOffense,
     cancelPossessionCheck,
     carriedForwardFields,
+    carriedForwardFromPlayNum,
     gradeOverwriteDiffs,
     confirmGradeOverwrite,
     cancelGradeOverwrite,
@@ -325,6 +326,19 @@ export function DraftPanel() {
               </span>
             </TooltipTrigger>
             <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+                <ArrowRightLeft className="h-2.5 w-2.5" />
+                CF
+              </span>
+            </TooltipTrigger>
+            <TooltipContent><p>Carried forward from play {carriedForwardFromPlayNum ?? "?"}. Editable.</p></TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
