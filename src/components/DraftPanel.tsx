@@ -742,6 +742,13 @@ export function DraftPanel() {
       {/* Phase 10: Dev-only smoke test harness */}
       {isDevMode() && <Phase10SmokeTest />}
 
+      {/* Voice Transcription Panel — visible in Pass 1+ with a slot selected */}
+      {activePass >= 1 && selectedSlotNum !== null && (
+        <div className="mb-3">
+          <VoicePanel clearRef={voiceClearRef} disabled={isProposal} />
+        </div>
+      )}
+
       {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
         <Collapsible open={rawInputOpen} onOpenChange={setRawInputOpen} className="mb-3">
