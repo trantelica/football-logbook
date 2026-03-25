@@ -704,6 +704,9 @@ export function DraftPanel() {
     <>
       {stageSelector}
 
+      {/* Phase 10: Dev-only smoke test harness */}
+      {import.meta.env.DEV && <Phase10SmokeTest />}
+
       {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
         <Collapsible open={rawInputOpen} onOpenChange={setRawInputOpen} className="mb-3">
@@ -848,8 +851,6 @@ PENALTY O-Holding EFF Y 2MIN N`}
         </div>
       )}
 
-      {/* Phase 10: Dev-only smoke test harness */}
-      {import.meta.env.DEV && <Phase10SmokeTest />}
 
       {/* Coach Notes — visible on all passes, independent of transaction */}
       {selectedSlotNum !== null && (
