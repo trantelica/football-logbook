@@ -5,7 +5,7 @@
  */
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, Trash2 } from "lucide-react";
+import { Mic, MicOff, Trash2, Terminal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Extend Window for webkitSpeechRecognition
@@ -39,9 +39,11 @@ interface VoicePanelProps {
   /** Ref to allow parent to call clearTranscript on commit */
   clearRef: React.MutableRefObject<(() => void) | null>;
   disabled?: boolean;
+  /** Called when coach clicks "Parse transcript" with the full transcript text */
+  onParse?: (transcriptText: string) => void;
 }
 
-export function VoicePanel({ clearRef, disabled }: VoicePanelProps) {
+export function VoicePanel({ clearRef, disabled, onParse }: VoicePanelProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [interim, setInterim] = useState("");
   const [listening, setListening] = useState(false);
@@ -194,15 +196,29 @@ export function VoicePanel({ clearRef, disabled }: VoicePanelProps) {
           )}
         </div>
         {hasContent && !listening && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 text-[10px] gap-1 text-muted-foreground"
-            onClick={clearTranscript}
-          >
-            <Trash2 className="h-2.5 w-2.5" />
-            Clear
-          </Button>
+          <div className="flex items-center gap-1">
+            {onParse && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[10px] gap-1"
+                onClick={() => onParse(lines.join(" "))}
+                disabled={disabled}
+              >
+                <Terminal className="h-2.5 w-2.5" />
+                Parse transcript
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[10px] gap-1 text-muted-foreground"
+              onClick={clearTranscript}
+            >
+              <Trash2 className="h-2.5 w-2.5" />
+              Clear
+            </Button>
+          </div>
         )}
       </div>
 

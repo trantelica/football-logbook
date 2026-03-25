@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
 import { VoicePanel } from "./VoicePanel";
+import { parseRawInput } from "@/engine/rawInputParser";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -735,6 +736,78 @@ export function DraftPanel() {
     setRawInputText("");
   };
 
+  const handleVoiceParse = (transcriptText: string) => {
+    if (!transcriptText.trim()) {
+      toast("No transcript to parse.");
+      return;
+    }
+    const result = parseRawInput(transcriptText.trim());
+
+    // Report unrecognized/ambiguous
+    const issues = result.report.filter((r) => r.status !== "matched");
+    if (issues.length > 0) {
+      const msgs = issues.map((i) => `${i.anchor}: ${i.status} ("${i.rawValue}")`);
+      toast.warning(`Parse issues: ${msgs.join("; ")}`);
+    }
+
+    if (Object.keys(result.patch).length === 0) {
+      toast("No anchors recognized in transcript.");
+      return;
+    }
+
+    // Build evidence from transcript snippet per field
+    const evidence: Record<string, { snippet: string }> = {};
+    for (const entry of result.report) {
+      if (entry.status === "matched" && entry.matchedValue !== undefined) {
+        const fieldName = Object.entries(result.patch).find(
+          ([, v]) => String(v) === entry.matchedValue
+        )?.[0];
+        if (fieldName) {
+          evidence[fieldName] = { snippet: transcriptText.slice(0, 40) };
+        }
+      }
+    }
+
+    // Detect collisions
+    const collisions: Collision[] = [];
+    let nonCollisionCount = 0;
+    const safePatch: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(result.patch)) {
+      const current = (candidate as Record<string, unknown>)[key];
+      const hasExisting = current !== null && current !== undefined && current !== "";
+      if (hasExisting && String(current) !== String(val)) {
+        collisions.push({ fieldName: key, currentValue: current, proposedValue: val });
+      } else {
+        safePatch[key] = val;
+        nonCollisionCount++;
+      }
+    }
+
+    // Apply non-colliding fields via applySystemPatch
+    if (Object.keys(safePatch).length > 0) {
+      const safeEvidence: Record<string, { snippet: string }> = {};
+      for (const key of Object.keys(safePatch)) {
+        if (evidence[key]) safeEvidence[key] = evidence[key];
+      }
+      applySystemPatch(safePatch, { evidence: safeEvidence });
+    }
+
+    if (collisions.length > 0) {
+      setAiCollisionState({
+        collisions: collisions.map((c) => ({
+          fieldName: c.fieldName,
+          currentValue: c.currentValue,
+          proposedValue: c.proposedValue,
+        })),
+        nonCollisionCount,
+        evidence,
+      });
+      toast.info(`${nonCollisionCount} field(s) applied, ${collisions.length} collision(s) need review.`);
+    } else {
+      toast.success(`Applied ${nonCollisionCount} field(s) from transcript`);
+    }
+  };
+
   return (
     <>
       {stageSelector}
@@ -745,7 +818,7 @@ export function DraftPanel() {
       {/* Voice Transcription Panel — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
         <div className="mb-3">
-          <VoicePanel clearRef={voiceClearRef} disabled={isProposal} />
+          <VoicePanel clearRef={voiceClearRef} disabled={isProposal} onParse={handleVoiceParse} />
         </div>
       )}
 
