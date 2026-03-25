@@ -38,6 +38,7 @@ import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
+import { VoicePanel } from "./VoicePanel";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -59,6 +60,7 @@ const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
 export function DraftPanel() {
   const { activeGame } = useGameContext();
   const { activeSeason } = useSeason();
+  const voiceClearRef = React.useRef<(() => void) | null>(null);
   const {
     state,
     candidate,
@@ -652,8 +654,11 @@ export function DraftPanel() {
 
   const handleCommitAndNext = async () => {
     const result = await commitAndNext();
-    if (result.committed && !result.hasNext) {
-      toast("End of filtered list.");
+    if (result.committed) {
+      voiceClearRef.current?.();
+      if (!result.hasNext) {
+        toast("End of filtered list.");
+      }
     }
   };
 
@@ -736,6 +741,13 @@ export function DraftPanel() {
 
       {/* Phase 10: Dev-only smoke test harness */}
       {isDevMode() && <Phase10SmokeTest />}
+
+      {/* Voice Transcription Panel — visible in Pass 1+ with a slot selected */}
+      {activePass >= 1 && selectedSlotNum !== null && (
+        <div className="mb-3">
+          <VoicePanel clearRef={voiceClearRef} disabled={isProposal} />
+        </div>
+      )}
 
       {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
@@ -1048,7 +1060,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
               <Button
                 size="sm"
                 className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                onClick={commitProposal}
+                onClick={() => { commitProposal(); voiceClearRef.current?.(); }}
               >
                 <Check className="h-3.5 w-3.5" />
                 Commit
