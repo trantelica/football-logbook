@@ -43,7 +43,7 @@ interface VoicePanelProps {
   onParse?: (transcriptText: string) => void;
 }
 
-export function VoicePanel({ clearRef, disabled }: VoicePanelProps) {
+export function VoicePanel({ clearRef, disabled, onParse }: VoicePanelProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [interim, setInterim] = useState("");
   const [listening, setListening] = useState(false);
