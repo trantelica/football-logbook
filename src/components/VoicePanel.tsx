@@ -196,15 +196,29 @@ export function VoicePanel({ clearRef, disabled, onParse }: VoicePanelProps) {
           )}
         </div>
         {hasContent && !listening && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 text-[10px] gap-1 text-muted-foreground"
-            onClick={clearTranscript}
-          >
-            <Trash2 className="h-2.5 w-2.5" />
-            Clear
-          </Button>
+          <div className="flex items-center gap-1">
+            {onParse && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[10px] gap-1"
+                onClick={() => onParse(lines.join(" "))}
+                disabled={disabled}
+              >
+                <Terminal className="h-2.5 w-2.5" />
+                Parse transcript
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[10px] gap-1 text-muted-foreground"
+              onClick={clearTranscript}
+            >
+              <Trash2 className="h-2.5 w-2.5" />
+              Clear
+            </Button>
+          </div>
         )}
       </div>
 
