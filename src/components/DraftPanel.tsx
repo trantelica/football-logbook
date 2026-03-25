@@ -1050,7 +1050,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
               <Button
                 size="sm"
                 className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                onClick={commitProposal}
+                onClick={() => { commitProposal(); voiceClearRef.current?.(); }}
               >
                 <Check className="h-3.5 w-3.5" />
                 Commit
