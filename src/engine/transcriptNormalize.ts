@@ -30,7 +30,7 @@ export function normalizeTranscriptForParse(s: string): string {
   t = t.replace(/\bslash\b/gi, "/");
 
   // Normalize GN/LS variants: "GN / LS", "GN/LS", "GN - LS"
-  t = t.replace(/\bGN\s*[\/\-]\s*LS\b/gi, "GN/LS");
+  t = t.replace(/\bGN\s*[/-]\s*LS\b/gi, "GN/LS");
 
   // Convert number words to digits (0-20)
   t = t.replace(NUMBER_WORD_RE, (m) => NUMBER_WORDS[m.toLowerCase()]);

@@ -40,6 +40,7 @@ import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
 import { VoicePanel } from "./VoicePanel";
 import { parseRawInput } from "@/engine/rawInputParser";
+import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
