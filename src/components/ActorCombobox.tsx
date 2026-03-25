@@ -21,6 +21,7 @@ interface ActorComboboxProps {
   inputClassName: string;
   error?: string;
   committedDot?: React.ReactNode;
+  provenanceBadge?: React.ReactNode;
 }
 
 export function ActorCombobox({
@@ -34,6 +35,7 @@ export function ActorCombobox({
   inputClassName,
   error,
   committedDot,
+  provenanceBadge,
 }: ActorComboboxProps) {
   const [open, setOpen] = useState(false);
   const [addingName, setAddingName] = useState(false);
@@ -84,6 +86,7 @@ export function ActorCombobox({
     <div ref={wrapperRef} className="relative">
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
         {committedDot}
+        {provenanceBadge}
         {fieldLabel}
         {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
       </Label>
