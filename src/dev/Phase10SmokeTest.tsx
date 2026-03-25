@@ -35,8 +35,20 @@ function captureSnapshot(txn: ReturnType<typeof useTransaction>): Record<string,
   };
 }
 
-async function nextTick() {
-  await new Promise((r) => setTimeout(r, 0));
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function waitFor(
+  txnRef: React.MutableRefObject<ReturnType<typeof useTransaction>>,
+  condFn: () => boolean,
+  _label: string,
+  timeoutMs = 400
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (condFn()) return true;
+    await sleep(10);
+  }
+  return false;
 }
 
 function FailureDetail({ snapshot }: { snapshot: Record<string, unknown> }) {
