@@ -1,8 +1,16 @@
 /**
  * Football Engine — Deterministic Raw Input Parser
- * 
- * Anchor-based shorthand grammar. No inference, no synonyms, no fuzzy matching.
+ *
+ * Anchor-based shorthand grammar per Pass 1 Parser Scaffold.
+ * No inference, no synonyms, no fuzzy matching.
  * Exact case-insensitive matching only. Returns parse report for ambiguous/unrecognized tokens.
+ *
+ * Key design rules:
+ * - Multi-word fields (offForm, offPlay, motion) consume until a STOP anchor
+ * - Actor fields (rusher, passer, receiver) are marker-led, conservative
+ * - gainLoss supports GN/LS, GAIN, LOSS, GN, LS anchors
+ * - GAIN/LOSS/GN/LS act as stop boundaries for offPlay
+ * - No AI, no fuzzy matching
  */
 
 import { RESULT_VALUES, PENALTY_VALUES, HASH_VALUES, EFF_VALUES } from "./schema";
@@ -19,12 +27,17 @@ export interface ParseResult {
   report: ParseReportEntry[];
 }
 
-/** All recognized anchors in priority order (longer anchors first to avoid partial matches) */
+/**
+ * All recognized anchors in priority order.
+ * Longer anchors first to avoid partial matches.
+ * Includes extended markers from scaffold: GAIN, LOSS, GN, LS.
+ */
 const ANCHORS = [
   "GN/LS", "GNLS", "PENYARDS", "2MIN",
   "PENALTY", "RESULT", "MOTION", "FORM", "PLAY",
   "RECEIVER", "RUSHER", "PASSER",
   "YARD", "HASH", "DIST", "DN", "EFF",
+  "GAIN", "LOSS", "GN", "LS",
 ] as const;
 
 const ANCHOR_REGEX = new RegExp(
@@ -41,6 +54,10 @@ const ANCHOR_FIELD_MAP: Record<string, string> = {
   "RESULT": "result",
   "GN/LS": "gainLoss",
   "GNLS": "gainLoss",
+  "GN": "gainLoss",
+  "LS": "gainLossNeg",   // special: negate value
+  "GAIN": "gainLoss",
+  "LOSS": "gainLossNeg",  // special: negate value
   "FORM": "offForm",
   "PLAY": "offPlay",
   "MOTION": "motion",
@@ -62,10 +79,13 @@ const ENUM_FIELD_VALUES: Record<string, readonly string[]> = {
   result: RESULT_VALUES,
   penalty: PENALTY_VALUES,
   eff: EFF_VALUES,
-  twoMin: EFF_VALUES,
+  twoMin: ["Y", "N"],
 };
 
-/** Multi-word fields — consume all tokens until next anchor */
+/**
+ * Multi-word fields — consume all tokens until next anchor.
+ * These fields STOP at any recognized anchor boundary.
+ */
 const MULTI_WORD_FIELDS = new Set(["result", "penalty", "offForm", "offPlay", "motion"]);
 
 /**
@@ -97,22 +117,33 @@ export function parseRawInput(text: string): ParseResult {
 
     // Normalize anchor (GNLS -> GN/LS equivalent)
     const normalizedAnchor = anchor === "GNLS" ? "GN/LS" : anchor;
-    const fieldName = ANCHOR_FIELD_MAP[normalizedAnchor] ?? ANCHOR_FIELD_MAP[anchor];
+    let fieldName = ANCHOR_FIELD_MAP[normalizedAnchor] ?? ANCHOR_FIELD_MAP[anchor];
     if (!fieldName) continue;
 
+    // Handle negation anchors (LS, LOSS → gainLoss with negation)
+    const isNegating = fieldName === "gainLossNeg";
+    if (isNegating) {
+      fieldName = "gainLoss";
+    }
+
+    // Display anchor for reports
+    const reportAnchor = isNegating ? (anchor === "LS" ? "LS" : "LOSS") : normalizedAnchor;
+
     if (!rawValue) {
-      report.push({ anchor: normalizedAnchor, rawValue: "", status: "unrecognized" });
+      report.push({ anchor: reportAnchor, rawValue: "", status: "unrecognized" });
       continue;
     }
 
     // Integer fields
     if (INTEGER_FIELDS.has(fieldName)) {
-      const parsed = parseInt(rawValue.split(/\s/)[0], 10);
+      const token = rawValue.split(/\s/)[0];
+      const parsed = parseInt(token, 10);
       if (!isNaN(parsed)) {
-        patch[fieldName] = fieldName === "yardLn" || fieldName === "gainLoss" ? parsed : parsed;
-        report.push({ anchor: normalizedAnchor, rawValue, status: "matched", matchedValue: String(parsed) });
+        const finalValue = isNegating ? -Math.abs(parsed) : parsed;
+        patch[fieldName] = finalValue;
+        report.push({ anchor: reportAnchor, rawValue, status: "matched", matchedValue: String(finalValue) });
       } else {
-        report.push({ anchor: normalizedAnchor, rawValue, status: "unrecognized" });
+        report.push({ anchor: reportAnchor, rawValue, status: "unrecognized" });
       }
       continue;
     }
@@ -121,18 +152,17 @@ export function parseRawInput(text: string): ParseResult {
     const allowedValues = ENUM_FIELD_VALUES[fieldName];
     if (allowedValues) {
       const valueLower = rawValue.toLowerCase();
-      // For multi-word fields, use the full consumed segment
       if (MULTI_WORD_FIELDS.has(fieldName)) {
         const exactMatches = allowedValues.filter(
           (v) => v.toLowerCase() === valueLower
         );
         if (exactMatches.length === 1) {
           patch[fieldName] = exactMatches[0];
-          report.push({ anchor: normalizedAnchor, rawValue, status: "matched", matchedValue: exactMatches[0] });
+          report.push({ anchor: reportAnchor, rawValue, status: "matched", matchedValue: exactMatches[0] });
         } else if (exactMatches.length > 1) {
-          report.push({ anchor: normalizedAnchor, rawValue, status: "ambiguous" });
+          report.push({ anchor: reportAnchor, rawValue, status: "ambiguous" });
         } else {
-          report.push({ anchor: normalizedAnchor, rawValue, status: "unrecognized" });
+          report.push({ anchor: reportAnchor, rawValue, status: "unrecognized" });
         }
       } else {
         // Simple enum: first token only
@@ -143,26 +173,26 @@ export function parseRawInput(text: string): ParseResult {
         );
         if (exactMatches.length === 1) {
           patch[fieldName] = exactMatches[0];
-          report.push({ anchor: normalizedAnchor, rawValue: token, status: "matched", matchedValue: exactMatches[0] });
+          report.push({ anchor: reportAnchor, rawValue: token, status: "matched", matchedValue: exactMatches[0] });
         } else if (exactMatches.length > 1) {
-          report.push({ anchor: normalizedAnchor, rawValue: token, status: "ambiguous" });
+          report.push({ anchor: reportAnchor, rawValue: token, status: "ambiguous" });
         } else {
-          report.push({ anchor: normalizedAnchor, rawValue: token, status: "unrecognized" });
+          report.push({ anchor: reportAnchor, rawValue: token, status: "unrecognized" });
         }
       }
       continue;
     }
 
-    // Free-text fields (offForm, offPlay, motion without enum validation)
+    // Free-text multi-word fields (offForm, offPlay, motion)
     if (MULTI_WORD_FIELDS.has(fieldName)) {
       patch[fieldName] = rawValue;
-      report.push({ anchor: normalizedAnchor, rawValue, status: "matched", matchedValue: rawValue });
+      report.push({ anchor: reportAnchor, rawValue, status: "matched", matchedValue: rawValue });
       continue;
     }
 
     // Fallback: single token
     patch[fieldName] = rawValue.split(/\s/)[0];
-    report.push({ anchor: normalizedAnchor, rawValue, status: "matched", matchedValue: rawValue.split(/\s/)[0] });
+    report.push({ anchor: reportAnchor, rawValue, status: "matched", matchedValue: rawValue.split(/\s/)[0] });
   }
 
   return { patch, report };
