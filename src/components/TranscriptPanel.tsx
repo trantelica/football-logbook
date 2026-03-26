@@ -157,18 +157,28 @@ export function TranscriptPanel() {
       applySystemPatch(overridePatch, { fillOnly: false });
     }
 
-    const totalApplied = collisionState.nonCollisionCount + Object.keys(overridePatch).length;
-    toast.success(`Applied ${totalApplied} field(s) to draft`);
+    const overrideCount = Object.keys(overridePatch).length;
+    const skippedCount = collisionState.collisions.length - overrideCount;
+    const totalApplied = collisionState.nonCollisionCount + overrideCount;
+    const msg = skippedCount > 0
+      ? `Applied ${totalApplied} field(s) to draft. ${skippedCount} conflict(s) left unchanged.`
+      : `Applied ${totalApplied} field(s) to draft.`;
+    toast.success(msg);
     setApplied(true);
     setCollisionState(null);
   }, [collisionState, applySystemPatch]);
 
   const handleCollisionCancel = useCallback(() => {
+    if (!collisionState) return;
+    const { nonCollisionCount, collisions } = collisionState;
     // Non-collision fields were already applied by the first applySystemPatch call.
-    // Mark as applied since partial apply occurred.
-    if (collisionState && collisionState.nonCollisionCount > 0) {
+    if (nonCollisionCount > 0) {
       setApplied(true);
-      toast.info(`Applied ${collisionState.nonCollisionCount} non-conflicting field(s)`);
+      toast.info(
+        `${nonCollisionCount} field(s) applied. ${collisions.length} conflicting field(s) left unchanged.`
+      );
+    } else {
+      toast.info(`${collisions.length} conflicting field(s) left unchanged. No fields were applied.`);
     }
     setCollisionState(null);
   }, [collisionState]);
