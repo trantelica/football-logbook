@@ -86,12 +86,20 @@ export function RawInputCollisionDialog({
           ))}
         </div>
 
+        {nonCollisionCount > 0 && (
+          <div className="rounded border border-border/30 bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+            ✓ {nonCollisionCount} field(s) already applied without conflict.
+          </div>
+        )}
+
         <DialogFooter className="gap-2">
           <Button variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
+            {nonCollisionCount > 0
+              ? "Keep applied fields and exit"
+              : "Stop resolving remaining items"}
           </Button>
           <Button size="sm" onClick={() => onConfirm(selected)}>
-            Apply {selected.size + nonCollisionCount} field(s)
+            Apply {selected.size > 0 ? `${selected.size} override(s)` : "selection"}
           </Button>
         </DialogFooter>
       </DialogContent>

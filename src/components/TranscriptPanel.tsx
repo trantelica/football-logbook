@@ -157,8 +157,13 @@ export function TranscriptPanel() {
       applySystemPatch(overridePatch, { fillOnly: false });
     }
 
-    const totalApplied = collisionState.nonCollisionCount + Object.keys(overridePatch).length;
-    toast.success(`Applied ${totalApplied} field(s) to draft`);
+    const overrideCount = Object.keys(overridePatch).length;
+    const skippedCount = collisionState.collisions.length - overrideCount;
+    const totalApplied = collisionState.nonCollisionCount + overrideCount;
+    const msg = skippedCount > 0
+      ? `Applied ${totalApplied} field(s) to draft. ${skippedCount} conflict(s) left unchanged.`
+      : `Applied ${totalApplied} field(s) to draft.`;
+    toast.success(msg);
     setApplied(true);
     setCollisionState(null);
   }, [collisionState, applySystemPatch]);
