@@ -164,11 +164,16 @@ export function TranscriptPanel() {
   }, [collisionState, applySystemPatch]);
 
   const handleCollisionCancel = useCallback(() => {
+    if (!collisionState) return;
+    const { nonCollisionCount, collisions } = collisionState;
     // Non-collision fields were already applied by the first applySystemPatch call.
-    // Mark as applied since partial apply occurred.
-    if (collisionState && collisionState.nonCollisionCount > 0) {
+    if (nonCollisionCount > 0) {
       setApplied(true);
-      toast.info(`Applied ${collisionState.nonCollisionCount} non-conflicting field(s)`);
+      toast.info(
+        `${nonCollisionCount} field(s) applied. ${collisions.length} conflicting field(s) left unchanged.`
+      );
+    } else {
+      toast.info(`${collisions.length} conflicting field(s) left unchanged. No fields were applied.`);
     }
     setCollisionState(null);
   }, [collisionState]);
