@@ -70,6 +70,19 @@ export function TranscriptPanel() {
     if (!supported) setShowTyped(true);
   }, [supported]);
 
+  // Bug 6 fix: Clear transcript state after successful commit
+  const commitCountRef = React.useRef(commitCount);
+  React.useEffect(() => {
+    if (commitCountRef.current !== commitCount) {
+      commitCountRef.current = commitCount;
+      clear();
+      setLastSnapshot(null);
+      setTypedLine("");
+      setApplied(false);
+      setCollisionState(null);
+    }
+  }, [commitCount, clear]);
+
   const handleTypedSubmit = useCallback(() => {
     const trimmed = typedLine.trim();
     if (!trimmed) return;
