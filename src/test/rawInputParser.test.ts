@@ -74,6 +74,56 @@ describe("rawInputParser — scaffold acceptance examples", () => {
   });
 });
 
+describe("rawInputParser — in-app defect regression tests", () => {
+  it("Bug 1: Down phrase parses into dn", () => {
+    const { patch } = parseFull("Down 3 DIST 2");
+    expect(patch.dn).toBe(3);
+    expect(patch.dist).toBe(2);
+  });
+
+  it("Bug 2a: Play 26 Punch 3 yard gain", () => {
+    const { patch } = parseFull("Play 26 Punch 3 yard gain");
+    expect(patch.offPlay).toBe("26 Punch");
+    expect(patch.gainLoss).toBe(3);
+  });
+
+  it("Bug 2b: Play 26 Punch 4 yard loss", () => {
+    const { patch } = parseFull("Play 26 Punch 4 yard loss");
+    expect(patch.offPlay).toBe("26 Punch");
+    expect(patch.gainLoss).toBe(-4);
+  });
+
+  it("Bug 3: 2 minute marker parses twoMin without eff cross-contamination", () => {
+    const { patch } = parseFull("2 minute Play Fade Result Complete Passer 7 Receiver 2");
+    expect(patch.twoMin).toBe("Y");
+    expect(patch.eff).toBeUndefined();
+    expect(patch.offPlay).toBe("Fade");
+    expect(patch.result).toBe("Complete");
+    expect(patch.passer).toBe(7);
+    expect(patch.receiver).toBe(2);
+  });
+
+  it("Bug 4: Ball is on our 28 → yardLn = -28", () => {
+    const { patch } = parseFull("Ball is on our 28 Form Twins Play Toss Right Gain 8");
+    expect(patch.yardLn).toBe(-28);
+    expect(patch.offForm).toBe("Twins");
+    expect(patch.offPlay).toBe("Toss Right");
+    expect(patch.gainLoss).toBe(8);
+  });
+
+  it("Bug 5: Penalty captures free-text value", () => {
+    const { patch } = parseFull("Play Sweep Left Penalty Holding");
+    expect(patch.offPlay).toBe("Sweep Left");
+    expect(patch.penalty).toBe("Holding");
+  });
+
+  it("Bug 5b: Penalty with canonical prefix still works", () => {
+    const { patch } = parseRawInput("PLAY Power PENALTY O-Holding");
+    expect(patch.offPlay).toBe("Power");
+    expect(patch.penalty).toBe("O-Holding");
+  });
+});
+
 describe("rawInputParser — boundary and stop logic", () => {
   it("offPlay stops at GN/LS anchor", () => {
     const { patch } = parseRawInput("PLAY Sweep Left GN/LS 5");

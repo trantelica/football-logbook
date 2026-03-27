@@ -70,9 +70,17 @@ describe("normalizeTranscriptForParse", () => {
     expect(normalizeTranscriptForParse("formation Trips")).toBe("FORM Trips");
   });
 
-  it("normalizes two-minute phrases", () => {
-    expect(normalizeTranscriptForParse("two minute")).toBe("2MIN");
-    expect(normalizeTranscriptForParse("2 minute")).toBe("2MIN");
+  it("normalizes two-minute phrases to 2MIN Y", () => {
+    expect(normalizeTranscriptForParse("two minute")).toBe("2MIN Y");
+    expect(normalizeTranscriptForParse("2 minute")).toBe("2MIN Y");
+  });
+
+  it("normalizes 'ball is on our N' → YARD -N (negative for our side)", () => {
+    expect(normalizeTranscriptForParse("Ball is on our 28")).toBe("YARD -28");
+  });
+
+  it("normalizes 'ball is on their N' → YARD N (positive)", () => {
+    expect(normalizeTranscriptForParse("ball is on their 40")).toBe("YARD 40");
   });
 
   it("normalizes actor phrases: QB → PASSER", () => {
