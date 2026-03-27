@@ -73,11 +73,14 @@ const ANCHOR_FIELD_MAP: Record<string, string> = {
 /** Integer fields — parse next token as integer */
 const INTEGER_FIELDS = new Set(["dn", "dist", "yardLn", "gainLoss", "rusher", "passer", "receiver", "penYards"]);
 
-/** Enum fields with exact-match validation against allowed values */
+/** Enum fields with exact-match validation against allowed values.
+ * NOTE: penalty is intentionally NOT here — it is a free-text multi-word field
+ * at parse time. The coach may say "Holding" without the O-/D- prefix.
+ * Canonical matching happens downstream via lookup governance.
+ */
 const ENUM_FIELD_VALUES: Record<string, readonly string[]> = {
   hash: HASH_VALUES,
   result: RESULT_VALUES,
-  penalty: PENALTY_VALUES,
   eff: EFF_VALUES,
   twoMin: ["Y", "N"],
 };

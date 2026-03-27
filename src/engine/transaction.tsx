@@ -51,6 +51,8 @@ export interface SystemPatchCollision {
 }
 
 interface TransactionContextValue {
+  /** Incremented on each successful commit — used to signal transcript clear */
+  commitCount: number;
   state: TransactionState;
   candidate: CandidateData;
   touchedFields: Set<string>;
@@ -226,6 +228,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [carriedForwardFields, setCarriedForwardFields] = useState<Set<string>>(new Set());
   const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
   const [lastPass2CommitPlayNum, setLastPass2CommitPlayNum] = useState<number | null>(null);
+
+  // Commit counter — incremented on each successful commit for transcript lifecycle
+  const [commitCount, setCommitCount] = useState(0);
 
   // Phase 10: AI/system patch state
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
@@ -413,6 +418,21 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
 
       if (Object.keys(fieldsToApply).length > 0) {
+        // Bug 7 fix: Canonicalize values against lookup map for proper casing
+        const lookupMapForCasing = getLookupMap();
+        for (const [fieldName, value] of Object.entries(fieldsToApply)) {
+          if (!lookupMapForCasing.has(fieldName)) continue;
+          const knownValues = lookupMapForCasing.get(fieldName) ?? [];
+          const valStr = String(value).trim();
+          if (valStr === "") continue;
+          const valLower = valStr.toLowerCase().replace(/\s+/g, " ");
+          const canonicalMatch = knownValues.find(
+            (v) => v.toLowerCase().replace(/\s+/g, " ") === valLower
+          );
+          if (canonicalMatch) {
+            fieldsToApply[fieldName] = canonicalMatch;
+          }
+        }
         setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
         setAiProposedFields((prev) => {
           const next = new Set(prev);
@@ -485,6 +505,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setCommitCount((c) => c + 1);
   }, [gameId, isSlotMode]);
 
   const clearDraftPreservingSelection = useCallback(() => {
@@ -512,6 +533,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setCommitCount((c) => c + 1);
   }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
   const reviewProposal = useCallback(() => {
@@ -1404,6 +1426,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   return (
     <TransactionContext.Provider
       value={{
+        commitCount,
         state,
         candidate,
         touchedFields,

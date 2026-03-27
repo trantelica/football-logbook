@@ -40,7 +40,7 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   [/\b(2nd|second)\s+down\b/gi, "DN 2"],
   [/\b(3rd|third)\s+down\b/gi, "DN 3"],
   [/\b(4th|fourth)\s+down\b/gi, "DN 4"],
-  [/\bdown\s+(\d)\b/gi, "DN $1"],
+  [/\bdown\s+(\d+)\b/gi, "DN $1"],
 
   // Distance phrases: "3rd and 7", "4th and 1", "and 7 to go", "need 7"
   // Note: "3rd and 7" already has DN from above, this catches "and N" after DN
@@ -53,8 +53,11 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   [/\byard\s*line\b/gi, "YARD"],
   [/\byardline\b/gi, "YARD"],
   [/\bYL\b/g, "YARD"],
-  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(?:our\s+)?(-?\d+)\b/gi, "YARD $1"],
+  // "our" side → negative yard-line value
+  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?our\s+(\d+)\b/gi, "YARD -$1"],
   [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?their\s+(\d+)\b/gi, "YARD $1"],
+  // Generic "ball on the N" (no side qualifier) — positive
+  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(-?\d+)\b/gi, "YARD $1"],
 
   // Gain/loss phrases: "3 yard gain", "4 yard loss", "no gain", "plus 5", "minus 3"
   [/\bno\s+gain\b/gi, "GN/LS 0"],
@@ -70,9 +73,9 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   // Formation phrase: "formation"
   [/\bformation\b/gi, "FORM"],
 
-  // Two-minute phrases
-  [/\btwo\s+minute\b/gi, "2MIN"],
-  [/\b2\s+minute\b/gi, "2MIN"],
+  // Two-minute phrases — marker presence implies Y
+  [/\btwo\s+minute\b/gi, "2MIN Y"],
+  [/\b2\s+minute\b/gi, "2MIN Y"],
 
   // Actor phrases (scaffold-supported pattern-based)
   [/\bquarterback\b/gi, "PASSER"],
