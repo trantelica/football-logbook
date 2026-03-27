@@ -42,7 +42,7 @@ export function TranscriptPanel() {
     clear,
   } = useTranscriptCapture();
 
-  const { applySystemPatch } = useTransaction();
+  const { applySystemPatch, commitCount } = useTransaction();
 
   const [showTyped, setShowTyped] = useState(false);
   const [typedLine, setTypedLine] = useState("");
