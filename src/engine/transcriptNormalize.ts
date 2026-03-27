@@ -40,7 +40,7 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   [/\b(2nd|second)\s+down\b/gi, "DN 2"],
   [/\b(3rd|third)\s+down\b/gi, "DN 3"],
   [/\b(4th|fourth)\s+down\b/gi, "DN 4"],
-  [/\bdown\s+(\d)\b/gi, "DN $1"],
+  [/\bdown\s+(\d+)\b/gi, "DN $1"],
 
   // Distance phrases: "3rd and 7", "4th and 1", "and 7 to go", "need 7"
   // Note: "3rd and 7" already has DN from above, this catches "and N" after DN
