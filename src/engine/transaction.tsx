@@ -418,6 +418,21 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
 
       if (Object.keys(fieldsToApply).length > 0) {
+        // Bug 7 fix: Canonicalize values against lookup map for proper casing
+        const lookupMapForCasing = getLookupMap();
+        for (const [fieldName, value] of Object.entries(fieldsToApply)) {
+          if (!lookupMapForCasing.has(fieldName)) continue;
+          const knownValues = lookupMapForCasing.get(fieldName) ?? [];
+          const valStr = String(value).trim();
+          if (valStr === "") continue;
+          const valLower = valStr.toLowerCase().replace(/\s+/g, " ");
+          const canonicalMatch = knownValues.find(
+            (v) => v.toLowerCase().replace(/\s+/g, " ") === valLower
+          );
+          if (canonicalMatch) {
+            fieldsToApply[fieldName] = canonicalMatch;
+          }
+        }
         setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
         setAiProposedFields((prev) => {
           const next = new Set(prev);
