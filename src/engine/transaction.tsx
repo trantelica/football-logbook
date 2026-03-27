@@ -1411,6 +1411,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   return (
     <TransactionContext.Provider
       value={{
+        commitCount,
         state,
         candidate,
         touchedFields,
