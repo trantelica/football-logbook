@@ -51,6 +51,8 @@ export interface SystemPatchCollision {
 }
 
 interface TransactionContextValue {
+  /** Incremented on each successful commit — used to signal transcript clear */
+  commitCount: number;
   state: TransactionState;
   candidate: CandidateData;
   touchedFields: Set<string>;
