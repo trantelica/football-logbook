@@ -73,9 +73,9 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   // Formation phrase: "formation"
   [/\bformation\b/gi, "FORM"],
 
-  // Two-minute phrases
-  [/\btwo\s+minute\b/gi, "2MIN"],
-  [/\b2\s+minute\b/gi, "2MIN"],
+  // Two-minute phrases — marker presence implies Y
+  [/\btwo\s+minute\b/gi, "2MIN Y"],
+  [/\b2\s+minute\b/gi, "2MIN Y"],
 
   // Actor phrases (scaffold-supported pattern-based)
   [/\bquarterback\b/gi, "PASSER"],
