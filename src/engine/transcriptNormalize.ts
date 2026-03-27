@@ -53,8 +53,11 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   [/\byard\s*line\b/gi, "YARD"],
   [/\byardline\b/gi, "YARD"],
   [/\bYL\b/g, "YARD"],
-  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(?:our\s+)?(-?\d+)\b/gi, "YARD $1"],
+  // "our" side → negative yard-line value
+  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?our\s+(\d+)\b/gi, "YARD -$1"],
   [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?their\s+(\d+)\b/gi, "YARD $1"],
+  // Generic "ball on the N" (no side qualifier) — positive
+  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(-?\d+)\b/gi, "YARD $1"],
 
   // Gain/loss phrases: "3 yard gain", "4 yard loss", "no gain", "plus 5", "minus 3"
   [/\bno\s+gain\b/gi, "GN/LS 0"],
