@@ -229,6 +229,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
   const [lastPass2CommitPlayNum, setLastPass2CommitPlayNum] = useState<number | null>(null);
 
+  // Commit counter — incremented on each successful commit for transcript lifecycle
+  const [commitCount, setCommitCount] = useState(0);
+
   // Phase 10: AI/system patch state
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
   const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
