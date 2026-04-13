@@ -246,6 +246,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 10: Deterministic parse state (from transcript parse)
   const [deterministicParseFields, setDeterministicParseFields] = useState<Set<string>>(new Set());
   const [parseEvidenceByField, setParseEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+  // Phase 10: Lookup-derived state (auto-populated from parent lookup selection)
+  const [lookupDerivedFields, setLookupDerivedFields] = useState<Set<string>>(new Set());
   // Phase 10: AI/system patch state (reserved for true AI enrichment)
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
   const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
