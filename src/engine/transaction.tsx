@@ -239,6 +239,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 10: AI/system patch state
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
   const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+  // Lookup-derived fields (auto-populated dependents from parent lookup selection)
+  const [lookupDerivedFields, setLookupDerivedFields] = useState<Set<string>>(new Set());
 
   // Stage setter — no carry-forward here, just clear Pass 1 prompts
   const setActivePass = useCallback((pass: number) => {
