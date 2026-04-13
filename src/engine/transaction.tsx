@@ -403,6 +403,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
+      // Phase 10: Coach edit removes lookup-derived tracking
+      setLookupDerivedFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
       setAiEvidenceByField((prev) => {
         if (fieldName in prev) {
           const next = { ...prev };
