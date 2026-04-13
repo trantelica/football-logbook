@@ -54,6 +54,36 @@ describe("computeProposalMeta", () => {
     expect(m.status).toBe("resolved");
   });
 
+  it("marks lookup-derived fields as lookup_derived / resolved", () => {
+    const meta = makeMeta({
+      candidate: { offStrength: "Rt" },
+      lookupDerivedFields: new Set(["offStrength"]),
+    });
+    const m = meta.get("offStrength")!;
+    expect(m.provenance).toBe("lookup_derived");
+    expect(m.status).toBe("resolved");
+  });
+
+  it("coach edit overrides lookup_derived (priority)", () => {
+    const meta = makeMeta({
+      candidate: { offStrength: "Lt" },
+      touchedFields: new Set(["offStrength"]),
+      lookupDerivedFields: new Set(["offStrength"]),
+    });
+    const m = meta.get("offStrength")!;
+    expect(m.provenance).toBe("coach_edited");
+  });
+
+  it("deterministic_parse overrides lookup_derived (priority)", () => {
+    const meta = makeMeta({
+      candidate: { offStrength: "Rt" },
+      deterministicParseFields: new Set(["offStrength"]),
+      lookupDerivedFields: new Set(["offStrength"]),
+    });
+    const m = meta.get("offStrength")!;
+    expect(m.provenance).toBe("deterministic_parse");
+  });
+
   it("marks deterministicParseFields as deterministic_parse with evidence", () => {
     const meta = makeMeta({
       candidate: { offPlay: "26 Punch" },

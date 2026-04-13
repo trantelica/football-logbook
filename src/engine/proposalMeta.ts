@@ -14,8 +14,8 @@ export type ProvenanceSource =
   | "ai_proposed"
   | "coach_edited";
 
-// NOTE: lookup_derived is deferred — not yet wired at the state-signal level.
-// It will be added when dependent auto-population tracking is implemented.
+// lookup_derived is now wired: parent lookup selection auto-populates dependent
+// fields, tracked via lookupDerivedFields state in TransactionProvider.
 
 /** Resolution status of a proposal field */
 export type FieldStatus =
