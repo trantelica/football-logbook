@@ -426,11 +426,29 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
       // Validate union of touched + parse + aiProposed
-      const validationFields = new Set([...newTouched, ...deterministicParseFields, ...aiProposedFields]);
+      const validationFields = new Set([...newTouched, ...deterministicParseFields, ...aiProposedFields, ...lookupDerivedFields]);
       setInlineErrors(validateInline(newCandidate, validationFields, getLookupMap()));
     },
-    [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
+    [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass, lookupDerivedFields]
   );
+
+  // Phase 10: Mark fields as lookup-derived (auto-populated from parent lookup)
+  const markLookupDerived = useCallback((fieldNames: string[]) => {
+    setLookupDerivedFields((prev) => {
+      const next = new Set(prev);
+      for (const fn of fieldNames) next.add(fn);
+      return next;
+    });
+    // Remove from touched so provenance stays lookup_derived
+    setTouchedFields((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const fn of fieldNames) {
+        if (next.has(fn)) { next.delete(fn); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
 
   // Phase 10: Apply system patch without marking fields as touched
   // Routes to deterministicParseFields or aiProposedFields based on source option
