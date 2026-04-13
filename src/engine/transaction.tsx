@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
+import { computeValidationReasons } from "./validationReasons";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Evidence for a single AI-proposed field */
 export interface AIFieldEvidence {
@@ -42,6 +43,10 @@ export interface SystemPatchOptions {
   fillOnly?: boolean;
   /** Evidence keyed by field name */
   evidence?: Record<string, AIFieldEvidence>;
+  /** Source of the patch — determines provenance tracking.
+   *  "deterministic_parse" (default) for transcript parse results.
+   *  "ai_proposed" reserved for future true AI enrichment. */
+  source?: "deterministic_parse" | "ai_proposed";
 }
 
 /** Collision returned by applySystemPatch */
@@ -74,7 +79,9 @@ interface TransactionContextValue {
   isSlotMode: boolean;
   scaffoldedWarning: string | null;
 
-  // Phase 10: AI/system patch provenance
+  // Phase 10: System patch provenance — separate signals
+  deterministicParseFields: Set<string>;
+  parseEvidenceByField: Record<string, AIFieldEvidence>;
   aiProposedFields: Set<string>;
   aiEvidenceByField: Record<string, AIFieldEvidence>;
   applySystemPatch: (patch: Record<string, unknown>, options?: SystemPatchOptions) => SystemPatchCollision[];
@@ -236,11 +243,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Commit counter — incremented on each successful commit for transcript lifecycle
   const [commitCount, setCommitCount] = useState(0);
 
-  // Phase 10: AI/system patch state
+  // Phase 10: Deterministic parse state (from transcript parse)
+  const [deterministicParseFields, setDeterministicParseFields] = useState<Set<string>>(new Set());
+  const [parseEvidenceByField, setParseEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+  // Phase 10: AI/system patch state (reserved for true AI enrichment)
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
   const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
-  // Lookup-derived fields (auto-populated dependents from parent lookup selection)
-  const [lookupDerivedFields, setLookupDerivedFields] = useState<Set<string>>(new Set());
 
   // Stage setter — no carry-forward here, just clear Pass 1 prompts
   const setActivePass = useCallback((pass: number) => {
@@ -279,8 +287,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAdjustments([]);
     setActivePassRaw(1);
     setOdkFilter("ALL");
+    setDeterministicParseFields(new Set());
+    setParseEvidenceByField({});
     setAiProposedFields(new Set());
-    setLookupDerivedFields(new Set());
     setAiEvidenceByField({});
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
@@ -297,11 +306,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
   }, [gameId, gameIsSlotMode]);
 
-  // Track draft status — dirty when touched OR aiProposed
+  // Track draft status — dirty when touched, parsed, or aiProposed
   useEffect(() => {
-    const isDirty = touchedFields.size > 0 || aiProposedFields.size > 0;
+    const isDirty = touchedFields.size > 0 || deterministicParseFields.size > 0 || aiProposedFields.size > 0;
     setHasDraft(isDirty);
-  }, [touchedFields, aiProposedFields, setHasDraft]);
+  }, [touchedFields, deterministicParseFields, aiProposedFields, setHasDraft]);
 
   // Phase 10D: Lookup interrupt state
   const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string } | null>(null);
@@ -309,7 +318,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
-    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    const validationFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
     if (validationFields.size > 0) {
       setInlineErrors(validateInline(candidate, validationFields, getLookupMap()));
     } else {
@@ -361,7 +370,23 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
-      // Phase 10: Coach edit converts AI-proposed → touched, clears evidence
+      // Phase 10: Coach edit converts parse/AI-proposed → touched, clears evidence
+      setDeterministicParseFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
+      setParseEvidenceByField((prev) => {
+        if (fieldName in prev) {
+          const next = { ...prev };
+          delete next[fieldName];
+          return next;
+        }
+        return prev;
+      });
       setAiProposedFields((prev) => {
         if (prev.has(fieldName)) {
           const next = new Set(prev);
@@ -383,21 +408,23 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
-      // Validate union of touched + aiProposed
-      const validationFields = new Set([...newTouched, ...aiProposedFields]);
+      // Validate union of touched + parse + aiProposed
+      const validationFields = new Set([...newTouched, ...deterministicParseFields, ...aiProposedFields]);
       setInlineErrors(validateInline(newCandidate, validationFields, getLookupMap()));
     },
     [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
   );
 
-  // Phase 10: Apply system/AI patch without marking fields as touched
+  // Phase 10: Apply system patch without marking fields as touched
+  // Routes to deterministicParseFields or aiProposedFields based on source option
   const applySystemPatch = useCallback(
     (patch: Record<string, unknown>, options?: SystemPatchOptions): SystemPatchCollision[] => {
       const fillOnly = options?.fillOnly !== false; // default true
       const evidence = options?.evidence;
+      const source = options?.source ?? "deterministic_parse"; // default to parse
       const collisions: SystemPatchCollision[] = [];
       const fieldsToApply: Record<string, unknown> = {};
-      const newAiFields = new Set<string>();
+      const newFields = new Set<string>();
 
       const ACTOR_FIELD_NAMES = new Set(["rusher", "passer", "receiver", "returner"]);
 
@@ -421,11 +448,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
 
         fieldsToApply[fieldName] = proposedValue;
-        newAiFields.add(fieldName);
+        newFields.add(fieldName);
       }
 
       if (Object.keys(fieldsToApply).length > 0) {
-        // Bug 7 fix: Canonicalize values against lookup map for proper casing
+        // Canonicalize values against lookup map for proper casing
         const lookupMapForCasing = getLookupMap();
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
           if (!lookupMapForCasing.has(fieldName)) continue;
@@ -441,25 +468,44 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           }
         }
         setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
-        setAiProposedFields((prev) => {
-          const next = new Set(prev);
-          for (const f of newAiFields) next.add(f);
-          return next;
-        });
 
-        if (evidence) {
-          setAiEvidenceByField((prev) => {
-            const next = { ...prev };
-            for (const f of newAiFields) {
-              if (evidence[f]) next[f] = evidence[f];
-            }
+        // Route to correct provenance set based on source
+        if (source === "deterministic_parse") {
+          setDeterministicParseFields((prev) => {
+            const next = new Set(prev);
+            for (const f of newFields) next.add(f);
             return next;
           });
+          if (evidence) {
+            setParseEvidenceByField((prev) => {
+              const next = { ...prev };
+              for (const f of newFields) {
+                if (evidence[f]) next[f] = evidence[f];
+              }
+              return next;
+            });
+          }
+        } else {
+          // ai_proposed
+          setAiProposedFields((prev) => {
+            const next = new Set(prev);
+            for (const f of newFields) next.add(f);
+            return next;
+          });
+          if (evidence) {
+            setAiEvidenceByField((prev) => {
+              const next = { ...prev };
+              for (const f of newFields) {
+                if (evidence[f]) next[f] = evidence[f];
+              }
+              return next;
+            });
+          }
         }
 
         // Recompute inline errors with union of all active field sets
         const updatedCandidate = { ...candidate, ...fieldsToApply };
-        const validationFields = new Set([...touchedFields, ...aiProposedFields, ...newAiFields]);
+        const validationFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields, ...newFields]);
         setInlineErrors(validateInline(updatedCandidate as CandidateData, validationFields, getLookupMap()));
 
         setState("candidate");
@@ -468,7 +514,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         // 10-1D: Immediate lookup interrupt for governed lookup fields with unknown values
         const lookupMap = getLookupMap();
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
-          if (!lookupMap.has(fieldName)) continue; // not a governed lookup field
+          if (!lookupMap.has(fieldName)) continue;
           const knownValues = lookupMap.get(fieldName) ?? [];
           const valStr = String(value).trim();
           if (valStr === "") continue;
@@ -481,7 +527,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
               fieldLabel: fd?.label ?? fieldName,
               value: valStr,
             });
-            break; // one interrupt at a time
+            break;
           }
         }
       }
@@ -510,9 +556,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPatLockedTry(null);
     setCarriedForwardFields(new Set());
     setCarriedForwardFromPlayNum(null);
+    setDeterministicParseFields(new Set());
+    setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
-    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [gameId, isSlotMode]);
 
@@ -539,9 +586,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPatLockedTry(null);
     setCarriedForwardFields(new Set());
     setCarriedForwardFromPlayNum(null);
+    setDeterministicParseFields(new Set());
+    setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
-    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
@@ -578,8 +626,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    // Validate union of touched + aiProposed fields
-    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    // Validate union of touched + parse + aiProposed fields
+    const validationFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
     const errors = validateInline(candidate, validationFields, getLookupMap());
     setInlineErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -1201,6 +1249,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setInlineErrors({});
     setCommitErrors({});
     setScaffoldedWarning(null);
+    setDeterministicParseFields(new Set());
+    setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setState(gameId ? "idle" : "idle");
@@ -1416,6 +1466,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             setPossessionPrevPlayInfo(null);
             setCarriedForwardFields(seededFields);
             setCarriedForwardFromPlayNum(currentSlotNum);
+            setDeterministicParseFields(new Set());
+            setParseEvidenceByField({});
             setAiProposedFields(new Set());
             setAiEvidenceByField({});
             setState("candidate");
@@ -1432,17 +1484,24 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     return { committed: true, hasNext: false };
   }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass]);
 
+  // Structured validation reasons for proposal metadata
+  const validationReasons = useMemo(() => {
+    const activeFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
+    return computeValidationReasons(candidate, activeFields, getLookupMap(), rosterNumbers);
+  }, [candidate, touchedFields, deterministicParseFields, aiProposedFields, getLookupMap, rosterNumbers]);
+
   // Proposal metadata — derived from existing state signals
   const proposalMeta = useMemo(() => computeProposalMeta({
     candidate: candidate as Record<string, unknown>,
     touchedFields,
     predictedFields,
+    deterministicParseFields,
     aiProposedFields,
     carriedForwardFields,
+    parseEvidenceByField,
     aiEvidenceByField,
-    inlineErrors,
-    lookupDerivedFields,
-  }), [candidate, touchedFields, predictedFields, aiProposedFields, carriedForwardFields, aiEvidenceByField, inlineErrors, lookupDerivedFields]);
+    validationReasons,
+  }), [candidate, touchedFields, predictedFields, deterministicParseFields, aiProposedFields, carriedForwardFields, parseEvidenceByField, aiEvidenceByField, validationReasons]);
 
   return (
     <TransactionContext.Provider
@@ -1464,6 +1523,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         slotMetaMap,
         isSlotMode,
         scaffoldedWarning,
+        deterministicParseFields,
+        parseEvidenceByField,
         aiProposedFields,
         aiEvidenceByField,
         applySystemPatch,

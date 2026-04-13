@@ -10,9 +10,11 @@ export type ProvenanceSource =
   | "deterministic_parse"
   | "predicted"
   | "carry_forward"
-  | "lookup_derived"
   | "ai_proposed"
   | "coach_edited";
+
+// NOTE: lookup_derived is deferred — not yet wired at the state-signal level.
+// It will be added when dependent auto-population tracking is implemented.
 
 /** Resolution status of a proposal field */
 export type FieldStatus =
@@ -20,6 +22,15 @@ export type FieldStatus =
   | "unresolved"
   | "needs_clarification"
   | "governance_blocked";
+
+/** Structured reason codes for validation issues — replaces text matching */
+export type ValidationReasonCode =
+  | "lookup_not_found"
+  | "roster_not_found"
+  | "type_error"
+  | "enum_error"
+  | "required"
+  | "domain_error";
 
 /** Metadata for a single proposal field */
 export interface ProposalFieldMeta {
@@ -45,37 +56,38 @@ export type ProposalMetaMap = Map<string, ProposalFieldMeta>;
  *
  * Priority (highest wins):
  *  1. coach_edited (touchedFields)
- *  2. ai_proposed (aiProposedFields)  — currently used for transcript parse
- *  3. carry_forward (carriedForwardFields)
- *  4. predicted (predictedFields)
- *  5. lookup_derived — dependent auto-populated fields
+ *  2. deterministic_parse (deterministicParseFields) — from transcript parse
+ *  3. ai_proposed (aiProposedFields) — reserved for true AI enrichment
+ *  4. carry_forward (carriedForwardFields)
+ *  5. predicted (predictedFields)
  *
- * Status rules:
- *  - governance_blocked: field has inline error containing "lookup" or "not found"
- *  - needs_clarification: field has inline error or parse report was "ambiguous"
- *  - unresolved: field is empty/null but expected (required at commit)
+ * Status rules use structured validationReasons, not free-text matching:
+ *  - governance_blocked: validationReasons[field] === "lookup_not_found"
+ *  - needs_clarification: validationReasons[field] exists (type_error, enum_error, etc.)
+ *  - unresolved: field is empty/null but has provenance
  *  - resolved: has a value with no errors
  */
 export function computeProposalMeta(opts: {
   candidate: Record<string, unknown>;
   touchedFields: Set<string>;
   predictedFields: Set<string>;
+  deterministicParseFields: Set<string>;
   aiProposedFields: Set<string>;
   carriedForwardFields: Set<string>;
+  parseEvidenceByField: Record<string, { snippet: string }>;
   aiEvidenceByField: Record<string, { snippet: string }>;
-  inlineErrors: Record<string, string>;
-  /** Field names that were auto-populated from a parent lookup selection */
-  lookupDerivedFields?: Set<string>;
+  validationReasons: Record<string, ValidationReasonCode>;
 }): ProposalMetaMap {
   const {
     candidate,
     touchedFields,
     predictedFields,
+    deterministicParseFields,
     aiProposedFields,
     carriedForwardFields,
+    parseEvidenceByField,
     aiEvidenceByField,
-    inlineErrors,
-    lookupDerivedFields,
+    validationReasons,
   } = opts;
 
   const meta: ProposalMetaMap = new Map();
@@ -84,9 +96,9 @@ export function computeProposalMeta(opts: {
   const allRelevant = new Set([
     ...touchedFields,
     ...predictedFields,
+    ...deterministicParseFields,
     ...aiProposedFields,
     ...carriedForwardFields,
-    ...(lookupDerivedFields ?? []),
   ]);
 
   for (const fieldName of allRelevant) {
@@ -98,26 +110,23 @@ export function computeProposalMeta(opts: {
     let provenance: ProvenanceSource;
     if (touchedFields.has(fieldName)) {
       provenance = "coach_edited";
+    } else if (deterministicParseFields.has(fieldName)) {
+      provenance = "deterministic_parse";
     } else if (aiProposedFields.has(fieldName)) {
-      // AI-proposed currently comes from transcript parse → use deterministic_parse
-      // when evidence exists, otherwise ai_proposed
-      provenance = aiEvidenceByField[fieldName] ? "deterministic_parse" : "ai_proposed";
+      provenance = "ai_proposed";
     } else if (carriedForwardFields.has(fieldName)) {
       provenance = "carry_forward";
     } else if (predictedFields.has(fieldName)) {
       provenance = "predicted";
-    } else if (lookupDerivedFields?.has(fieldName)) {
-      provenance = "lookup_derived";
     } else {
       provenance = "coach_edited"; // fallback
     }
 
-    // Determine status
+    // Determine status from structured reason codes
     let status: FieldStatus;
-    const error = inlineErrors[fieldName];
-    if (error) {
-      const errorLower = error.toLowerCase();
-      if (errorLower.includes("lookup") || errorLower.includes("not found") || errorLower.includes("not in")) {
+    const reason = validationReasons[fieldName];
+    if (reason) {
+      if (reason === "lookup_not_found" || reason === "roster_not_found") {
         status = "governance_blocked";
       } else {
         status = "needs_clarification";
@@ -128,9 +137,10 @@ export function computeProposalMeta(opts: {
       status = "resolved";
     }
 
-    // Transcript evidence
-    const evidence = aiEvidenceByField[fieldName];
-    const transcriptEvidence = evidence?.snippet ?? null;
+    // Transcript evidence — check parse evidence first, then AI evidence
+    const parseEvidence = parseEvidenceByField[fieldName];
+    const aiEvidence = aiEvidenceByField[fieldName];
+    const transcriptEvidence = parseEvidence?.snippet ?? aiEvidence?.snippet ?? null;
 
     meta.set(fieldName, {
       fieldName,

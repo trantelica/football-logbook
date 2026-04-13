@@ -107,6 +107,7 @@ export function DraftPanel() {
     confirmGradeOverwrite,
     cancelGradeOverwrite,
     aiProposedFields,
+    deterministicParseFields,
     applySystemPatch,
     lookupInterruptPending,
     clearLookupInterrupt,
@@ -228,6 +229,7 @@ export function DraftPanel() {
     return aiProposedFields.has(field);
   }
 
+
   function isMinimalField(field: string) {
     return (SEGMENT_REQUIRED_FIELDS as readonly string[]).includes(field) || field === "playNum";
   }
@@ -334,7 +336,7 @@ export function DraftPanel() {
 
     return (
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 flex-wrap">
-        {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+        {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -357,7 +359,7 @@ export function DraftPanel() {
             </Tooltip>
           </TooltipProvider>
         )}
-        {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+        {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -370,27 +372,36 @@ export function DraftPanel() {
             </Tooltip>
           </TooltipProvider>
         )}
+        {deterministicParseFields.has(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                  <Terminal className="h-2.5 w-2.5" />Parse
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>From transcript parse. Editable.</p>
+                {meta?.transcriptEvidence && (
+                  <p className="text-[10px] mt-1 opacity-80 font-mono">
+                    <Info className="h-2.5 w-2.5 inline mr-0.5" />
+                    "{meta.transcriptEvidence}"
+                  </p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {isAiProposed(fieldName) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className={cn(
-                  "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
-                  meta?.provenance === "deterministic_parse"
-                    ? "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40"
-                    : "text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40"
-                )}>
-                  {meta?.provenance === "deterministic_parse" ? (
-                    <><Terminal className="h-2.5 w-2.5" />Parse</>
-                  ) : (
-                    <><Bot className="h-2.5 w-2.5" />AI</>
-                  )}
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                  <Bot className="h-2.5 w-2.5" />AI
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{meta?.provenance === "deterministic_parse"
-                  ? "From transcript parse. Editable."
-                  : "AI-proposed value. Editable."}</p>
+                <p>AI-proposed value. Editable.</p>
                 {meta?.transcriptEvidence && (
                   <p className="text-[10px] mt-1 opacity-80 font-mono">
                     <Info className="h-2.5 w-2.5 inline mr-0.5" />
@@ -466,11 +477,13 @@ export function DraftPanel() {
 
     const predicted = isPredicted(fieldName);
     const aiProposed = isAiProposed(fieldName);
+    const parsed = deterministicParseFields.has(fieldName);
     const inputClasses = cn(
       "h-8 text-sm font-mono",
       predicted && !touched && !error && "bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700",
-      aiProposed && !touched && !error && !predicted && "bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-700",
-      touched && !error && !predicted && !aiProposed && "bg-field-touched",
+      parsed && !touched && !error && !predicted && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
+      aiProposed && !touched && !error && !predicted && !parsed && "bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-700",
+      touched && !error && !predicted && !aiProposed && !parsed && "bg-field-touched",
       error && "border-destructive"
     );
 
@@ -498,23 +511,36 @@ export function DraftPanel() {
             committedDot={committedDot(fieldName)}
             provenanceBadge={(() => {
               const actorMeta = proposalMeta.get(fieldName);
-              if (isAiProposed(fieldName)) {
-                const isParsed = actorMeta?.provenance === "deterministic_parse";
+              if (deterministicParseFields.has(fieldName)) {
                 return (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className={cn(
-                          "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
-                          isParsed
-                            ? "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40"
-                            : "text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40"
-                        )}>
-                          {isParsed ? <><Terminal className="h-2.5 w-2.5" />Parse</> : <><Bot className="h-2.5 w-2.5" />AI</>}
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                          <Terminal className="h-2.5 w-2.5" />Parse
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>{isParsed ? "From transcript parse. Editable." : "AI-proposed value. Editable."}</p>
+                        <p>From transcript parse. Editable.</p>
+                        {actorMeta?.transcriptEvidence && (
+                          <p className="text-[10px] mt-1 opacity-80 font-mono">"{actorMeta.transcriptEvidence}"</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              }
+              if (isAiProposed(fieldName)) {
+                return (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                          <Bot className="h-2.5 w-2.5" />AI
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>AI-proposed value. Editable.</p>
                         {actorMeta?.transcriptEvidence && (
                           <p className="text-[10px] mt-1 opacity-80 font-mono">"{actorMeta.transcriptEvidence}"</p>
                         )}
@@ -1185,8 +1211,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 activePass === 3
                   ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
                   : activePass >= 2
-                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && aiProposedFields.size === 0)
-                    : (touchedFields.size === 0 && aiProposedFields.size === 0)
+                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
+                    : (touchedFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
               }
             >
               <Eye className="h-3.5 w-3.5" />
