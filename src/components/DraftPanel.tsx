@@ -336,7 +336,7 @@ export function DraftPanel() {
 
     return (
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 flex-wrap">
-        {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+        {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
