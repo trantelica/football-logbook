@@ -8,6 +8,7 @@ function makeMeta(overrides: Partial<Parameters<typeof computeProposalMeta>[0]> 
     predictedFields: new Set(),
     deterministicParseFields: new Set(),
     aiProposedFields: new Set(),
+    lookupDerivedFields: new Set(),
     carriedForwardFields: new Set(),
     parseEvidenceByField: {},
     aiEvidenceByField: {},
