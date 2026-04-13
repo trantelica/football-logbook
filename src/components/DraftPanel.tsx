@@ -114,6 +114,7 @@ export function DraftPanel() {
     proposalMeta,
     markLookupDerived,
     lookupDerivedFields,
+    requestAiEnrichment,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -1223,22 +1224,43 @@ PENALTY O-Holding EFF Y 2MIN N`}
 
         <div className="flex gap-2 pt-2 border-t border-border/30">
           {!isProposal && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1"
-              onClick={reviewProposal}
-              disabled={
-                activePass === 3
-                  ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
-                  : activePass >= 2
-                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
-                    : (touchedFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
-              }
-            >
-              <Eye className="h-3.5 w-3.5" />
-              Review Proposal
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={reviewProposal}
+                disabled={
+                  activePass === 3
+                    ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
+                    : activePass >= 2
+                      ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
+                      : (touchedFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
+                }
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Review Proposal
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1 text-xs"
+                onClick={() => {
+                  // Stub proposal source — replace with real AI integration later
+                  // For now, passes an empty proposal to exercise the path and report status
+                  const stubProposal: Record<string, unknown> = {};
+                  const collisions = requestAiEnrichment(stubProposal);
+                  if (collisions.length > 0) {
+                    toast.info(`AI enrichment: ${collisions.length} collision(s) skipped`);
+                  } else if (Object.keys(stubProposal).length === 0) {
+                    toast.info("No AI suggestions available (stub mode)");
+                  }
+                }}
+              >
+                <Bot className="h-3.5 w-3.5" />
+                Fill Unresolved
+              </Button>
+            </>
           )}
           {selectedSlotNum !== null && (
             <Button
