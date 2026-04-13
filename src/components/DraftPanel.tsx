@@ -1255,6 +1255,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
                     const result = await fetchAiProposal(
                       candidate as Record<string, unknown>,
                       activePass,
+                      {
+                        touchedFields,
+                        deterministicParseFields,
+                        predictedFields,
+                        carriedForwardFields: new Set<string>(),
+                        lookupDerivedFields,
+                        aiProposedFields: new Set<string>(),
+                      },
                     );
                     if (result.error) {
                       toast.error(result.error);
