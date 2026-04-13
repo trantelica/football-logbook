@@ -59,8 +59,9 @@ export type ProposalMetaMap = Map<string, ProposalFieldMeta>;
  *  1. coach_edited (touchedFields)
  *  2. deterministic_parse (deterministicParseFields) — from transcript parse
  *  3. ai_proposed (aiProposedFields) — reserved for true AI enrichment
- *  4. carry_forward (carriedForwardFields)
- *  5. predicted (predictedFields)
+ *  4. lookup_derived (lookupDerivedFields) — auto-populated from parent lookup
+ *  5. carry_forward (carriedForwardFields)
+ *  6. predicted (predictedFields)
  *
  * Status rules use structured validationReasons, not free-text matching:
  *  - governance_blocked: validationReasons[field] === "lookup_not_found"
@@ -74,6 +75,7 @@ export function computeProposalMeta(opts: {
   predictedFields: Set<string>;
   deterministicParseFields: Set<string>;
   aiProposedFields: Set<string>;
+  lookupDerivedFields: Set<string>;
   carriedForwardFields: Set<string>;
   parseEvidenceByField: Record<string, { snippet: string }>;
   aiEvidenceByField: Record<string, { snippet: string }>;
@@ -85,6 +87,7 @@ export function computeProposalMeta(opts: {
     predictedFields,
     deterministicParseFields,
     aiProposedFields,
+    lookupDerivedFields,
     carriedForwardFields,
     parseEvidenceByField,
     aiEvidenceByField,
@@ -99,6 +102,7 @@ export function computeProposalMeta(opts: {
     ...predictedFields,
     ...deterministicParseFields,
     ...aiProposedFields,
+    ...lookupDerivedFields,
     ...carriedForwardFields,
   ]);
 
@@ -115,6 +119,8 @@ export function computeProposalMeta(opts: {
       provenance = "deterministic_parse";
     } else if (aiProposedFields.has(fieldName)) {
       provenance = "ai_proposed";
+    } else if (lookupDerivedFields.has(fieldName)) {
+      provenance = "lookup_derived";
     } else if (carriedForwardFields.has(fieldName)) {
       provenance = "carry_forward";
     } else if (predictedFields.has(fieldName)) {
