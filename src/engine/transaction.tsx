@@ -8,7 +8,7 @@
  * Phase 6: PAT flow integration.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 
 import type { CandidateData, PlayRecord, TransactionState, ValidationErrors, SlotMeta } from "./types";
 import { validateInline, validateCommitGate } from "./validation";
@@ -27,6 +27,7 @@ import { possessionGuardrail } from "./possession";
 import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
+import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Evidence for a single AI-proposed field */
 export interface AIFieldEvidence {
@@ -131,6 +132,9 @@ interface TransactionContextValue {
   // Carry-forward indicators (Pass 2)
   carriedForwardFields: Set<string>;
   carriedForwardFromPlayNum: number | null;
+
+  // Proposal metadata layer
+  proposalMeta: ProposalMetaMap;
 }
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
@@ -235,6 +239,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 10: AI/system patch state
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
   const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+  // Lookup-derived fields (auto-populated dependents from parent lookup selection)
+  const [lookupDerivedFields, setLookupDerivedFields] = useState<Set<string>>(new Set());
 
   // Stage setter — no carry-forward here, just clear Pass 1 prompts
   const setActivePass = useCallback((pass: number) => {
@@ -274,6 +280,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setActivePassRaw(1);
     setOdkFilter("ALL");
     setAiProposedFields(new Set());
+    setLookupDerivedFields(new Set());
     setAiEvidenceByField({});
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
@@ -505,6 +512,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [gameId, isSlotMode]);
 
@@ -533,6 +541,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
@@ -1423,6 +1432,18 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     return { committed: true, hasNext: false };
   }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass]);
 
+  // Proposal metadata — derived from existing state signals
+  const proposalMeta = useMemo(() => computeProposalMeta({
+    candidate: candidate as Record<string, unknown>,
+    touchedFields,
+    predictedFields,
+    aiProposedFields,
+    carriedForwardFields,
+    aiEvidenceByField,
+    inlineErrors,
+    lookupDerivedFields,
+  }), [candidate, touchedFields, predictedFields, aiProposedFields, carriedForwardFields, aiEvidenceByField, inlineErrors, lookupDerivedFields]);
+
   return (
     <TransactionContext.Provider
       value={{
@@ -1485,6 +1506,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         gradeOverwriteDiffs,
         confirmGradeOverwrite,
         cancelGradeOverwrite,
+        proposalMeta,
       }}
     >
       {children}
