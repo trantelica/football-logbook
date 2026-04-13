@@ -1503,6 +1503,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         gradeOverwriteDiffs,
         confirmGradeOverwrite,
         cancelGradeOverwrite,
+        proposalMeta,
       }}
     >
       {children}
