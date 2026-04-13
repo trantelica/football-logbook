@@ -381,6 +381,18 @@ export function DraftPanel() {
             </Tooltip>
           </TooltipProvider>
         )}
+        {lookupDerivedFields.has(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/40 rounded px-1">
+                  <Link className="h-2.5 w-2.5" />Lookup
+                </span>
+              </TooltipTrigger>
+              <TooltipContent><p>Auto-populated from parent lookup. Editable.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {deterministicParseFields.has(fieldName) && (
           <TooltipProvider>
             <Tooltip>
