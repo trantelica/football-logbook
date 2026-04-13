@@ -23,7 +23,7 @@ import { useSeason } from "@/engine/seasonContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
 import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot, ArrowRightLeft, Info, AlertCircle, ShieldAlert } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot, ArrowRightLeft, Info, AlertCircle, ShieldAlert, Link } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
@@ -112,6 +112,8 @@ export function DraftPanel() {
     lookupInterruptPending,
     clearLookupInterrupt,
     proposalMeta,
+    markLookupDerived,
+    lookupDerivedFields,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
@@ -272,13 +274,20 @@ export function DraftPanel() {
   /** Handle lookup field selection with dependent auto-population */
   const handleLookupSelect = (fieldName: string, value: string) => {
     updateField(fieldName, value);
-    // Auto-populate dependent fields from entryAttributes
+    // Auto-populate dependent fields from entryAttributes and track as lookup_derived
     const deps = DEPENDENT_FIELD_MAP[fieldName];
     if (deps && value) {
       const attrs = getEntryAttributes(fieldName, value);
       if (attrs) {
+        const derivedFields: string[] = [];
         for (const dep of deps) {
-          if (attrs[dep]) updateField(dep, attrs[dep]);
+          if (attrs[dep]) {
+            updateField(dep, attrs[dep]);
+            derivedFields.push(dep);
+          }
+        }
+        if (derivedFields.length > 0) {
+          markLookupDerived(derivedFields);
         }
       }
     }
@@ -369,6 +378,18 @@ export function DraftPanel() {
                 </span>
               </TooltipTrigger>
               <TooltipContent><p>Carried forward from play {carriedForwardFromPlayNum ?? "?"}. Editable.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {lookupDerivedFields.has(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/40 rounded px-1">
+                  <Link className="h-2.5 w-2.5" />Lookup
+                </span>
+              </TooltipTrigger>
+              <TooltipContent><p>Auto-populated from parent lookup. Editable.</p></TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}

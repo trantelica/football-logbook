@@ -57,6 +57,8 @@ export interface SystemPatchCollision {
 }
 
 interface TransactionContextValue {
+  /** Mark fields as lookup-derived (auto-populated from parent lookup) */
+  markLookupDerived: (fieldNames: string[]) => void;
   /** Incremented on each successful commit — used to signal transcript clear */
   commitCount: number;
   state: TransactionState;
@@ -139,6 +141,9 @@ interface TransactionContextValue {
   // Carry-forward indicators (Pass 2)
   carriedForwardFields: Set<string>;
   carriedForwardFromPlayNum: number | null;
+
+  // Phase 10: Lookup-derived fields
+  lookupDerivedFields: Set<string>;
 
   // Proposal metadata layer
   proposalMeta: ProposalMetaMap;
@@ -246,6 +251,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 10: Deterministic parse state (from transcript parse)
   const [deterministicParseFields, setDeterministicParseFields] = useState<Set<string>>(new Set());
   const [parseEvidenceByField, setParseEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+  // Phase 10: Lookup-derived state (auto-populated from parent lookup selection)
+  const [lookupDerivedFields, setLookupDerivedFields] = useState<Set<string>>(new Set());
   // Phase 10: AI/system patch state (reserved for true AI enrichment)
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
   const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
@@ -291,6 +298,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
@@ -395,6 +403,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
+      // Phase 10: Coach edit removes lookup-derived tracking
+      setLookupDerivedFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
       setAiEvidenceByField((prev) => {
         if (fieldName in prev) {
           const next = { ...prev };
@@ -409,11 +426,29 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
       // Validate union of touched + parse + aiProposed
-      const validationFields = new Set([...newTouched, ...deterministicParseFields, ...aiProposedFields]);
+      const validationFields = new Set([...newTouched, ...deterministicParseFields, ...aiProposedFields, ...lookupDerivedFields]);
       setInlineErrors(validateInline(newCandidate, validationFields, getLookupMap()));
     },
-    [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
+    [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass, lookupDerivedFields]
   );
+
+  // Phase 10: Mark fields as lookup-derived (auto-populated from parent lookup)
+  const markLookupDerived = useCallback((fieldNames: string[]) => {
+    setLookupDerivedFields((prev) => {
+      const next = new Set(prev);
+      for (const fn of fieldNames) next.add(fn);
+      return next;
+    });
+    // Remove from touched so provenance stays lookup_derived
+    setTouchedFields((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const fn of fieldNames) {
+        if (next.has(fn)) { next.delete(fn); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
 
   // Phase 10: Apply system patch without marking fields as touched
   // Routes to deterministicParseFields or aiProposedFields based on source option
@@ -560,6 +595,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [gameId, isSlotMode]);
 
@@ -590,6 +626,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
@@ -1253,6 +1290,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setState(gameId ? "idle" : "idle");
   }, [gameId]);
 
@@ -1470,6 +1508,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             setParseEvidenceByField({});
             setAiProposedFields(new Set());
             setAiEvidenceByField({});
+            setLookupDerivedFields(new Set());
             setState("candidate");
             return { committed: true, hasNext: true };
           }
@@ -1486,9 +1525,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Structured validation reasons for proposal metadata
   const validationReasons = useMemo(() => {
-    const activeFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
+    const activeFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields, ...lookupDerivedFields]);
     return computeValidationReasons(candidate, activeFields, getLookupMap(), rosterNumbers);
-  }, [candidate, touchedFields, deterministicParseFields, aiProposedFields, getLookupMap, rosterNumbers]);
+  }, [candidate, touchedFields, deterministicParseFields, aiProposedFields, lookupDerivedFields, getLookupMap, rosterNumbers]);
 
   // Proposal metadata — derived from existing state signals
   const proposalMeta = useMemo(() => computeProposalMeta({
@@ -1497,11 +1536,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     predictedFields,
     deterministicParseFields,
     aiProposedFields,
+    lookupDerivedFields,
     carriedForwardFields,
     parseEvidenceByField,
     aiEvidenceByField,
     validationReasons,
-  }), [candidate, touchedFields, predictedFields, deterministicParseFields, aiProposedFields, carriedForwardFields, parseEvidenceByField, aiEvidenceByField, validationReasons]);
+  }), [candidate, touchedFields, predictedFields, deterministicParseFields, aiProposedFields, lookupDerivedFields, carriedForwardFields, parseEvidenceByField, aiEvidenceByField, validationReasons]);
 
   return (
     <TransactionContext.Provider
@@ -1568,6 +1608,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         confirmGradeOverwrite,
         cancelGradeOverwrite,
         proposalMeta,
+        markLookupDerived,
+        lookupDerivedFields,
       }}
     >
       {children}
