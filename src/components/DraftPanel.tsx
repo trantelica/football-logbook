@@ -367,7 +367,7 @@ export function DraftPanel() {
             </Tooltip>
           </TooltipProvider>
         )}
-        {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+        {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -380,27 +380,36 @@ export function DraftPanel() {
             </Tooltip>
           </TooltipProvider>
         )}
+        {deterministicParseFields.has(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                  <Terminal className="h-2.5 w-2.5" />Parse
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>From transcript parse. Editable.</p>
+                {meta?.transcriptEvidence && (
+                  <p className="text-[10px] mt-1 opacity-80 font-mono">
+                    <Info className="h-2.5 w-2.5 inline mr-0.5" />
+                    "{meta.transcriptEvidence}"
+                  </p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
         {isAiProposed(fieldName) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className={cn(
-                  "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
-                  meta?.provenance === "deterministic_parse"
-                    ? "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40"
-                    : "text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40"
-                )}>
-                  {meta?.provenance === "deterministic_parse" ? (
-                    <><Terminal className="h-2.5 w-2.5" />Parse</>
-                  ) : (
-                    <><Bot className="h-2.5 w-2.5" />AI</>
-                  )}
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                  <Bot className="h-2.5 w-2.5" />AI
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{meta?.provenance === "deterministic_parse"
-                  ? "From transcript parse. Editable."
-                  : "AI-proposed value. Editable."}</p>
+                <p>AI-proposed value. Editable.</p>
                 {meta?.transcriptEvidence && (
                   <p className="text-[10px] mt-1 opacity-80 font-mono">
                     <Info className="h-2.5 w-2.5 inline mr-0.5" />
