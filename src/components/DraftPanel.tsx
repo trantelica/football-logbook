@@ -107,7 +107,6 @@ export function DraftPanel() {
     confirmGradeOverwrite,
     cancelGradeOverwrite,
     aiProposedFields,
-    aiEvidenceByField,
     applySystemPatch,
     lookupInterruptPending,
     clearLookupInterrupt,
