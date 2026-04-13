@@ -415,14 +415,16 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
   );
 
-  // Phase 10: Apply system/AI patch without marking fields as touched
+  // Phase 10: Apply system patch without marking fields as touched
+  // Routes to deterministicParseFields or aiProposedFields based on source option
   const applySystemPatch = useCallback(
     (patch: Record<string, unknown>, options?: SystemPatchOptions): SystemPatchCollision[] => {
       const fillOnly = options?.fillOnly !== false; // default true
       const evidence = options?.evidence;
+      const source = options?.source ?? "deterministic_parse"; // default to parse
       const collisions: SystemPatchCollision[] = [];
       const fieldsToApply: Record<string, unknown> = {};
-      const newAiFields = new Set<string>();
+      const newFields = new Set<string>();
 
       const ACTOR_FIELD_NAMES = new Set(["rusher", "passer", "receiver", "returner"]);
 
@@ -446,11 +448,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
 
         fieldsToApply[fieldName] = proposedValue;
-        newAiFields.add(fieldName);
+        newFields.add(fieldName);
       }
 
       if (Object.keys(fieldsToApply).length > 0) {
-        // Bug 7 fix: Canonicalize values against lookup map for proper casing
+        // Canonicalize values against lookup map for proper casing
         const lookupMapForCasing = getLookupMap();
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
           if (!lookupMapForCasing.has(fieldName)) continue;
@@ -466,25 +468,44 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           }
         }
         setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
-        setAiProposedFields((prev) => {
-          const next = new Set(prev);
-          for (const f of newAiFields) next.add(f);
-          return next;
-        });
 
-        if (evidence) {
-          setAiEvidenceByField((prev) => {
-            const next = { ...prev };
-            for (const f of newAiFields) {
-              if (evidence[f]) next[f] = evidence[f];
-            }
+        // Route to correct provenance set based on source
+        if (source === "deterministic_parse") {
+          setDeterministicParseFields((prev) => {
+            const next = new Set(prev);
+            for (const f of newFields) next.add(f);
             return next;
           });
+          if (evidence) {
+            setParseEvidenceByField((prev) => {
+              const next = { ...prev };
+              for (const f of newFields) {
+                if (evidence[f]) next[f] = evidence[f];
+              }
+              return next;
+            });
+          }
+        } else {
+          // ai_proposed
+          setAiProposedFields((prev) => {
+            const next = new Set(prev);
+            for (const f of newFields) next.add(f);
+            return next;
+          });
+          if (evidence) {
+            setAiEvidenceByField((prev) => {
+              const next = { ...prev };
+              for (const f of newFields) {
+                if (evidence[f]) next[f] = evidence[f];
+              }
+              return next;
+            });
+          }
         }
 
         // Recompute inline errors with union of all active field sets
         const updatedCandidate = { ...candidate, ...fieldsToApply };
-        const validationFields = new Set([...touchedFields, ...aiProposedFields, ...newAiFields]);
+        const validationFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields, ...newFields]);
         setInlineErrors(validateInline(updatedCandidate as CandidateData, validationFields, getLookupMap()));
 
         setState("candidate");
@@ -493,7 +514,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         // 10-1D: Immediate lookup interrupt for governed lookup fields with unknown values
         const lookupMap = getLookupMap();
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
-          if (!lookupMap.has(fieldName)) continue; // not a governed lookup field
+          if (!lookupMap.has(fieldName)) continue;
           const knownValues = lookupMap.get(fieldName) ?? [];
           const valStr = String(value).trim();
           if (valStr === "") continue;
@@ -506,7 +527,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
               fieldLabel: fd?.label ?? fieldName,
               value: valStr,
             });
-            break; // one interrupt at a time
+            break;
           }
         }
       }
