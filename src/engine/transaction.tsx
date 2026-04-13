@@ -57,6 +57,8 @@ export interface SystemPatchCollision {
 }
 
 interface TransactionContextValue {
+  /** Mark fields as lookup-derived (auto-populated from parent lookup) */
+  markLookupDerived: (fieldNames: string[]) => void;
   /** Incremented on each successful commit — used to signal transcript clear */
   commitCount: number;
   state: TransactionState;
@@ -139,6 +141,9 @@ interface TransactionContextValue {
   // Carry-forward indicators (Pass 2)
   carriedForwardFields: Set<string>;
   carriedForwardFromPlayNum: number | null;
+
+  // Phase 10: Lookup-derived fields
+  lookupDerivedFields: Set<string>;
 
   // Proposal metadata layer
   proposalMeta: ProposalMetaMap;
