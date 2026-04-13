@@ -626,8 +626,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    // Validate union of touched + aiProposed fields
-    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    // Validate union of touched + parse + aiProposed fields
+    const validationFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
     const errors = validateInline(candidate, validationFields, getLookupMap());
     setInlineErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -1249,6 +1249,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setInlineErrors({});
     setCommitErrors({});
     setScaffoldedWarning(null);
+    setDeterministicParseFields(new Set());
+    setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setState(gameId ? "idle" : "idle");
@@ -1464,6 +1466,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             setPossessionPrevPlayInfo(null);
             setCarriedForwardFields(seededFields);
             setCarriedForwardFromPlayNum(currentSlotNum);
+            setDeterministicParseFields(new Set());
+            setParseEvidenceByField({});
             setAiProposedFields(new Set());
             setAiEvidenceByField({});
             setState("candidate");
@@ -1480,17 +1484,24 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     return { committed: true, hasNext: false };
   }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass]);
 
+  // Structured validation reasons for proposal metadata
+  const validationReasons = useMemo(() => {
+    const activeFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
+    return computeValidationReasons(candidate, activeFields, getLookupMap(), rosterNumbers);
+  }, [candidate, touchedFields, deterministicParseFields, aiProposedFields, getLookupMap, rosterNumbers]);
+
   // Proposal metadata — derived from existing state signals
   const proposalMeta = useMemo(() => computeProposalMeta({
     candidate: candidate as Record<string, unknown>,
     touchedFields,
     predictedFields,
+    deterministicParseFields,
     aiProposedFields,
     carriedForwardFields,
+    parseEvidenceByField,
     aiEvidenceByField,
-    inlineErrors,
-    lookupDerivedFields,
-  }), [candidate, touchedFields, predictedFields, aiProposedFields, carriedForwardFields, aiEvidenceByField, inlineErrors, lookupDerivedFields]);
+    validationReasons,
+  }), [candidate, touchedFields, predictedFields, deterministicParseFields, aiProposedFields, carriedForwardFields, parseEvidenceByField, aiEvidenceByField, validationReasons]);
 
   return (
     <TransactionContext.Provider
@@ -1512,6 +1523,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         slotMetaMap,
         isSlotMode,
         scaffoldedWarning,
+        deterministicParseFields,
+        parseEvidenceByField,
         aiProposedFields,
         aiEvidenceByField,
         applySystemPatch,
