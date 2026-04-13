@@ -1,9 +1,12 @@
 /**
  * AI Enrichment Client — calls the ai-enrich edge function.
  *
- * Sends current candidate context plus unresolved fields to the backend,
- * receives a proposal object. The caller routes the result through
+ * Sends observation text, deterministic patch, unresolved fields, and
+ * field hints to the backend. The caller routes the result through
  * requestAiEnrichment for filtering and provenance assignment.
+ *
+ * AI is NOT called when observation text is empty — the model needs
+ * narrative context to ground its suggestions.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +23,7 @@ function buildFieldHints(unresolvedFields: string[]): Record<string, unknown> {
   for (const name of unresolvedFields) {
     const def = playSchema.find((f) => f.name === name);
     if (def?.allowedValues && def.allowedValues.length > 0) {
-      hints[name] = { label: def.label, allowedValues: def.allowedValues };
+      hints[name] = { label: def.label, allowedValues: def.allowedValues, type: def.dataType ?? "string" };
     } else {
       hints[name] = { label: def?.label ?? name, type: def?.dataType ?? "string" };
     }
@@ -29,8 +32,10 @@ function buildFieldHints(unresolvedFields: string[]): Record<string, unknown> {
 }
 
 /**
- * Fetch AI proposal for unresolved fields.
+ * Fetch AI proposal for unresolved fields, grounded in observation text.
+ *
  * Returns { proposal, error } — caller routes proposal through requestAiEnrichment.
+ * Returns early with an error if observationText is empty.
  */
 export async function fetchAiProposal(
   candidate: Record<string, unknown>,
@@ -42,8 +47,18 @@ export async function fetchAiProposal(
     carriedForwardFields?: Set<string>;
     lookupDerivedFields?: Set<string>;
     aiProposedFields?: Set<string>;
+    /** The coach's raw observation / transcript text */
+    observationText?: string;
+    /** Fields already resolved by deterministic parse */
+    deterministicPatch?: Record<string, unknown>;
   },
 ): Promise<{ proposal: Record<string, unknown>; error?: string }> {
+  // Gate: no observation text = no AI call
+  const observationText = opts?.observationText?.trim() ?? "";
+  if (!observationText) {
+    return { proposal: {}, error: "Parse transcript first — AI needs observation context" };
+  }
+
   // Determine eligible fields for current pass
   const eligibleFieldNames = playSchema
     .filter((f) => f.defaultPassEntry <= activePass)
@@ -73,9 +88,12 @@ export async function fetchAiProposal(
   }
 
   const fieldHints = buildFieldHints(unresolvedFields);
+  const deterministicPatch = opts?.deterministicPatch ?? {};
 
   const { data, error } = await supabase.functions.invoke("ai-enrich", {
     body: {
+      observationText,
+      deterministicPatch,
       candidate: compactCandidate,
       unresolvedFields,
       fieldHints,

@@ -210,3 +210,50 @@ describe("filterAiProposal", () => {
     // Governance enforcement happens in applySystemPatch → lookup interrupt
   });
 });
+
+/**
+ * Tests for grounded AI enrichment client contract.
+ * These test the client-side gating logic (fetchAiProposal).
+ */
+describe("fetchAiProposal client gating", () => {
+  it("returns error when observationText is empty", async () => {
+    // We can test the client gating without a real edge function
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal(
+      { gameId: "g1", dn: "1" },
+      1,
+      { observationText: "" },
+    );
+    expect(result.error).toContain("observation context");
+    expect(Object.keys(result.proposal)).toHaveLength(0);
+  });
+
+  it("returns error when observationText is undefined", async () => {
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal(
+      { gameId: "g1", dn: "1" },
+      1,
+      { observationText: undefined },
+    );
+    expect(result.error).toContain("observation context");
+    expect(Object.keys(result.proposal)).toHaveLength(0);
+  });
+
+  it("returns error when observationText is whitespace only", async () => {
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal(
+      { gameId: "g1", dn: "1" },
+      1,
+      { observationText: "   " },
+    );
+    expect(result.error).toContain("observation context");
+    expect(Object.keys(result.proposal)).toHaveLength(0);
+  });
+
+  it("returns error when no opts provided (no observation)", async () => {
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal({ gameId: "g1" }, 1);
+    expect(result.error).toContain("observation context");
+    expect(Object.keys(result.proposal)).toHaveLength(0);
+  });
+});

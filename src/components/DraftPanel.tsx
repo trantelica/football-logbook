@@ -121,6 +121,10 @@ export function DraftPanel() {
   const { roster, addPlayer } = useRoster();
   const { saveInput } = useRawInput();
   const [isAiEnriching, setIsAiEnriching] = useState(false);
+  /** Last parsed transcript text — used as observation context for AI enrichment */
+  const [lastObservationText, setLastObservationText] = useState("");
+  /** Last deterministic parse patch — sent to AI so it knows what's already resolved */
+  const [lastDeterministicPatch, setLastDeterministicPatch] = useState<Record<string, unknown>>({});
 
   // 9.2A: Load active fields from season config
   const [activeFieldsMap, setActiveFieldsMap] = useState<Record<string, boolean> | null>(null);
@@ -863,6 +867,8 @@ export function DraftPanel() {
       toast("No transcript to parse.");
       return;
     }
+    // Store observation text for AI enrichment grounding
+    setLastObservationText(transcriptText.trim());
     const normalized = normalizeTranscriptForParse(transcriptText.trim());
     const result = parseRawInput(normalized);
 
@@ -887,8 +893,12 @@ export function DraftPanel() {
 
     if (Object.keys(result.patch).length === 0) {
       toast("No anchors recognized in transcript.");
+      setLastDeterministicPatch({});
       return;
     }
+
+    // Store the deterministic patch for AI enrichment context
+    setLastDeterministicPatch({ ...result.patch });
 
     // Build evidence from transcript snippet per field
     const evidence: Record<string, { snippet: string }> = {};
@@ -1247,9 +1257,9 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 size="sm"
                 variant="ghost"
                 className="gap-1 text-xs"
-                disabled={isAiEnriching}
+                disabled={isAiEnriching || !lastObservationText}
+                title={!lastObservationText ? "Parse transcript first — AI needs observation context" : undefined}
                 onClick={async () => {
-                  // Real AI enrichment — calls edge function with play context
                   setIsAiEnriching(true);
                   try {
                     const result = await fetchAiProposal(
@@ -1262,6 +1272,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
                         carriedForwardFields: new Set<string>(),
                         lookupDerivedFields,
                         aiProposedFields: new Set<string>(),
+                        observationText: lastObservationText,
+                        deterministicPatch: lastDeterministicPatch,
                       },
                     );
                     if (result.error) {
