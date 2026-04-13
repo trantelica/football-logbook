@@ -119,6 +119,7 @@ export function DraftPanel() {
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
   const { saveInput } = useRawInput();
+  const [isAiEnriching, setIsAiEnriching] = useState(false);
 
   // 9.2A: Load active fields from season config
   const [activeFieldsMap, setActiveFieldsMap] = useState<Record<string, boolean> | null>(null);
