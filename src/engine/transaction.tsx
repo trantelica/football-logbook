@@ -586,9 +586,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setPatLockedTry(null);
     setCarriedForwardFields(new Set());
     setCarriedForwardFromPlayNum(null);
+    setDeterministicParseFields(new Set());
+    setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
-    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
