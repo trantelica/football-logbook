@@ -867,6 +867,8 @@ export function DraftPanel() {
       toast("No transcript to parse.");
       return;
     }
+    // Store observation text for AI enrichment grounding
+    setLastObservationText(transcriptText.trim());
     const normalized = normalizeTranscriptForParse(transcriptText.trim());
     const result = parseRawInput(normalized);
 
@@ -891,8 +893,12 @@ export function DraftPanel() {
 
     if (Object.keys(result.patch).length === 0) {
       toast("No anchors recognized in transcript.");
+      setLastDeterministicPatch({});
       return;
     }
+
+    // Store the deterministic patch for AI enrichment context
+    setLastDeterministicPatch({ ...result.patch });
 
     // Build evidence from transcript snippet per field
     const evidence: Record<string, { snippet: string }> = {};
