@@ -41,6 +41,7 @@ import { isDevMode } from "@/engine/devMode";
 import { VoicePanel } from "./VoicePanel";
 import { parseRawInput } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
+import { fetchAiProposal } from "@/engine/aiEnrichClient";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
