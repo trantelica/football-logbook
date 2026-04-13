@@ -229,9 +229,6 @@ export function DraftPanel() {
     return aiProposedFields.has(field);
   }
 
-  function isAiProposed(field: string) {
-    return aiProposedFields.has(field);
-  }
 
   function isMinimalField(field: string) {
     return (SEGMENT_REQUIRED_FIELDS as readonly string[]).includes(field) || field === "playNum";
