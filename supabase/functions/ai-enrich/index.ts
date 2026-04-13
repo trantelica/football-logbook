@@ -1,9 +1,9 @@
 /**
  * AI Enrichment Edge Function
  *
- * Accepts current play candidate context and a list of unresolved field names.
- * Calls Lovable AI Gateway to propose values for unresolved fields only.
- * Returns a proposal object keyed by field name.
+ * Accepts observation text (coach dictation), deterministic parse results,
+ * unresolved field names, and field hints. Calls Lovable AI Gateway to
+ * propose values for unresolved fields only, grounded in the observation text.
  */
 
 const corsHeaders = {
@@ -18,7 +18,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { candidate, unresolvedFields, fieldHints } = await req.json();
+    const {
+      observationText,
+      deterministicPatch,
+      candidate,
+      unresolvedFields,
+      fieldHints,
+    } = await req.json();
 
     if (
       !candidate ||
@@ -31,23 +37,45 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Gate: no observation text = no AI call
+    if (!observationText || typeof observationText !== "string" || observationText.trim() === "") {
+      return new Response(
+        JSON.stringify({ proposal: {}, error: "No observation text provided — AI enrichment requires narrative context" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build a focused system prompt
-    const systemPrompt = `You are a football play-by-play data assistant. Given partial play data, suggest values for the specified unresolved fields only. Return a JSON object mapping field names to suggested values. Only include fields from the unresolved list. Use realistic football values. Do not invent field names.
+    // Build a focused system prompt grounded in observation text
+    const systemPrompt = `You are a football play-by-play data assistant. A coach has dictated observations about a play. A deterministic parser has already extracted some structured fields. Your job is to infer values ONLY for the remaining unresolved fields based on what the coach said.
 
-Field hints (allowed values where applicable):
+Rules:
+- Only suggest values for fields listed in the unresolved fields list.
+- Base your suggestions on what the coach actually said in the observation text.
+- Do not guess values that have no basis in the observation text.
+- Do not invent field names.
+- Use the field hints to ensure values match expected types and allowed values.
+- If you cannot confidently infer a field from the observation, omit it.
+
+Field hints (allowed values and types):
 ${JSON.stringify(fieldHints ?? {}, null, 2)}`;
 
-    const userPrompt = `Current play data (partial):
+    const userPrompt = `Coach's observation:
+"${observationText.trim()}"
+
+Fields already resolved by deterministic parser:
+${JSON.stringify(deterministicPatch ?? {}, null, 2)}
+
+Current play state (all resolved fields):
 ${JSON.stringify(candidate, null, 2)}
 
 Unresolved fields needing suggestions: ${JSON.stringify(unresolvedFields)}
 
-Return ONLY a JSON object with suggested values for the unresolved fields. Example: {"hash": "L", "result": "Rush"}`;
+Return ONLY a JSON object with values you can confidently infer from the coach's observation. Omit fields you cannot infer. Example: {"hash": "L", "result": "Rush"}`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -69,14 +97,14 @@ Return ONLY a JSON object with suggested values for the unresolved fields. Examp
               function: {
                 name: "suggest_fields",
                 description:
-                  "Return suggested values for unresolved play fields",
+                  "Return suggested values for unresolved play fields based on the coach's observation",
                 parameters: {
                   type: "object",
                   properties: {
                     suggestions: {
                       type: "object",
                       description:
-                        "Map of field name to suggested value. Only include fields from the unresolved list.",
+                        "Map of field name to suggested value. Only include fields from the unresolved list that can be inferred from the observation text.",
                       additionalProperties: true,
                     },
                   },
