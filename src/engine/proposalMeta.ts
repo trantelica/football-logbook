@@ -10,6 +10,7 @@ export type ProvenanceSource =
   | "deterministic_parse"
   | "predicted"
   | "carry_forward"
+  | "lookup_derived"
   | "ai_proposed"
   | "coach_edited";
 

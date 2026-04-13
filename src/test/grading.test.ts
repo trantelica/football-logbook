@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { anyGradePresent, GRADE_FIELDS } from "@/engine/personnel";
-import { validateInline } from "@/engine/validation";
+import { validateInline, normalizeToSchema } from "@/engine/validation";
 import { playsToCSV } from "@/engine/db";
 import { playSchema } from "@/engine/schema";
 import type { PlayRecord, CandidateData } from "@/engine/types";
@@ -189,8 +189,6 @@ describe("Grade overwrite diffs", () => {
 
 describe("Grade normalization", () => {
   it("stored grades are number | null after normalizeToSchema", () => {
-    // Simulating what normalizeToSchema does for integer fields
-    const { normalizeToSchema } = require("@/engine/validation");
     const candidate: CandidateData = {
       gameId: "g1",
       playNum: 1 as any,
