@@ -370,7 +370,23 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
-      // Phase 10: Coach edit converts AI-proposed → touched, clears evidence
+      // Phase 10: Coach edit converts parse/AI-proposed → touched, clears evidence
+      setDeterministicParseFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
+      setParseEvidenceByField((prev) => {
+        if (fieldName in prev) {
+          const next = { ...prev };
+          delete next[fieldName];
+          return next;
+        }
+        return prev;
+      });
       setAiProposedFields((prev) => {
         if (prev.has(fieldName)) {
           const next = new Set(prev);
@@ -392,8 +408,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       const newTouched = new Set(touchedFields).add(fieldName);
       const newCandidate = { ...candidate, [fieldName]: value };
-      // Validate union of touched + aiProposed
-      const validationFields = new Set([...newTouched, ...aiProposedFields]);
+      // Validate union of touched + parse + aiProposed
+      const validationFields = new Set([...newTouched, ...deterministicParseFields, ...aiProposedFields]);
       setInlineErrors(validateInline(newCandidate, validationFields, getLookupMap()));
     },
     [candidate, touchedFields, getLookupMap, isSlotMode, selectedSlotNum, slotMetaMap, activePass]
