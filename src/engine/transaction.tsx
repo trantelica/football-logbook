@@ -243,11 +243,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Commit counter — incremented on each successful commit for transcript lifecycle
   const [commitCount, setCommitCount] = useState(0);
 
-  // Phase 10: AI/system patch state
+  // Phase 10: Deterministic parse state (from transcript parse)
+  const [deterministicParseFields, setDeterministicParseFields] = useState<Set<string>>(new Set());
+  const [parseEvidenceByField, setParseEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
+  // Phase 10: AI/system patch state (reserved for true AI enrichment)
   const [aiProposedFields, setAiProposedFields] = useState<Set<string>>(new Set());
   const [aiEvidenceByField, setAiEvidenceByField] = useState<Record<string, AIFieldEvidence>>({});
-  // Lookup-derived fields (auto-populated dependents from parent lookup selection)
-  const [lookupDerivedFields, setLookupDerivedFields] = useState<Set<string>>(new Set());
 
   // Stage setter — no carry-forward here, just clear Pass 1 prompts
   const setActivePass = useCallback((pass: number) => {
