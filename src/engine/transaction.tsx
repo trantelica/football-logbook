@@ -280,6 +280,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setActivePassRaw(1);
     setOdkFilter("ALL");
     setAiProposedFields(new Set());
+    setLookupDerivedFields(new Set());
     setAiEvidenceByField({});
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
