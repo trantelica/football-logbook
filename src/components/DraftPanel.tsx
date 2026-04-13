@@ -1246,19 +1246,41 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 variant="ghost"
                 className="gap-1 text-xs"
                 onClick={() => {
-                  // Stub proposal source — replace with real AI integration later
-                  // For now, passes an empty proposal to exercise the path and report status
-                  const stubProposal: Record<string, unknown> = {};
-                  const collisions = requestAiEnrichment(stubProposal);
+                  // TEMPORARY demo proposal source — replace with real AI integration later.
+                  // Inspects the current candidate and proposes plausible defaults for a
+                  // small safe subset of fields. Only proposes if the field is empty;
+                  // requestAiEnrichment handles overwrite protection.
+                  const demoDefaults: Record<string, unknown> = {
+                    hash: "M",
+                    result: "Rush",
+                    offStrength: "Rt",
+                    playDir: "Rt",
+                  };
+                  // Build proposal from only empty candidate fields
+                  const cand = candidate as Record<string, unknown>;
+                  const proposal: Record<string, unknown> = {};
+                  for (const [k, v] of Object.entries(demoDefaults)) {
+                    const cur = cand[k];
+                    if (cur === null || cur === undefined || cur === "") {
+                      proposal[k] = v;
+                    }
+                  }
+                  if (Object.keys(proposal).length === 0) {
+                    toast.info("No unresolved demo fields to fill");
+                    return;
+                  }
+                  const collisions = requestAiEnrichment(proposal);
+                  const filled = Object.keys(proposal).length - collisions.length;
+                  if (filled > 0) {
+                    toast.success(`Suggested ${filled} field(s) — review before committing`);
+                  }
                   if (collisions.length > 0) {
-                    toast.info(`AI enrichment: ${collisions.length} collision(s) skipped`);
-                  } else if (Object.keys(stubProposal).length === 0) {
-                    toast.info("No AI suggestions available (stub mode)");
+                    toast.info(`${collisions.length} field(s) already resolved, skipped`);
                   }
                 }}
               >
                 <Bot className="h-3.5 w-3.5" />
-                Fill Unresolved
+                Suggest Fills
               </Button>
             </>
           )}
