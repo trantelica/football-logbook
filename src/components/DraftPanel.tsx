@@ -112,6 +112,8 @@ export function DraftPanel() {
     lookupInterruptPending,
     clearLookupInterrupt,
     proposalMeta,
+    markLookupDerived,
+    lookupDerivedFields,
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
