@@ -512,6 +512,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [gameId, isSlotMode]);
 
@@ -540,6 +541,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCarriedForwardFromPlayNum(null);
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
