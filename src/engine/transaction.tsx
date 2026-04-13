@@ -8,7 +8,7 @@
  * Phase 6: PAT flow integration.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 
 import type { CandidateData, PlayRecord, TransactionState, ValidationErrors, SlotMeta } from "./types";
 import { validateInline, validateCommitGate } from "./validation";
@@ -27,6 +27,7 @@ import { possessionGuardrail } from "./possession";
 import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
+import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Evidence for a single AI-proposed field */
 export interface AIFieldEvidence {
