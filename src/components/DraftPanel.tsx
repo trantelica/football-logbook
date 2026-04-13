@@ -305,66 +305,109 @@ export function DraftPanel() {
 
   const isFieldCommitted = (fieldName: string) => slotCommittedFields.has(fieldName);
 
-  const renderFieldLabel = (fieldName: string, label: string, required: boolean) => (
-    <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-      {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent><p>Committed</p></TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-      {isPredicted(fieldName) && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
-                <Sparkles className="h-2.5 w-2.5" />
-                Pred
-              </span>
-            </TooltipTrigger>
-            <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-      {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
-                <ArrowRightLeft className="h-2.5 w-2.5" />
-                CF
-              </span>
-            </TooltipTrigger>
-            <TooltipContent><p>Carried forward from play {carriedForwardFromPlayNum ?? "?"}. Editable.</p></TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-      {isAiProposed(fieldName) && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
-                <Bot className="h-2.5 w-2.5" />
-                AI
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>AI-proposed value. Editable.</p>
-              {aiEvidenceByField[fieldName]?.snippet && (
-                <p className="text-[10px] mt-1 opacity-80 font-mono">{aiEvidenceByField[fieldName].snippet}</p>
+  const renderFieldLabel = (fieldName: string, label: string, required: boolean) => {
+    const meta = proposalMeta.get(fieldName);
+
+    // Status badge for needs_clarification or governance_blocked
+    const statusBadge = meta && (meta.status === "needs_clarification" || meta.status === "governance_blocked") ? (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
+              meta.status === "governance_blocked"
+                ? "text-destructive bg-destructive/10"
+                : "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
+            )}>
+              {meta.status === "governance_blocked" ? (
+                <><ShieldAlert className="h-2.5 w-2.5" />Gov</>
+              ) : (
+                <><AlertCircle className="h-2.5 w-2.5" />?</>
               )}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-      {label}
-      {required && <span className="text-destructive ml-0.5">*</span>}
-    </Label>
-  );
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{meta.status === "governance_blocked" ? "Value not in approved lookup list" : "Needs clarification"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    ) : null;
+
+    return (
+      <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 flex-wrap">
+        {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent><p>Committed</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {isPredicted(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Pred
+                </span>
+              </TooltipTrigger>
+              <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {carriedForwardFields.has(fieldName) && !isPredicted(fieldName) && !isAiProposed(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+                  <ArrowRightLeft className="h-2.5 w-2.5" />
+                  CF
+                </span>
+              </TooltipTrigger>
+              <TooltipContent><p>Carried forward from play {carriedForwardFromPlayNum ?? "?"}. Editable.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {isAiProposed(fieldName) && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
+                  meta?.provenance === "deterministic_parse"
+                    ? "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40"
+                    : "text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40"
+                )}>
+                  {meta?.provenance === "deterministic_parse" ? (
+                    <><Terminal className="h-2.5 w-2.5" />Parse</>
+                  ) : (
+                    <><Bot className="h-2.5 w-2.5" />AI</>
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{meta?.provenance === "deterministic_parse"
+                  ? "From transcript parse. Editable."
+                  : "AI-proposed value. Editable."}</p>
+                {meta?.transcriptEvidence && (
+                  <p className="text-[10px] mt-1 opacity-80 font-mono">
+                    <Info className="h-2.5 w-2.5 inline mr-0.5" />
+                    "{meta.transcriptEvidence}"
+                  </p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+        {statusBadge}
+        {label}
+        {required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+    );
+  };
 
   const committedDot = (fieldName: string) =>
     isFieldCommitted(fieldName) ? (
