@@ -287,8 +287,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAdjustments([]);
     setActivePassRaw(1);
     setOdkFilter("ALL");
+    setDeterministicParseFields(new Set());
+    setParseEvidenceByField({});
     setAiProposedFields(new Set());
-    setLookupDerivedFields(new Set());
     setAiEvidenceByField({});
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
@@ -305,11 +306,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
   }, [gameId, gameIsSlotMode]);
 
-  // Track draft status — dirty when touched OR aiProposed
+  // Track draft status — dirty when touched, parsed, or aiProposed
   useEffect(() => {
-    const isDirty = touchedFields.size > 0 || aiProposedFields.size > 0;
+    const isDirty = touchedFields.size > 0 || deterministicParseFields.size > 0 || aiProposedFields.size > 0;
     setHasDraft(isDirty);
-  }, [touchedFields, aiProposedFields, setHasDraft]);
+  }, [touchedFields, deterministicParseFields, aiProposedFields, setHasDraft]);
 
   // Phase 10D: Lookup interrupt state
   const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string } | null>(null);
@@ -317,7 +318,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
-    const validationFields = new Set([...touchedFields, ...aiProposedFields]);
+    const validationFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
     if (validationFields.size > 0) {
       setInlineErrors(validateInline(candidate, validationFields, getLookupMap()));
     } else {
