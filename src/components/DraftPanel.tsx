@@ -497,35 +497,49 @@ export function DraftPanel() {
             inputClassName={inputClasses}
             error={error}
             committedDot={committedDot(fieldName)}
-            provenanceBadge={isAiProposed(fieldName) ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
-                      <Bot className="h-2.5 w-2.5" />
-                      AI
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>AI-proposed value. Editable.</p>
-                    {aiEvidenceByField[fieldName]?.snippet && (
-                      <p className="text-[10px] mt-1 opacity-80 font-mono">{aiEvidenceByField[fieldName].snippet}</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : isPredicted(fieldName) ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
-                      Pred
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : null}
+            provenanceBadge={(() => {
+              const actorMeta = proposalMeta.get(fieldName);
+              if (isAiProposed(fieldName)) {
+                const isParsed = actorMeta?.provenance === "deterministic_parse";
+                return (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={cn(
+                          "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
+                          isParsed
+                            ? "text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40"
+                            : "text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40"
+                        )}>
+                          {isParsed ? <><Terminal className="h-2.5 w-2.5" />Parse</> : <><Bot className="h-2.5 w-2.5" />AI</>}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{isParsed ? "From transcript parse. Editable." : "AI-proposed value. Editable."}</p>
+                        {actorMeta?.transcriptEvidence && (
+                          <p className="text-[10px] mt-1 opacity-80 font-mono">"{actorMeta.transcriptEvidence}"</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              }
+              if (isPredicted(fieldName)) {
+                return (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                          Pred
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              }
+              return null;
+            })()}
           />
           {(() => {
             const jerseyStr = value != null ? String(value).trim() : "";
