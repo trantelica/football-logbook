@@ -577,6 +577,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [gameId, isSlotMode]);
 
@@ -607,6 +608,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setCommitCount((c) => c + 1);
   }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
 
@@ -1270,6 +1272,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     setState(gameId ? "idle" : "idle");
   }, [gameId]);
 
@@ -1487,6 +1490,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             setParseEvidenceByField({});
             setAiProposedFields(new Set());
             setAiEvidenceByField({});
+            setLookupDerivedFields(new Set());
             setState("candidate");
             return { committed: true, hasNext: true };
           }
