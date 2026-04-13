@@ -1608,6 +1608,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         confirmGradeOverwrite,
         cancelGradeOverwrite,
         proposalMeta,
+        markLookupDerived,
+        lookupDerivedFields,
       }}
     >
       {children}
