@@ -1653,6 +1653,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         proposalMeta,
         markLookupDerived,
         lookupDerivedFields,
+        requestAiEnrichment,
       }}
     >
       {children}
