@@ -1257,9 +1257,9 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 size="sm"
                 variant="ghost"
                 className="gap-1 text-xs"
-                disabled={isAiEnriching}
+                disabled={isAiEnriching || !lastObservationText}
+                title={!lastObservationText ? "Parse transcript first — AI needs observation context" : undefined}
                 onClick={async () => {
-                  // Real AI enrichment — calls edge function with play context
                   setIsAiEnriching(true);
                   try {
                     const result = await fetchAiProposal(
@@ -1272,6 +1272,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
                         carriedForwardFields: new Set<string>(),
                         lookupDerivedFields,
                         aiProposedFields: new Set<string>(),
+                        observationText: lastObservationText,
+                        deterministicPatch: lastDeterministicPatch,
                       },
                     );
                     if (result.error) {
