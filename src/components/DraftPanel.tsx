@@ -274,13 +274,20 @@ export function DraftPanel() {
   /** Handle lookup field selection with dependent auto-population */
   const handleLookupSelect = (fieldName: string, value: string) => {
     updateField(fieldName, value);
-    // Auto-populate dependent fields from entryAttributes
+    // Auto-populate dependent fields from entryAttributes and track as lookup_derived
     const deps = DEPENDENT_FIELD_MAP[fieldName];
     if (deps && value) {
       const attrs = getEntryAttributes(fieldName, value);
       if (attrs) {
+        const derivedFields: string[] = [];
         for (const dep of deps) {
-          if (attrs[dep]) updateField(dep, attrs[dep]);
+          if (attrs[dep]) {
+            updateField(dep, attrs[dep]);
+            derivedFields.push(dep);
+          }
+        }
+        if (derivedFields.length > 0) {
+          markLookupDerived(derivedFields);
         }
       }
     }
