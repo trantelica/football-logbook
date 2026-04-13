@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
+import { computeValidationReasons } from "./validationReasons";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Evidence for a single AI-proposed field */
 export interface AIFieldEvidence {
@@ -42,6 +43,10 @@ export interface SystemPatchOptions {
   fillOnly?: boolean;
   /** Evidence keyed by field name */
   evidence?: Record<string, AIFieldEvidence>;
+  /** Source of the patch — determines provenance tracking.
+   *  "deterministic_parse" (default) for transcript parse results.
+   *  "ai_proposed" reserved for future true AI enrichment. */
+  source?: "deterministic_parse" | "ai_proposed";
 }
 
 /** Collision returned by applySystemPatch */
@@ -74,7 +79,9 @@ interface TransactionContextValue {
   isSlotMode: boolean;
   scaffoldedWarning: string | null;
 
-  // Phase 10: AI/system patch provenance
+  // Phase 10: System patch provenance — separate signals
+  deterministicParseFields: Set<string>;
+  parseEvidenceByField: Record<string, AIFieldEvidence>;
   aiProposedFields: Set<string>;
   aiEvidenceByField: Record<string, AIFieldEvidence>;
   applySystemPatch: (patch: Record<string, unknown>, options?: SystemPatchOptions) => SystemPatchCollision[];
