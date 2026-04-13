@@ -1429,6 +1429,18 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     return { committed: true, hasNext: false };
   }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass]);
 
+  // Proposal metadata — derived from existing state signals
+  const proposalMeta = useMemo(() => computeProposalMeta({
+    candidate: candidate as Record<string, unknown>,
+    touchedFields,
+    predictedFields,
+    aiProposedFields,
+    carriedForwardFields,
+    aiEvidenceByField,
+    inlineErrors,
+    lookupDerivedFields,
+  }), [candidate, touchedFields, predictedFields, aiProposedFields, carriedForwardFields, aiEvidenceByField, inlineErrors, lookupDerivedFields]);
+
   return (
     <TransactionContext.Provider
       value={{
