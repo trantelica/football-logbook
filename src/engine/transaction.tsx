@@ -1525,9 +1525,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Structured validation reasons for proposal metadata
   const validationReasons = useMemo(() => {
-    const activeFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
+    const activeFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields, ...lookupDerivedFields]);
     return computeValidationReasons(candidate, activeFields, getLookupMap(), rosterNumbers);
-  }, [candidate, touchedFields, deterministicParseFields, aiProposedFields, getLookupMap, rosterNumbers]);
+  }, [candidate, touchedFields, deterministicParseFields, aiProposedFields, lookupDerivedFields, getLookupMap, rosterNumbers]);
 
   // Proposal metadata — derived from existing state signals
   const proposalMeta = useMemo(() => computeProposalMeta({
@@ -1536,11 +1536,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     predictedFields,
     deterministicParseFields,
     aiProposedFields,
+    lookupDerivedFields,
     carriedForwardFields,
     parseEvidenceByField,
     aiEvidenceByField,
     validationReasons,
-  }), [candidate, touchedFields, predictedFields, deterministicParseFields, aiProposedFields, carriedForwardFields, parseEvidenceByField, aiEvidenceByField, validationReasons]);
+  }), [candidate, touchedFields, predictedFields, deterministicParseFields, aiProposedFields, lookupDerivedFields, carriedForwardFields, parseEvidenceByField, aiEvidenceByField, validationReasons]);
 
   return (
     <TransactionContext.Provider
