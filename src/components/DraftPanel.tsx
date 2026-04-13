@@ -229,13 +229,8 @@ export function DraftPanel() {
     return aiProposedFields.has(field);
   }
 
-  function isDeterministicParse(field: string) {
-    return deterministicParseFields.has(field);
-  }
-
-  /** Field was populated by any system patch (parse or AI) */
-  function isSystemProposed(field: string) {
-    return deterministicParseFields.has(field) || aiProposedFields.has(field);
+  function isAiProposed(field: string) {
+    return aiProposedFields.has(field);
   }
 
   function isMinimalField(field: string) {
@@ -1217,8 +1212,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 activePass === 3
                   ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
                   : activePass >= 2
-                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && aiProposedFields.size === 0)
-                    : (touchedFields.size === 0 && aiProposedFields.size === 0)
+                    ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
+                    : (touchedFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
               }
             >
               <Eye className="h-3.5 w-3.5" />
