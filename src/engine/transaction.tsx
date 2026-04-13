@@ -29,6 +29,7 @@ import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FI
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
+import { getUnresolvedFields, filterAiProposal } from "./aiEnrichment";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Evidence for a single AI-proposed field */
 export interface AIFieldEvidence {
@@ -147,6 +148,9 @@ interface TransactionContextValue {
 
   // Proposal metadata layer
   proposalMeta: ProposalMetaMap;
+
+  // Phase 10: AI enrichment — propose values for unresolved fields only
+  requestAiEnrichment: (aiProposal: Record<string, unknown>) => SystemPatchCollision[];
 }
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
@@ -1543,6 +1547,45 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     validationReasons,
   }), [candidate, touchedFields, predictedFields, deterministicParseFields, aiProposedFields, lookupDerivedFields, carriedForwardFields, parseEvidenceByField, aiEvidenceByField, validationReasons]);
 
+  // Phase 10: AI enrichment — propose values for unresolved fields only
+  const requestAiEnrichment = useCallback(
+    (aiProposal: Record<string, unknown>): SystemPatchCollision[] => {
+      // Determine eligible fields for current pass
+      const eligibleFieldNames = playSchema
+        .filter((f) => f.defaultPassEntry <= activePass)
+        .map((f) => f.name);
+
+      const unresolvedList = getUnresolvedFields({
+        candidate: candidate as CandidateData,
+        touchedFields,
+        deterministicParseFields,
+        predictedFields,
+        carriedForwardFields,
+        lookupDerivedFields,
+        aiProposedFields,
+        eligibleFieldNames,
+      });
+
+      const { safePatch, collisions, evidence } = filterAiProposal({
+        proposal: aiProposal,
+        unresolvedFields: new Set(unresolvedList),
+        candidate: candidate as CandidateData,
+      });
+
+      // Apply only the safe (unresolved) fields via system patch with ai_proposed source
+      if (Object.keys(safePatch).length > 0) {
+        applySystemPatch(safePatch, {
+          fillOnly: true,
+          evidence,
+          source: "ai_proposed",
+        });
+      }
+
+      return collisions;
+    },
+    [candidate, touchedFields, deterministicParseFields, predictedFields, carriedForwardFields, lookupDerivedFields, aiProposedFields, activePass, applySystemPatch]
+  );
+
   return (
     <TransactionContext.Provider
       value={{
@@ -1610,6 +1653,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         proposalMeta,
         markLookupDerived,
         lookupDerivedFields,
+        requestAiEnrichment,
       }}
     >
       {children}
