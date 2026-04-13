@@ -41,6 +41,7 @@ import { isDevMode } from "@/engine/devMode";
 import { VoicePanel } from "./VoicePanel";
 import { parseRawInput } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
+import { fetchAiProposal } from "@/engine/aiEnrichClient";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -119,6 +120,7 @@ export function DraftPanel() {
   const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
   const { roster, addPlayer } = useRoster();
   const { saveInput } = useRawInput();
+  const [isAiEnriching, setIsAiEnriching] = useState(false);
 
   // 9.2A: Load active fields from season config
   const [activeFieldsMap, setActiveFieldsMap] = useState<Record<string, boolean> | null>(null);
@@ -1245,37 +1247,45 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 size="sm"
                 variant="ghost"
                 className="gap-1 text-xs"
-                onClick={() => {
-                  // TEMPORARY demo proposal source — replace with real AI integration later.
-                  // Inspects the current candidate and proposes plausible defaults for a
-                  // small safe subset of fields. Only proposes if the field is empty;
-                  // requestAiEnrichment handles overwrite protection.
-                  const demoDefaults: Record<string, unknown> = {
-                    hash: "M",
-                    result: "Rush",
-                    offStrength: "Rt",
-                    playDir: "Rt",
-                  };
-                  // Build proposal from only empty candidate fields
-                  const cand = candidate as Record<string, unknown>;
-                  const proposal: Record<string, unknown> = {};
-                  for (const [k, v] of Object.entries(demoDefaults)) {
-                    const cur = cand[k];
-                    if (cur === null || cur === undefined || cur === "") {
-                      proposal[k] = v;
+                disabled={isAiEnriching}
+                onClick={async () => {
+                  // Real AI enrichment — calls edge function with play context
+                  setIsAiEnriching(true);
+                  try {
+                    const result = await fetchAiProposal(
+                      candidate as Record<string, unknown>,
+                      activePass,
+                      {
+                        touchedFields,
+                        deterministicParseFields,
+                        predictedFields,
+                        carriedForwardFields: new Set<string>(),
+                        lookupDerivedFields,
+                        aiProposedFields: new Set<string>(),
+                      },
+                    );
+                    if (result.error) {
+                      toast.error(result.error);
+                      return;
                     }
-                  }
-                  if (Object.keys(proposal).length === 0) {
-                    toast.info("No unresolved demo fields to fill");
-                    return;
-                  }
-                  const collisions = requestAiEnrichment(proposal);
-                  const filled = Object.keys(proposal).length - collisions.length;
-                  if (filled > 0) {
-                    toast.success(`Suggested ${filled} field(s) — review before committing`);
-                  }
-                  if (collisions.length > 0) {
-                    toast.info(`${collisions.length} field(s) already resolved, skipped`);
+                    const proposal = result.proposal;
+                    if (!proposal || Object.keys(proposal).length === 0) {
+                      toast.info("AI had no suggestions for remaining fields");
+                      return;
+                    }
+                    const collisions = requestAiEnrichment(proposal);
+                    const filled = Object.keys(proposal).length - collisions.length;
+                    if (filled > 0) {
+                      toast.success(`AI suggested ${filled} field(s) — review before committing`);
+                    }
+                    if (collisions.length > 0) {
+                      toast.info(`${collisions.length} field(s) already resolved, skipped`);
+                    }
+                  } catch (e) {
+                    console.error("AI enrichment failed:", e);
+                    toast.error("AI enrichment unavailable");
+                  } finally {
+                    setIsAiEnriching(false);
                   }
                 }}
               >
