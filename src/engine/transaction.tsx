@@ -29,6 +29,7 @@ import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FI
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
+import { getUnresolvedFields, filterAiProposal } from "./aiEnrichment";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Evidence for a single AI-proposed field */
 export interface AIFieldEvidence {
@@ -147,6 +148,9 @@ interface TransactionContextValue {
 
   // Proposal metadata layer
   proposalMeta: ProposalMetaMap;
+
+  // Phase 10: AI enrichment — propose values for unresolved fields only
+  requestAiEnrichment: (aiProposal: Record<string, unknown>) => SystemPatchCollision[];
 }
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
