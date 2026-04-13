@@ -1,15 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { computeProposalMeta, type ProvenanceSource, type FieldStatus } from "../engine/proposalMeta";
+import { computeProposalMeta, type ProvenanceSource, type FieldStatus, type ValidationReasonCode } from "../engine/proposalMeta";
 
 function makeMeta(overrides: Partial<Parameters<typeof computeProposalMeta>[0]> = {}) {
   return computeProposalMeta({
     candidate: {},
     touchedFields: new Set(),
     predictedFields: new Set(),
+    deterministicParseFields: new Set(),
     aiProposedFields: new Set(),
     carriedForwardFields: new Set(),
+    parseEvidenceByField: {},
     aiEvidenceByField: {},
-    inlineErrors: {},
+    validationReasons: {},
     ...overrides,
   });
 }
@@ -51,11 +53,11 @@ describe("computeProposalMeta", () => {
     expect(m.status).toBe("resolved");
   });
 
-  it("marks ai-proposed with evidence as deterministic_parse", () => {
+  it("marks deterministicParseFields as deterministic_parse with evidence", () => {
     const meta = makeMeta({
       candidate: { offPlay: "26 Punch" },
-      aiProposedFields: new Set(["offPlay"]),
-      aiEvidenceByField: { offPlay: { snippet: "Play 26 Punch" } },
+      deterministicParseFields: new Set(["offPlay"]),
+      parseEvidenceByField: { offPlay: { snippet: "Play 26 Punch" } },
     });
     const m = meta.get("offPlay")!;
     expect(m.provenance).toBe("deterministic_parse");
@@ -63,7 +65,7 @@ describe("computeProposalMeta", () => {
     expect(m.status).toBe("resolved");
   });
 
-  it("marks ai-proposed without evidence as ai_proposed", () => {
+  it("marks aiProposedFields as ai_proposed (distinct from parse)", () => {
     const meta = makeMeta({
       candidate: { dist: "10" },
       aiProposedFields: new Set(["dist"]),
@@ -73,35 +75,65 @@ describe("computeProposalMeta", () => {
     expect(m.transcriptEvidence).toBeNull();
   });
 
-  it("touched overrides ai_proposed (priority)", () => {
+  it("touched overrides deterministic_parse (priority)", () => {
     const meta = makeMeta({
       candidate: { dn: "2" },
       touchedFields: new Set(["dn"]),
-      aiProposedFields: new Set(["dn"]),
-      aiEvidenceByField: { dn: { snippet: "first down" } },
+      deterministicParseFields: new Set(["dn"]),
+      parseEvidenceByField: { dn: { snippet: "first down" } },
     });
     const m = meta.get("dn")!;
     expect(m.provenance).toBe("coach_edited");
   });
 
-  it("sets governance_blocked when inline error mentions lookup", () => {
+  it("deterministic_parse overrides ai_proposed (priority)", () => {
+    const meta = makeMeta({
+      candidate: { dn: "1" },
+      deterministicParseFields: new Set(["dn"]),
+      aiProposedFields: new Set(["dn"]),
+    });
+    const m = meta.get("dn")!;
+    expect(m.provenance).toBe("deterministic_parse");
+  });
+
+  it("sets governance_blocked when validationReasons has lookup_not_found", () => {
     const meta = makeMeta({
       candidate: { offForm: "Purple" },
-      aiProposedFields: new Set(["offForm"]),
-      aiEvidenceByField: { offForm: { snippet: "form Purple" } },
-      inlineErrors: { offForm: "Value not found in lookup" },
+      deterministicParseFields: new Set(["offForm"]),
+      parseEvidenceByField: { offForm: { snippet: "form Purple" } },
+      validationReasons: { offForm: "lookup_not_found" as ValidationReasonCode },
     });
     const m = meta.get("offForm")!;
     expect(m.status).toBe("governance_blocked");
   });
 
-  it("sets needs_clarification for non-lookup inline errors", () => {
+  it("sets governance_blocked when validationReasons has roster_not_found", () => {
+    const meta = makeMeta({
+      candidate: { rusher: 99 },
+      touchedFields: new Set(["rusher"]),
+      validationReasons: { rusher: "roster_not_found" as ValidationReasonCode },
+    });
+    const m = meta.get("rusher")!;
+    expect(m.status).toBe("governance_blocked");
+  });
+
+  it("sets needs_clarification for type_error validation reason", () => {
     const meta = makeMeta({
       candidate: { dn: "abc" },
       touchedFields: new Set(["dn"]),
-      inlineErrors: { dn: "Must be an integer" },
+      validationReasons: { dn: "type_error" as ValidationReasonCode },
     });
     const m = meta.get("dn")!;
+    expect(m.status).toBe("needs_clarification");
+  });
+
+  it("sets needs_clarification for enum_error validation reason", () => {
+    const meta = makeMeta({
+      candidate: { result: "NotReal" },
+      touchedFields: new Set(["result"]),
+      validationReasons: { result: "enum_error" as ValidationReasonCode },
+    });
+    const m = meta.get("result")!;
     expect(m.status).toBe("needs_clarification");
   });
 
@@ -123,13 +155,15 @@ describe("computeProposalMeta", () => {
     expect(meta.has("playNum")).toBe(false);
   });
 
-  it("handles lookup_derived provenance", () => {
+  it("uses parseEvidence for deterministicParse and aiEvidence for ai_proposed", () => {
     const meta = makeMeta({
-      candidate: { offStrength: "Strong" },
-      lookupDerivedFields: new Set(["offStrength"]),
+      candidate: { dn: "1", dist: "10" },
+      deterministicParseFields: new Set(["dn"]),
+      aiProposedFields: new Set(["dist"]),
+      parseEvidenceByField: { dn: { snippet: "first down" } },
+      aiEvidenceByField: { dist: { snippet: "10 yards" } },
     });
-    const m = meta.get("offStrength")!;
-    expect(m.provenance).toBe("lookup_derived");
-    expect(m.status).toBe("resolved");
+    expect(meta.get("dn")!.transcriptEvidence).toBe("first down");
+    expect(meta.get("dist")!.transcriptEvidence).toBe("10 yards");
   });
 });
