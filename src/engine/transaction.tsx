@@ -298,6 +298,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setParseEvidenceByField({});
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
+    setLookupDerivedFields(new Set());
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
