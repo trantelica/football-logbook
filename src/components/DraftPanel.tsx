@@ -121,6 +121,10 @@ export function DraftPanel() {
   const { roster, addPlayer } = useRoster();
   const { saveInput } = useRawInput();
   const [isAiEnriching, setIsAiEnriching] = useState(false);
+  /** Last parsed transcript text — used as observation context for AI enrichment */
+  const [lastObservationText, setLastObservationText] = useState("");
+  /** Last deterministic parse patch — sent to AI so it knows what's already resolved */
+  const [lastDeterministicPatch, setLastDeterministicPatch] = useState<Record<string, unknown>>({});
 
   // 9.2A: Load active fields from season config
   const [activeFieldsMap, setActiveFieldsMap] = useState<Record<string, boolean> | null>(null);
