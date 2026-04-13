@@ -31,6 +31,7 @@ function captureSnapshot(txn: ReturnType<typeof useTransaction>): Record<string,
     candidateSubset: subset,
     touched: [...txn.touchedFields],
     ai: [...txn.aiProposedFields],
+    parse: [...txn.deterministicParseFields],
     lookupInterruptPending: txn.lookupInterruptPending,
   };
 }
@@ -108,23 +109,23 @@ export function Phase10SmokeTest() {
     );
     assert(safeCollisions.length === 0, "B0", "Safe patch returns no collisions");
 
-    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("dn"), "B1 wait dn");
-    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("dist"), "B2 wait dist");
-    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("yardLn"), "B3 wait yardLn");
-    await waitFor(txnRef, () => txnRef.current.aiProposedFields.has("rusher"), "B4 wait rusher");
+    await waitFor(txnRef, () => txnRef.current.deterministicParseFields.has("dn"), "B1 wait dn");
+    await waitFor(txnRef, () => txnRef.current.deterministicParseFields.has("dist"), "B2 wait dist");
+    await waitFor(txnRef, () => txnRef.current.deterministicParseFields.has("yardLn"), "B3 wait yardLn");
+    await waitFor(txnRef, () => txnRef.current.deterministicParseFields.has("rusher"), "B4 wait rusher");
 
-    assert(txnRef.current.aiProposedFields.has("dn"), "B1", "aiProposedFields contains dn");
-    assert(txnRef.current.aiProposedFields.has("dist"), "B2", "aiProposedFields contains dist");
-    assert(txnRef.current.aiProposedFields.has("yardLn"), "B3", "aiProposedFields contains yardLn");
-    assert(txnRef.current.aiProposedFields.has("rusher"), "B4", "aiProposedFields contains rusher");
+    assert(txnRef.current.deterministicParseFields.has("dn"), "B1", "deterministicParseFields contains dn");
+    assert(txnRef.current.deterministicParseFields.has("dist"), "B2", "deterministicParseFields contains dist");
+    assert(txnRef.current.deterministicParseFields.has("yardLn"), "B3", "deterministicParseFields contains yardLn");
+    assert(txnRef.current.deterministicParseFields.has("rusher"), "B4", "deterministicParseFields contains rusher");
     await sleep(0);
-    assert(txnRef.current.touchedFields.size === 0, "B5", "touchedFields still empty after AI patch");
+    assert(txnRef.current.touchedFields.size === 0, "B5", "touchedFields still empty after parse patch");
 
-    // C) Promote AI→touched
+    // C) Promote parse→touched
     txnRef.current.updateField("dist", "9");
-    await waitFor(txnRef, () => !txnRef.current.aiProposedFields.has("dist"), "C1 wait dist removed from ai");
+    await waitFor(txnRef, () => !txnRef.current.deterministicParseFields.has("dist"), "C1 wait dist removed from parse");
     await waitFor(txnRef, () => txnRef.current.touchedFields.has("dist"), "C2 wait dist touched");
-    assert(!txnRef.current.aiProposedFields.has("dist"), "C1", "dist removed from aiProposedFields after edit");
+    assert(!txnRef.current.deterministicParseFields.has("dist"), "C1", "dist removed from deterministicParseFields after edit");
     assert(txnRef.current.touchedFields.has("dist"), "C2", "dist added to touchedFields after edit");
 
     // D) Collision detection
