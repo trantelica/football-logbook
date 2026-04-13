@@ -132,6 +132,9 @@ interface TransactionContextValue {
   // Carry-forward indicators (Pass 2)
   carriedForwardFields: Set<string>;
   carriedForwardFromPlayNum: number | null;
+
+  // Proposal metadata layer
+  proposalMeta: ProposalMetaMap;
 }
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
