@@ -477,11 +477,13 @@ export function DraftPanel() {
 
     const predicted = isPredicted(fieldName);
     const aiProposed = isAiProposed(fieldName);
+    const parsed = deterministicParseFields.has(fieldName);
     const inputClasses = cn(
       "h-8 text-sm font-mono",
       predicted && !touched && !error && "bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700",
-      aiProposed && !touched && !error && !predicted && "bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-700",
-      touched && !error && !predicted && !aiProposed && "bg-field-touched",
+      parsed && !touched && !error && !predicted && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
+      aiProposed && !touched && !error && !predicted && !parsed && "bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-700",
+      touched && !error && !predicted && !aiProposed && !parsed && "bg-field-touched",
       error && "border-destructive"
     );
 
