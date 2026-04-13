@@ -107,6 +107,7 @@ export function DraftPanel() {
     confirmGradeOverwrite,
     cancelGradeOverwrite,
     aiProposedFields,
+    deterministicParseFields,
     applySystemPatch,
     lookupInterruptPending,
     clearLookupInterrupt,
@@ -226,6 +227,15 @@ export function DraftPanel() {
 
   function isAiProposed(field: string) {
     return aiProposedFields.has(field);
+  }
+
+  function isDeterministicParse(field: string) {
+    return deterministicParseFields.has(field);
+  }
+
+  /** Field was populated by any system patch (parse or AI) */
+  function isSystemProposed(field: string) {
+    return deterministicParseFields.has(field) || aiProposedFields.has(field);
   }
 
   function isMinimalField(field: string) {
