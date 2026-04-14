@@ -1367,20 +1367,38 @@ PENALTY O-Holding EFF Y 2MIN N`}
         <Dialog open onOpenChange={(o) => { if (!o) clearLookupInterrupt(); }}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle className="text-sm font-semibold">
-                Unknown Lookup Value
+            <DialogTitle className="text-sm font-semibold">
+                {lookupInterruptPending.source === "ai"
+                  ? "New Value Suggested"
+                  : "Unknown Lookup Value"}
               </DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              The AI-proposed value{" "}
-              <span className="font-mono font-semibold text-foreground">
-                &ldquo;{lookupInterruptPending.value}&rdquo;
-              </span>{" "}
-              for{" "}
-              <span className="font-semibold text-foreground">
-                {lookupInterruptPending.fieldLabel}
-              </span>{" "}
-              is not in the lookup table.
+              {lookupInterruptPending.source === "ai" ? (
+                <>
+                  AI suggested{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    &ldquo;{lookupInterruptPending.value}&rdquo;
+                  </span>{" "}
+                  for{" "}
+                  <span className="font-semibold text-foreground">
+                    {lookupInterruptPending.fieldLabel}
+                  </span>
+                  . Add it to the playbook, or correct it.
+                </>
+              ) : (
+                <>
+                  The value{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    &ldquo;{lookupInterruptPending.value}&rdquo;
+                  </span>{" "}
+                  for{" "}
+                  <span className="font-semibold text-foreground">
+                    {lookupInterruptPending.fieldLabel}
+                  </span>{" "}
+                  is not in the playbook yet.
+                </>
+              )}
             </p>
             <div className="flex flex-col gap-2 pt-2">
               <Button
@@ -1398,7 +1416,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 }}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add new lookup value
+                Add to playbook
               </Button>
               <Button
                 size="sm"
@@ -1409,7 +1427,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 }}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                Correct play details manually
+                Correct it manually
               </Button>
               <Button
                 size="sm"

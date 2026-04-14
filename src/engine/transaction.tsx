@@ -94,7 +94,7 @@ interface TransactionContextValue {
   aiEvidenceByField: Record<string, AIFieldEvidence>;
   applySystemPatch: (patch: Record<string, unknown>, options?: SystemPatchOptions) => SystemPatchCollision[];
   /** Lookup interrupt: an AI-patched field has an unknown governed lookup value */
-  lookupInterruptPending: { fieldName: string; fieldLabel: string; value: string } | null;
+  lookupInterruptPending: { fieldName: string; fieldLabel: string; value: string; source?: "ai" | "manual" } | null;
   clearLookupInterrupt: () => void;
   
   // Phase 4: Workflow stage & ODK filter
@@ -330,7 +330,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [touchedFields, deterministicParseFields, aiProposedFields, setHasDraft]);
 
   // Phase 10D: Lookup interrupt state
-  const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string } | null>(null);
+  const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string; source?: "ai" | "manual" } | null>(null);
   const clearLookupInterrupt = useCallback(() => setLookupInterruptPending(null), []);
 
   // Revalidate inline errors when lookupMap changes
@@ -570,6 +570,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
               fieldName,
               fieldLabel: fd?.label ?? fieldName,
               value: valStr,
+              source: source === "ai_proposed" ? "ai" : "manual",
             });
             break;
           }
