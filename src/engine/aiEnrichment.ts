@@ -125,7 +125,7 @@ export function filterAiProposal(opts: {
     if (unresolvedFields.has(fieldName)) {
       safePatch[fieldName] = proposedValue;
       evidence[fieldName] = {
-        snippet: matchType ? `AI-proposed (${matchType})` : "AI-proposed",
+        snippet: "AI-proposed",
         ...(matchType ? { matchType } : {}),
       };
     } else {
