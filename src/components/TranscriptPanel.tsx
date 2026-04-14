@@ -30,7 +30,12 @@ interface ParseSnapshot {
   parsedAt: string;
 }
 
-export function TranscriptPanel() {
+interface TranscriptPanelProps {
+  /** Called after successful Apply to Draft with observation text and deterministic patch */
+  onApply?: (observationText: string, deterministicPatch: Record<string, unknown>) => void;
+}
+
+export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
   const {
     text,
     interim,
