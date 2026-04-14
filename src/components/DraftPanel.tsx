@@ -484,14 +484,8 @@ export function DraftPanel() {
       </TooltipProvider>
     ) : null;
 
-  /** Compute display status for a field in proposal context */
-  const getFieldDisplayStatus = (fieldName: string): ProposalDisplayStatus => {
-    return computeDisplayStatus(fieldName, {
-      candidateValue: (candidate as Record<string, unknown>)[fieldName],
-      proposalMeta,
-      aiProposedFields,
-    });
-  };
+
+
 
   /** Check if a field is relevant for proposal display */
   const checkFieldRelevance = (fieldName: string): boolean => {
