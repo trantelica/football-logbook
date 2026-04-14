@@ -13,14 +13,30 @@
  *   values remain governance_blocked).
  * - Collisions are returned explicitly if AI attempts to fill a
  *   now-resolved field.
+ * - Governed lookup fields preserve matchType metadata (exact/fuzzy/candidate_new).
  */
 
 import type { CandidateData } from "./types";
-import type { AIFieldEvidence, SystemPatchCollision } from "./transaction";
+import type { AIFieldEvidence, SystemPatchCollision, GovernedMatchType } from "./transaction";
 import { AI_ELIGIBLE_FIELDS } from "./aiEligibility";
 
 /** Fields that are system-managed and never AI-enrichable */
 const EXCLUDED_FIELDS = new Set(["gameId", "playNum", "qtr", "odk", "series"]);
+
+/** Shape of a governed field AI response (value + match classification) */
+export interface GovernedFieldProposal {
+  value: unknown;
+  matchType: GovernedMatchType;
+}
+
+/** Check if a proposal value is a governed field object */
+export function isGovernedProposal(v: unknown): v is GovernedFieldProposal {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const obj = v as Record<string, unknown>;
+  return "value" in obj && "matchType" in obj &&
+    typeof obj.matchType === "string" &&
+    ["exact", "fuzzy", "candidate_new"].includes(obj.matchType);
+}
 
 /**
  * Identify fields in the candidate that are still unresolved (empty/null).
@@ -70,6 +86,7 @@ export function getUnresolvedFields(opts: {
 
 /**
  * Filter an AI proposal to only unresolved fields.
+ * Preserves governed field matchType metadata in evidence.
  * Returns the safe patch and any collisions where AI tried to overwrite resolved values.
  */
 export function filterAiProposal(opts: {
@@ -86,8 +103,20 @@ export function filterAiProposal(opts: {
   const collisions: SystemPatchCollision[] = [];
   const evidence: Record<string, AIFieldEvidence> = {};
 
-  for (const [fieldName, proposedValue] of Object.entries(proposal)) {
+  for (const [fieldName, rawValue] of Object.entries(proposal)) {
     if (EXCLUDED_FIELDS.has(fieldName)) continue;
+
+    // Unwrap governed field objects to extract value and matchType
+    let proposedValue: unknown;
+    let matchType: GovernedMatchType | undefined;
+
+    if (isGovernedProposal(rawValue)) {
+      proposedValue = rawValue.value;
+      matchType = rawValue.matchType;
+    } else {
+      proposedValue = rawValue;
+    }
+
     if (proposedValue === null || proposedValue === undefined || proposedValue === "") continue;
 
     // Reject any field not in the AI-eligible set (Bucket A/C fields)
@@ -95,7 +124,10 @@ export function filterAiProposal(opts: {
 
     if (unresolvedFields.has(fieldName)) {
       safePatch[fieldName] = proposedValue;
-      evidence[fieldName] = { snippet: "AI-proposed" };
+      evidence[fieldName] = {
+        snippet: matchType ? `AI-proposed (${matchType})` : "AI-proposed",
+        ...(matchType ? { matchType } : {}),
+      };
     } else {
       // AI tried to fill a resolved field — report collision
       const currentValue = (candidate as Record<string, unknown>)[fieldName];

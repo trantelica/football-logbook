@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getUnresolvedFields, filterAiProposal } from "../engine/aiEnrichment";
+import { getUnresolvedFields, filterAiProposal, isGovernedProposal } from "../engine/aiEnrichment";
 import { AI_ELIGIBLE_FIELDS } from "../engine/aiEligibility";
 import type { CandidateData } from "../engine/types";
 
@@ -205,6 +205,78 @@ describe("filterAiProposal", () => {
     expect(AI_ELIGIBLE_FIELDS.has("patTry")).toBe(false);
   });
 
+  it("preserves exact matchType in evidence for governed fields", () => {
+    const { safePatch, evidence, collisions } = filterAiProposal({
+      proposal: { offForm: { value: "Shotgun Trips", matchType: "exact" } },
+      unresolvedFields: new Set(["offForm"]),
+      candidate: makeCandidate(),
+    });
+    expect(safePatch).toEqual({ offForm: "Shotgun Trips" });
+    expect(evidence["offForm"].matchType).toBe("exact");
+    expect(evidence["offForm"].snippet).toBe("AI-proposed (exact)");
+    expect(collisions).toHaveLength(0);
+  });
+
+  it("preserves fuzzy matchType in evidence for governed fields", () => {
+    const { safePatch, evidence } = filterAiProposal({
+      proposal: { offPlay: { value: "24 Dive", matchType: "fuzzy" } },
+      unresolvedFields: new Set(["offPlay"]),
+      candidate: makeCandidate(),
+    });
+    expect(safePatch).toEqual({ offPlay: "24 Dive" });
+    expect(evidence["offPlay"].matchType).toBe("fuzzy");
+    expect(evidence["offPlay"].snippet).toBe("AI-proposed (fuzzy)");
+  });
+
+  it("preserves candidate_new matchType in evidence for governed fields", () => {
+    const { safePatch, evidence } = filterAiProposal({
+      proposal: { offForm: { value: "Purple", matchType: "candidate_new" } },
+      unresolvedFields: new Set(["offForm"]),
+      candidate: makeCandidate(),
+    });
+    expect(safePatch).toEqual({ offForm: "Purple" });
+    expect(evidence["offForm"].matchType).toBe("candidate_new");
+    expect(evidence["offForm"].snippet).toBe("AI-proposed (candidate_new)");
+  });
+
+  it("candidate_new values pass through safePatch for lookup governance", () => {
+    // candidate_new must not be blocked by filterAiProposal — it reaches
+    // applySystemPatch which triggers lookupInterruptPending for unknown values
+    const { safePatch, collisions } = filterAiProposal({
+      proposal: { offForm: { value: "NewFormation", matchType: "candidate_new" } },
+      unresolvedFields: new Set(["offForm"]),
+      candidate: makeCandidate(),
+    });
+    expect(safePatch["offForm"]).toBe("NewFormation");
+    expect(collisions).toHaveLength(0);
+  });
+
+  it("non-governed fields have no matchType in evidence", () => {
+    const { evidence } = filterAiProposal({
+      proposal: { result: "Rush", hash: "L" },
+      unresolvedFields: new Set(["result", "hash"]),
+      candidate: makeCandidate(),
+    });
+    expect(evidence["result"].matchType).toBeUndefined();
+    expect(evidence["hash"].matchType).toBeUndefined();
+    expect(evidence["result"].snippet).toBe("AI-proposed");
+  });
+
+  it("mixed governed and plain proposals preserve respective metadata", () => {
+    const { safePatch, evidence } = filterAiProposal({
+      proposal: {
+        offForm: { value: "Shotgun", matchType: "exact" },
+        result: "Rush",
+        hash: "L",
+      },
+      unresolvedFields: new Set(["offForm", "result", "hash"]),
+      candidate: makeCandidate(),
+    });
+    expect(safePatch).toEqual({ offForm: "Shotgun", result: "Rush", hash: "L" });
+    expect(evidence["offForm"].matchType).toBe("exact");
+    expect(evidence["result"].matchType).toBeUndefined();
+  });
+
   it("attaches AI-proposed evidence to safe patch fields", () => {
     const { evidence } = filterAiProposal({
       proposal: { result: "Rush", hash: "L" },
@@ -225,17 +297,30 @@ describe("filterAiProposal", () => {
   });
 
   it("governance-blocked values remain blocked after AI enrichment", () => {
-    // AI can propose a value for a governed field, but if the value isn't
-    // in the lookup table, governance validation will still block it.
-    // This test verifies AI doesn't bypass the filter — the value goes
-    // through applySystemPatch which triggers lookup interrupt.
     const { safePatch } = filterAiProposal({
-      proposal: { offForm: "UnknownForm" },
+      proposal: { offForm: { value: "UnknownForm", matchType: "candidate_new" } },
       unresolvedFields: new Set(["offForm"]),
       candidate: makeCandidate(),
     });
     expect(safePatch).toEqual({ offForm: "UnknownForm" });
     // Governance enforcement happens in applySystemPatch → lookup interrupt
+  });
+});
+
+describe("isGovernedProposal", () => {
+  it("recognizes valid governed proposals", () => {
+    expect(isGovernedProposal({ value: "Shotgun", matchType: "exact" })).toBe(true);
+    expect(isGovernedProposal({ value: "Gun Trips", matchType: "fuzzy" })).toBe(true);
+    expect(isGovernedProposal({ value: "Purple", matchType: "candidate_new" })).toBe(true);
+  });
+
+  it("rejects non-governed shapes", () => {
+    expect(isGovernedProposal("Shotgun")).toBe(false);
+    expect(isGovernedProposal(42)).toBe(false);
+    expect(isGovernedProposal(null)).toBe(false);
+    expect(isGovernedProposal({ value: "X" })).toBe(false);
+    expect(isGovernedProposal({ matchType: "exact" })).toBe(false);
+    expect(isGovernedProposal({ value: "X", matchType: "invalid" })).toBe(false);
   });
 });
 
