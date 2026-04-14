@@ -30,7 +30,12 @@ interface ParseSnapshot {
   parsedAt: string;
 }
 
-export function TranscriptPanel() {
+interface TranscriptPanelProps {
+  /** Called after successful Apply to Draft with observation text and deterministic patch */
+  onApply?: (observationText: string, deterministicPatch: Record<string, unknown>) => void;
+}
+
+export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
   const {
     text,
     interim,
@@ -151,6 +156,7 @@ export function TranscriptPanel() {
     } else {
       setApplied(true);
       toast.success(`Applied ${Object.keys(patch).length} field(s) to draft`);
+      onApply?.(lastSnapshot.sourceText, patch);
     }
   }, [lastSnapshot, isDirtyAfterParse, applied, applySystemPatch]);
 
@@ -179,6 +185,10 @@ export function TranscriptPanel() {
     toast.success(msg);
     setApplied(true);
     setCollisionState(null);
+    // Fire onApply with the full patch (including resolved collisions)
+    if (lastSnapshot) {
+      onApply?.(lastSnapshot.sourceText, collisionState.fullPatch);
+    }
   }, [collisionState, applySystemPatch]);
 
   const handleCollisionCancel = useCallback(() => {

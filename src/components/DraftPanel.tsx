@@ -38,10 +38,8 @@ import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
-import { VoicePanel } from "./VoicePanel";
-import { parseRawInput } from "@/engine/rawInputParser";
-import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
+import { TranscriptPanel } from "./TranscriptPanel";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -63,7 +61,6 @@ const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
 export function DraftPanel() {
   const { activeGame } = useGameContext();
   const { activeSeason } = useSeason();
-  const voiceClearRef = React.useRef<(() => void) | null>(null);
   const {
     state,
     candidate,
@@ -782,7 +779,8 @@ export function DraftPanel() {
   const handleCommitAndNext = async () => {
     const result = await commitAndNext();
     if (result.committed) {
-      voiceClearRef.current?.();
+      setLastObservationText("");
+      setLastDeterministicPatch({});
       if (!result.hasNext) {
         toast("End of filtered list.");
       }
@@ -862,95 +860,10 @@ export function DraftPanel() {
     setRawInputText("");
   };
 
-  const handleVoiceParse = (transcriptText: string) => {
-    if (!transcriptText.trim()) {
-      toast("No transcript to parse.");
-      return;
-    }
-    // Store observation text for AI enrichment grounding
-    setLastObservationText(transcriptText.trim());
-    const normalized = normalizeTranscriptForParse(transcriptText.trim());
-    const result = parseRawInput(normalized);
-
-    // Report unrecognized/ambiguous
-    const issues = result.report.filter((r) => r.status !== "matched");
-    if (issues.length > 0) {
-      const msgs = issues.map((i) => `${i.anchor}: ${i.status} ("${i.rawValue}")`);
-      toast.warning(`Parse issues: ${msgs.join("; ")}`);
-    }
-
-    // Filter out derived/calculated fields — only allow coach-observed fields
-    const ALLOWED_VOICE_FIELDS = new Set([
-      "dn", "dist", "yardLn", "hash", "qtr", "odk", "series",
-      "offForm", "offPlay", "motion", "result", "gainLoss",
-      "penalty", "penYards", "rusher", "passer", "receiver", "returner", "twoMin",
-    ]);
-    for (const key of Object.keys(result.patch)) {
-      if (!ALLOWED_VOICE_FIELDS.has(key)) {
-        delete result.patch[key];
-      }
-    }
-
-    if (Object.keys(result.patch).length === 0) {
-      toast("No anchors recognized in transcript.");
-      setLastDeterministicPatch({});
-      return;
-    }
-
-    // Store the deterministic patch for AI enrichment context
-    setLastDeterministicPatch({ ...result.patch });
-
-    // Build evidence from transcript snippet per field
-    const evidence: Record<string, { snippet: string }> = {};
-    for (const entry of result.report) {
-      if (entry.status === "matched" && entry.matchedValue !== undefined) {
-        const fieldName = Object.entries(result.patch).find(
-          ([, v]) => String(v) === entry.matchedValue
-        )?.[0];
-        if (fieldName) {
-          evidence[fieldName] = { snippet: transcriptText.slice(0, 40) };
-        }
-      }
-    }
-
-    // Detect collisions
-    const collisions: Collision[] = [];
-    let nonCollisionCount = 0;
-    const safePatch: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(result.patch)) {
-      const current = (candidate as Record<string, unknown>)[key];
-      const hasExisting = current !== null && current !== undefined && current !== "";
-      if (hasExisting && String(current) !== String(val)) {
-        collisions.push({ fieldName: key, currentValue: current, proposedValue: val });
-      } else {
-        safePatch[key] = val;
-        nonCollisionCount++;
-      }
-    }
-
-    // Apply non-colliding fields via applySystemPatch
-    if (Object.keys(safePatch).length > 0) {
-      const safeEvidence: Record<string, { snippet: string }> = {};
-      for (const key of Object.keys(safePatch)) {
-        if (evidence[key]) safeEvidence[key] = evidence[key];
-      }
-      applySystemPatch(safePatch, { evidence: safeEvidence });
-    }
-
-    if (collisions.length > 0) {
-      setAiCollisionState({
-        collisions: collisions.map((c) => ({
-          fieldName: c.fieldName,
-          currentValue: c.currentValue,
-          proposedValue: c.proposedValue,
-        })),
-        nonCollisionCount,
-        evidence,
-      });
-      toast.info(`${nonCollisionCount} field(s) applied, ${collisions.length} collision(s) need review.`);
-    } else {
-      toast.success(`Applied ${nonCollisionCount} field(s) from transcript`);
-    }
+  /** Callback from TranscriptPanel after successful Apply to Draft */
+  const handleTranscriptApply = (observationText: string, deterministicPatch: Record<string, unknown>) => {
+    setLastObservationText(observationText);
+    setLastDeterministicPatch(deterministicPatch);
   };
 
   return (
@@ -960,10 +873,10 @@ export function DraftPanel() {
       {/* Phase 10: Dev-only smoke test harness */}
       {isDevMode() && <Phase10SmokeTest />}
 
-      {/* Voice Transcription Panel — visible in Pass 1+ with a slot selected */}
+      {/* Transcript Panel — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
         <div className="mb-3">
-          <VoicePanel clearRef={voiceClearRef} disabled={isProposal} onParse={handleVoiceParse} />
+          <TranscriptPanel onApply={handleTranscriptApply} />
         </div>
       )}
 
@@ -1331,7 +1244,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
               <Button
                 size="sm"
                 className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                onClick={() => { commitProposal(); voiceClearRef.current?.(); }}
+                onClick={() => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }}
               >
                 <Check className="h-3.5 w-3.5" />
                 Commit
