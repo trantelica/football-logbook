@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getUnresolvedFields, filterAiProposal } from "../engine/aiEnrichment";
+import { AI_ELIGIBLE_FIELDS } from "../engine/aiEligibility";
+import type { CandidateData } from "../engine/types";
 import type { CandidateData } from "../engine/types";
 
 function makeCandidate(overrides: Record<string, unknown> = {}): CandidateData {
@@ -165,12 +167,42 @@ describe("filterAiProposal", () => {
 
   it("skips excluded system fields", () => {
     const { safePatch, collisions } = filterAiProposal({
-      proposal: { gameId: "g2", playNum: 5, dist: "10" },
-      unresolvedFields: new Set(["dist"]),
+      proposal: { gameId: "g2", playNum: 5, result: "Rush" },
+      unresolvedFields: new Set(["result"]),
       candidate: makeCandidate(),
     });
-    expect(safePatch).toEqual({ dist: "10" });
+    expect(safePatch).toEqual({ result: "Rush" });
     expect(collisions).toHaveLength(0);
+  });
+
+  it("silently drops non-AI-eligible fields (Bucket A)", () => {
+    const { safePatch, collisions } = filterAiProposal({
+      proposal: { offStrength: "L", playType: "Run", motionDir: "R", result: "Rush" },
+      unresolvedFields: new Set(["offStrength", "playType", "motionDir", "result"]),
+      candidate: makeCandidate(),
+    });
+    // offStrength, playType, motionDir are not in AI_ELIGIBLE_FIELDS
+    expect(safePatch).toEqual({ result: "Rush" });
+    expect(collisions).toHaveLength(0);
+  });
+
+  it("only allows fields in AI_ELIGIBLE_FIELDS through", () => {
+    // Verify the constant has the expected initial set
+    expect(AI_ELIGIBLE_FIELDS.has("yardLn")).toBe(true);
+    expect(AI_ELIGIBLE_FIELDS.has("hash")).toBe(true);
+    expect(AI_ELIGIBLE_FIELDS.has("result")).toBe(true);
+    expect(AI_ELIGIBLE_FIELDS.has("gainLoss")).toBe(true);
+    expect(AI_ELIGIBLE_FIELDS.has("offForm")).toBe(true);
+    expect(AI_ELIGIBLE_FIELDS.has("offPlay")).toBe(true);
+    // Bucket A fields are excluded
+    expect(AI_ELIGIBLE_FIELDS.has("offStrength")).toBe(false);
+    expect(AI_ELIGIBLE_FIELDS.has("playType")).toBe(false);
+    expect(AI_ELIGIBLE_FIELDS.has("playDir")).toBe(false);
+    expect(AI_ELIGIBLE_FIELDS.has("motionDir")).toBe(false);
+    expect(AI_ELIGIBLE_FIELDS.has("penYards")).toBe(false);
+    expect(AI_ELIGIBLE_FIELDS.has("eff")).toBe(false);
+    expect(AI_ELIGIBLE_FIELDS.has("personnel")).toBe(false);
+    expect(AI_ELIGIBLE_FIELDS.has("patTry")).toBe(false);
   });
 
   it("attaches AI-proposed evidence to safe patch fields", () => {
