@@ -348,6 +348,32 @@ export function DraftPanel() {
       </TooltipProvider>
     ) : null;
 
+    // Proposal-mode status indicator for unresolved/blocked fields
+    const proposalStatusIndicator = isProposal ? (() => {
+      const displayStatus = computeDisplayStatus(fieldName, {
+        candidateValue: (candidate as Record<string, unknown>)[fieldName],
+        proposalMeta,
+        aiProposedFields,
+      });
+      if (displayStatus === "unresolved") {
+        return (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+            <AlertCircle className="h-2.5 w-2.5" />
+            Needs review
+          </span>
+        );
+      }
+      if (displayStatus === "blocked") {
+        return (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1">
+            <ShieldAlert className="h-2.5 w-2.5" />
+            Blocked
+          </span>
+        );
+      }
+      return null;
+    })() : null;
+
     return (
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 flex-wrap">
         {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
