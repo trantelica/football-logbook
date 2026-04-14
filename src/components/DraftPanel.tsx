@@ -40,6 +40,7 @@ import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
+import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -347,6 +348,32 @@ export function DraftPanel() {
       </TooltipProvider>
     ) : null;
 
+    // Proposal-mode status indicator for unresolved/blocked fields
+    const proposalStatusIndicator = isProposal ? (() => {
+      const displayStatus = computeDisplayStatus(fieldName, {
+        candidateValue: (candidate as Record<string, unknown>)[fieldName],
+        proposalMeta,
+        aiProposedFields,
+      });
+      if (displayStatus === "unresolved") {
+        return (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+            <AlertCircle className="h-2.5 w-2.5" />
+            Needs review
+          </span>
+        );
+      }
+      if (displayStatus === "blocked") {
+        return (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1">
+            <ShieldAlert className="h-2.5 w-2.5" />
+            Blocked
+          </span>
+        );
+      }
+      return null;
+    })() : null;
+
     return (
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 flex-wrap">
         {isFieldCommitted(fieldName) && !isPredicted(fieldName) && !deterministicParseFields.has(fieldName) && !isAiProposed(fieldName) && (
@@ -438,6 +465,7 @@ export function DraftPanel() {
           </TooltipProvider>
         )}
         {statusBadge}
+        {proposalStatusIndicator}
         {label}
         {required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
@@ -456,9 +484,32 @@ export function DraftPanel() {
       </TooltipProvider>
     ) : null;
 
-  const renderField = (fieldName: string) => {
+
+
+
+  /** Check if a field is relevant for proposal display */
+  const checkFieldRelevance = (fieldName: string): boolean => {
+    const fieldDef = playSchema.find((f) => f.name === fieldName);
+    if (!fieldDef) return false;
+    return isFieldRelevant(fieldName, fieldDef, {
+      activePass,
+      touchedFields,
+      deterministicParseFields,
+      aiProposedFields,
+      predictedFields,
+      carriedForwardFields,
+      lookupDerivedFields,
+      proposalMeta,
+      candidateValue: (candidate as Record<string, unknown>)[fieldName],
+    });
+  };
+
+  const renderField = (fieldName: string, proposalRelevanceFilter = false) => {
     // 9.2A: Hide inactive fields from editable input grid (NOT banner)
     if (isFieldInactive(fieldName)) return null;
+
+    // In proposal mode with relevance filtering, skip irrelevant empty fields
+    if (proposalRelevanceFilter && !checkFieldRelevance(fieldName)) return null;
 
     // PAT context: hide RESULT (set via dialog), hide playType (auto-set), hide patTry (auto-set)
     if (patContext && (fieldName === "result" || fieldName === "playType" || fieldName === "patTry")) {
@@ -1143,7 +1194,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
           <PersonnelPanel />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {playSchema.map((f) => renderField(f.name))}
+            {playSchema.map((f) => renderField(f.name, isProposal))}
           </div>
         )}
 
