@@ -1,67 +1,102 @@
 
 
-# Design Note Amendment: Hudl-Centered Location Mapping Authority
+# Design Note Amendment: Governed-Candidate Rule for Lookup-Backed Fields
 
-## What changes in the design note
+## What changes
 
-A new section (inserted between current Section 7 "Lookup Vocabulary Strategy" and Section 8 "Recommended Initial AI Scope") and corresponding updates to the AI Context Packet (Section 3).
+Replace the blanket "AI must not invent new lookup values" rule with a three-tier resolution strategy that allows AI to propose new candidate values when observation evidence is strong, routing them through the existing lookup-governance interrupt flow.
 
 ---
 
-## New Section: Hudl-Centered Location Mapping Authority
+## 1. Revised Rule Set
 
-### The existing model
+**Old rule (removed):**
+> For governed lookup fields, the proposed value MUST match one of the governed values EXACTLY. Do not invent new values.
 
-The engine uses a signed yardline address system with an internal index scale (`yardLnToIdx` / `idxToYardLn`) anchored to an immutable `fieldSize` (80 or 100) stored in `GameMeta`. Negative yardLn values represent one territory, positive values represent the other. The midfield boundary, valid range, and goal-line index are all derived deterministically from `fieldSize`. This is the authoritative location model — it drives prediction, commit-gate QC, and Hudl export.
+**New rule:**
 
-### Location-related fields under this constraint
+For lookup-backed fields (`offForm`, `offPlay`, `motion`), AI follows a priority cascade:
 
-| Field | Why constrained |
-|---|---|
-| `yardLn` | Must be a valid signed integer within `[-(fieldSize/2 - 1), +(fieldSize/2)]` range. "Our" vs "their" maps to sign. |
-| `hash` | L/M/R enum — not index-dependent, but contextually tied to field position |
-| `gainLoss` | Integer that drives index arithmetic for next-play prediction |
-| `dist` | Distance to first down — bounded by distance-to-goal (`fieldSize - currentIdx`) |
+1. **Exact / normalized match.** If the spoken phrase matches a governed lookup value (case-insensitive, whitespace-normalized), propose that canonical value. This is the happy path.
 
-### Rules for AI
+2. **Fuzzy / alias-assisted match.** If no exact match is found, attempt substring or alias resolution against governed values (e.g., "gun trips" → "Shotgun Trips Right"). If a single high-confidence match is found, propose the canonical value. If multiple candidates match, omit the field.
 
-1. **AI must not invent its own location interpretation.** All yardline values the AI proposes must be valid within the `fieldSize`-based index model. The AI context packet tells the AI the active `fieldSize` and the valid yardline range — the AI must stay within it.
+3. **Governed candidate extraction.** If no lookup match is found but the observation text strongly supports a specific value (e.g., coach clearly says "purple formation"), AI may propose the raw candidate value. The proposal must be tagged with `matchType: "candidate_new"` so the system knows it is not an existing lookup entry.
 
-2. **AI must stay consistent with Hudl-centered mapping.** The signed address convention (negative = own territory, positive = opponent territory) is authoritative. The AI context packet includes this convention explicitly so the AI does not invent an alternative.
+4. **Governed review gate.** Any proposed value with `matchType: "candidate_new"` triggers the existing `lookupInterruptPending` flow — the coach must explicitly add the value to the lookup table, correct it, or dismiss. AI never silently promotes new vocabulary.
 
-3. **Deterministic prediction remains source of truth.** When `computePrediction` produces a `yardLn`, `dn`, or `dist` value, that value takes precedence. AI may only propose location fields when prediction is suspended or ineligible (e.g., missing prerequisites, possession change, PAT context).
+5. **Omit if uncertain.** If observation evidence does not strongly support a specific value, omit the field entirely.
 
-4. **Omit rather than guess.** If the coach says "on the 30" without "our" or "their" context, and no other resolved fields disambiguate possession side, the AI must omit `yardLn` entirely.
+---
 
-### Representation in the AI Context Packet (Section 3 update)
+## 2. Updated Field Handling for offForm / offPlay / motion
 
-The `AIContextPacket` gains a `locationMapping` block sent on every call where `yardLn`, `gainLoss`, or `dist` are among the unresolved fields:
+These fields become **lookup-first, governed-candidate** fields:
 
 ```text
-locationMapping: {
-  fieldSize: 80 | 100,
-  validYardLnRange: { min: -39, max: 40 }  // derived from fieldSize
-  convention: "negative = own territory, positive = opponent territory",
-  midfield: 40,  // fieldSize / 2
-  predictionActive: boolean,  // true if computePrediction produced a value for this slot
-  predictedYardLn: number | null  // if prediction produced a value, AI must not contradict it
-}
+AI proposal for a lookup-backed field:
+  ┌─────────────────────┐
+  │ Observation text     │
+  └────────┬────────────┘
+           ▼
+  ┌─────────────────────┐
+  │ Exact/normalized    │──match──▶ propose canonical value
+  │ lookup match?       │           matchType: "exact"
+  └────────┬────────────┘
+           │ no
+           ▼
+  ┌─────────────────────┐
+  │ Fuzzy/alias match?  │──match──▶ propose canonical value
+  │ (single confident)  │           matchType: "fuzzy"
+  └────────┬────────────┘
+           │ no
+           ▼
+  ┌─────────────────────┐
+  │ Strong observation  │──yes───▶ propose raw candidate
+  │ evidence?           │           matchType: "candidate_new"
+  └────────┬────────────┘
+           │ no
+           ▼
+        OMIT field
 ```
 
-When `predictionActive` is true and `predictedYardLn` is non-null, AI must not propose `yardLn` at all — the deterministic engine already resolved it. The `yardLn` field would not appear in `unresolvedFields` in that case (it is already claimed by `predictedFields` provenance), but this explicit flag serves as a redundant safety signal in the prompt.
-
-### Phraseology guidance interaction
-
-The baseline phraseology for `yardLn` (Section 6) already captures "our/their" as possession clues. The `locationMapping` block gives the AI the numeric framework to apply those clues correctly. Together they form the complete location interpretation context: phraseology tells the AI *how coaches talk about location*, and `locationMapping` tells the AI *what valid location values look like*.
+The `matchType` tag is returned alongside each proposed value so the client-side filter knows which proposals need governance review.
 
 ---
 
-## Summary of all design note changes
+## 3. Interaction with Existing Flows
 
-1. **Section 3 (AI Context Packet)**: Add `locationMapping` block to the packet schema.
-2. **New Section 7.5 (Hudl-Centered Location Mapping Authority)**: Full section as above — model description, constrained fields, four rules, packet representation, phraseology interaction.
-3. **Section 8 (Recommended Initial AI Scope)**: Add a note under `yardLn` and `gainLoss` that these are subject to the location mapping constraint.
-4. **Section 9 (Smallest Next Slice)**: Add a sub-step: "Include `locationMapping` in the context packet builder when location fields are unresolved."
+**Proposal review surface:** All AI proposals (exact, fuzzy, or candidate_new) land in the same proposal review surface with `ai_proposed` provenance. No change to the review UX.
 
-No other sections change. No implementation yet.
+**Lookup interrupt:** When `applySystemPatch` receives a governed field value not in the lookup table, it already triggers `lookupInterruptPending`. This existing flow handles `candidate_new` proposals naturally — the coach sees the interrupt dialog and chooses to add, correct, or dismiss. No new UI needed.
+
+**Dependent field behavior:** If a `candidate_new` value is added to the lookup table via the interrupt flow, the coach must also configure its dependent attributes (e.g., `offStrength` for a new `offForm`). This is already handled by the lookup-add flow in Configuration Mode.
+
+---
+
+## 4. Changes to Existing Code (What, Not How)
+
+| Location | Change |
+|---|---|
+| `phraseologyBaseline.ts` | Replace "Must match exactly — do not invent" hints with "Prefer exact lookup match. If no match exists but evidence is strong, propose the candidate value and mark it as new." |
+| `aiEnrichClient.ts` line 58 | Replace `governedConstraint: "MUST match exactly"` with updated constraint text explaining the cascade. |
+| Edge function prompt (line 81) | Replace the "MUST match exactly" rule with the three-tier cascade instructions. Tell AI to return `matchType` per governed field. |
+| Edge function response parsing | Extract `matchType` from AI response for governed fields. Pass through to client. |
+| `aiEnrichment.ts` / `filterAiProposal` | Accept `candidate_new` proposals for governed fields (do not reject as collisions). The downstream `applySystemPatch` + lookup interrupt handles governance. |
+
+---
+
+## 5. Smallest Next Implementation Slice
+
+1. **Update phraseology hints** for `offForm`, `offPlay` (and `motion` when added): replace "must match exactly" with the governed-candidate cascade language.
+
+2. **Update `governedConstraint`** in `buildFieldHints` to instruct AI to prefer lookup matches but allow candidate proposals with a `matchType` tag.
+
+3. **Update edge function prompt** to describe the three-tier cascade and instruct the AI to return `{ suggestions: { offForm: { value: "Purple", matchType: "candidate_new" } } }` for governed fields (simple string for non-governed fields).
+
+4. **Update edge function response parsing** to unwrap the `{ value, matchType }` shape for governed fields into the flat proposal format the client expects.
+
+5. **No UI changes needed** — the existing `lookupInterruptPending` dialog already handles unknown governed values correctly.
+
+No fuzzy matching logic on the client side yet (tier 2 stays AI-side for now). No `motion` field added to `AI_ELIGIBLE_FIELDS` yet. No new lookup UI.
 
