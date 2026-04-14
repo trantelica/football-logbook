@@ -38,8 +38,7 @@ import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
-import { parseRawInput } from "@/engine/rawInputParser";
-import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
+import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 
 const WORKFLOW_STAGES = [
@@ -780,7 +779,8 @@ export function DraftPanel() {
   const handleCommitAndNext = async () => {
     const result = await commitAndNext();
     if (result.committed) {
-      voiceClearRef.current?.();
+      setLastObservationText("");
+      setLastDeterministicPatch({});
       if (!result.hasNext) {
         toast("End of filtered list.");
       }
@@ -1238,7 +1238,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
               <Button
                 size="sm"
                 className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                onClick={() => { commitProposal(); voiceClearRef.current?.(); }}
+                onClick={() => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }}
               >
                 <Check className="h-3.5 w-3.5" />
                 Commit
