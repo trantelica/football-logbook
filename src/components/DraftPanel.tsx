@@ -457,9 +457,38 @@ export function DraftPanel() {
       </TooltipProvider>
     ) : null;
 
-  const renderField = (fieldName: string) => {
+  /** Compute display status for a field in proposal context */
+  const getFieldDisplayStatus = (fieldName: string): ProposalDisplayStatus => {
+    return computeDisplayStatus(fieldName, {
+      candidateValue: (candidate as Record<string, unknown>)[fieldName],
+      proposalMeta,
+      aiProposedFields,
+    });
+  };
+
+  /** Check if a field is relevant for proposal display */
+  const checkFieldRelevance = (fieldName: string): boolean => {
+    const fieldDef = playSchema.find((f) => f.name === fieldName);
+    if (!fieldDef) return false;
+    return isFieldRelevant(fieldName, fieldDef, {
+      activePass,
+      touchedFields,
+      deterministicParseFields,
+      aiProposedFields,
+      predictedFields,
+      carriedForwardFields,
+      lookupDerivedFields,
+      proposalMeta,
+      candidateValue: (candidate as Record<string, unknown>)[fieldName],
+    });
+  };
+
+  const renderField = (fieldName: string, proposalRelevanceFilter = false) => {
     // 9.2A: Hide inactive fields from editable input grid (NOT banner)
     if (isFieldInactive(fieldName)) return null;
+
+    // In proposal mode with relevance filtering, skip irrelevant empty fields
+    if (proposalRelevanceFilter && !checkFieldRelevance(fieldName)) return null;
 
     // PAT context: hide RESULT (set via dialog), hide playType (auto-set), hide patTry (auto-set)
     if (patContext && (fieldName === "result" || fieldName === "playType" || fieldName === "patTry")) {
