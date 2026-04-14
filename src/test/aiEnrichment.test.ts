@@ -101,33 +101,33 @@ describe("getUnresolvedFields", () => {
 describe("filterAiProposal", () => {
   it("passes through proposals for unresolved fields only", () => {
     const { safePatch, collisions } = filterAiProposal({
-      proposal: { dist: "10", hash: "L" },
-      unresolvedFields: new Set(["dist", "hash"]),
+      proposal: { result: "Rush", hash: "L" },
+      unresolvedFields: new Set(["result", "hash"]),
       candidate: makeCandidate(),
     });
-    expect(safePatch).toEqual({ dist: "10", hash: "L" });
+    expect(safePatch).toEqual({ result: "Rush", hash: "L" });
     expect(collisions).toHaveLength(0);
   });
 
   it("blocks proposals for resolved fields as collisions", () => {
     const { safePatch, collisions } = filterAiProposal({
-      proposal: { dn: "2", dist: "10" },
-      unresolvedFields: new Set(["dist"]),
-      candidate: makeCandidate({ dn: "1" }),
+      proposal: { hash: "R", result: "Rush" },
+      unresolvedFields: new Set(["result"]),
+      candidate: makeCandidate({ hash: "L" }),
     });
-    expect(safePatch).toEqual({ dist: "10" });
+    expect(safePatch).toEqual({ result: "Rush" });
     expect(collisions).toHaveLength(1);
-    expect(collisions[0].fieldName).toBe("dn");
-    expect(collisions[0].currentValue).toBe("1");
-    expect(collisions[0].proposedValue).toBe("2");
+    expect(collisions[0].fieldName).toBe("hash");
+    expect(collisions[0].currentValue).toBe("L");
+    expect(collisions[0].proposedValue).toBe("R");
   });
 
   it("does not overwrite deterministic_parse fields", () => {
-    // Simulating a field that has provenance but empty value
+    // result has provenance but empty value — still a collision
     const { safePatch, collisions } = filterAiProposal({
-      proposal: { dn: "3" },
-      unresolvedFields: new Set(), // dn is not unresolved
-      candidate: makeCandidate({ dn: "" }),
+      proposal: { result: "Rush" },
+      unresolvedFields: new Set(), // result is not unresolved
+      candidate: makeCandidate({ result: "" }),
     });
     expect(safePatch).toEqual({});
     expect(collisions).toHaveLength(1);
@@ -135,23 +135,24 @@ describe("filterAiProposal", () => {
 
   it("does not overwrite coach-edited fields", () => {
     const { safePatch, collisions } = filterAiProposal({
-      proposal: { dist: "7" },
-      unresolvedFields: new Set(), // dist is touched
-      candidate: makeCandidate({ dist: "10" }),
+      proposal: { gainLoss: 7 },
+      unresolvedFields: new Set(), // gainLoss is touched
+      candidate: makeCandidate({ gainLoss: 10 }),
     });
     expect(safePatch).toEqual({});
     expect(collisions).toHaveLength(1);
-    expect(collisions[0].fieldName).toBe("dist");
+    expect(collisions[0].fieldName).toBe("gainLoss");
   });
 
-  it("does not overwrite lookup_derived fields", () => {
+  it("does not overwrite lookup_derived fields (non-eligible silently dropped)", () => {
+    // offStrength is not in AI_ELIGIBLE_FIELDS, so it's silently dropped
     const { safePatch, collisions } = filterAiProposal({
       proposal: { offStrength: "Lt" },
       unresolvedFields: new Set(), // offStrength is lookup_derived
       candidate: makeCandidate({ offStrength: "Rt" }),
     });
     expect(safePatch).toEqual({});
-    expect(collisions).toHaveLength(1);
+    expect(collisions).toHaveLength(0); // silently dropped, not a collision
   });
 
   it("skips null/empty proposed values", () => {
@@ -206,25 +207,21 @@ describe("filterAiProposal", () => {
 
   it("attaches AI-proposed evidence to safe patch fields", () => {
     const { evidence } = filterAiProposal({
-      proposal: { dist: "10", hash: "L" },
-      unresolvedFields: new Set(["dist", "hash"]),
+      proposal: { result: "Rush", hash: "L" },
+      unresolvedFields: new Set(["result", "hash"]),
       candidate: makeCandidate(),
     });
-    expect(evidence["dist"]).toEqual({ snippet: "AI-proposed" });
+    expect(evidence["result"]).toEqual({ snippet: "AI-proposed" });
     expect(evidence["hash"]).toEqual({ snippet: "AI-proposed" });
   });
 
   it("AI-proposed values remain reviewable (not auto-committed)", () => {
-    // This test verifies the contract: safePatch goes through applySystemPatch
-    // with source="ai_proposed", which means fields land in aiProposedFields
-    // and remain in candidate state, not committed.
     const { safePatch } = filterAiProposal({
-      proposal: { dist: "10" },
-      unresolvedFields: new Set(["dist"]),
+      proposal: { result: "Rush" },
+      unresolvedFields: new Set(["result"]),
       candidate: makeCandidate(),
     });
-    expect(safePatch).toEqual({ dist: "10" });
-    // The actual review/commit flow is tested in the transaction integration
+    expect(safePatch).toEqual({ result: "Rush" });
   });
 
   it("governance-blocked values remain blocked after AI enrichment", () => {
