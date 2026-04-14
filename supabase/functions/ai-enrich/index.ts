@@ -78,10 +78,18 @@ Rules:
 - Base your suggestions on what the coach actually said in the observation text.
 - Do not guess values that have no basis in the observation text.
 - Do not invent field names.
-- For fields with governedValues (from the team's playbook), the proposed value MUST match one of the governed values EXACTLY. Do not invent new values.
 - For fields with allowedValues (fixed enums), propose only values from that list.
 - Use phraseologyHints to understand how coaches commonly express each concept.
 - If you cannot confidently infer a field from the observation, OMIT it.
+
+Governed lookup fields (fields with governedValues):
+For these fields, follow this priority cascade:
+1. EXACT MATCH: If the spoken phrase matches a governed value (case-insensitive), return { "value": "<canonical value>", "matchType": "exact" }.
+2. FUZZY/ALIAS MATCH: If no exact match but a single governed value clearly matches (e.g., "gun trips" → "Shotgun Trips Right"), return { "value": "<canonical value>", "matchType": "fuzzy" }. If multiple could match, OMIT.
+3. CANDIDATE NEW: If no governed value matches but the coach clearly names a specific value (e.g., "purple formation"), return { "value": "<raw candidate>", "matchType": "candidate_new" }.
+4. If uncertain, OMIT the field entirely.
+
+For NON-governed fields (no governedValues in hints), return a plain value (string or number).
 ${locationInstructions}
 
 Field hints (types, allowed/governed values, phraseology):
@@ -98,7 +106,7 @@ ${JSON.stringify(candidate, null, 2)}
 
 Unresolved fields needing suggestions: ${JSON.stringify(unresolvedFields)}
 
-Return ONLY a JSON object with values you can confidently infer from the coach's observation. Omit fields you cannot infer. Example: {"hash": "L", "result": "Rush"}`;
+Return ONLY a JSON object with values you can confidently infer from the coach's observation. For governed lookup fields (those with governedValues in hints), return { "value": "...", "matchType": "exact"|"fuzzy"|"candidate_new" }. For other fields, return plain values. Omit fields you cannot infer. Example: {"hash": "L", "result": "Rush", "offForm": {"value": "Shotgun Trips", "matchType": "exact"}}`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
