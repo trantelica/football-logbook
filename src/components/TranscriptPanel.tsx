@@ -156,6 +156,7 @@ export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
     } else {
       setApplied(true);
       toast.success(`Applied ${Object.keys(patch).length} field(s) to draft`);
+      onApply?.(lastSnapshot.sourceText, patch);
     }
   }, [lastSnapshot, isDirtyAfterParse, applied, applySystemPatch]);
 
@@ -184,6 +185,10 @@ export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
     toast.success(msg);
     setApplied(true);
     setCollisionState(null);
+    // Fire onApply with the full patch (including resolved collisions)
+    if (lastSnapshot) {
+      onApply?.(lastSnapshot.sourceText, collisionState.fullPatch);
+    }
   }, [collisionState, applySystemPatch]);
 
   const handleCollisionCancel = useCallback(() => {
