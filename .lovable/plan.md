@@ -1,63 +1,67 @@
 
 
-## Phase 9.1 — Season Configuration Persistence + Audit Backbone ✅
+# Design Note Amendment: Hudl-Centered Location Mapping Authority
 
-### Summary of Changes
+## What changes in the design note
 
-9 files touched (3 new, 6 modified). IDB bumped from v5 to v6. Adds season-level config persistence, config audit trail, config mode UI with commit gating, and fieldSize lock based on committed play count.
+A new section (inserted between current Section 7 "Lookup Vocabulary Strategy" and Section 8 "Recommended Initial AI Scope") and corresponding updates to the AI Context Packet (Section 3).
 
-### Files Created
+---
 
-**A) `src/engine/configStore.ts`** — Pure types + helpers
-- `SeasonConfig` type with `seasonId`, `version`, `updatedAt`, `updatedBy: "local"`, `fieldSize: 80|100`, `activeFields: Record<string, boolean>`
-- `ConfigAuditRecord` type with `id?`, `seasonId`, `eventId`, `at`, `type: "CONFIG_CHANGE"`, `versionBefore`, `versionAfter`, `changes: Array<{ key, before, after }>`
-- `buildDefaultConfig(seasonId, fieldKeys)` — returns version=1, fieldSize=80, all keys true
-- `diffConfig(before, after)` — compares top-level `fieldSize` + nested `activeFields.<key>` diffs; returns changes array, empty if identical
+## New Section: Hudl-Centered Location Mapping Authority
 
-**B) `src/components/ConfigModeDialog.tsx`** — Modal dialog
-- Props: `open`, `onOpenChange`
-- On open: loads config via `getSeasonConfig(seasonId)` or falls back to `buildDefaultConfig`; sets `configMode = true` in season context
-- On close: sets `configMode = false`
-- UI: fieldSize toggle (80/100) + activeFields checklist from `playSchema.map(f => f.name)`
-- **fieldSize lock**: on open, calls `countSeasonCommittedPlays(seasonId)`. If count > 0, disables fieldSize control and shows helper text: "Field size is locked after plays have been committed to protect determinism."
-- Save: diffs against loaded config, calls `saveSeasonConfig(after, before)`, toasts success, closes
+### The existing model
 
-**C) `src/test/configStore.test.ts`** — Unit tests
-- `buildDefaultConfig` returns version=1, fieldSize=80, all keys true
-- `diffConfig` detects changed `fieldSize`
-- `diffConfig` detects changed nested `activeFields.offForm`
-- `diffConfig` returns empty for identical configs
+The engine uses a signed yardline address system with an internal index scale (`yardLnToIdx` / `idxToYardLn`) anchored to an immutable `fieldSize` (80 or 100) stored in `GameMeta`. Negative yardLn values represent one territory, positive values represent the other. The midfield boundary, valid range, and goal-line index are all derived deterministically from `fieldSize`. This is the authoritative location model — it drives prediction, commit-gate QC, and Hudl export.
 
-### Files Modified
+### Location-related fields under this constraint
 
-**D) `src/engine/db.ts`** — IDB v5 → v6
-- Bump `DB_VERSION` to 6
-- Add stores in upgrade: `config` (keyPath `seasonId`), `config_audit` (autoIncrement, index `bySeason` on `seasonId`)
-- Add `getSeasonConfig(seasonId): Promise<SeasonConfig | undefined>`
-- Add `saveSeasonConfig(after, before)`: single tx on `["config", "config_audit"]` — calls `diffConfig`, skips if no changes, otherwise increments version, sets updatedAt/updatedBy, puts config, adds audit record with UUID eventId
-- Add `getConfigAuditBySeason(seasonId): Promise<ConfigAuditRecord[]>`
-- Add `countSeasonCommittedPlays(seasonId)`: gets all games where `seasonId` matches, then for each game counts plays via `byGame` index on the `plays` store, returns total. Plays store ONLY contains committed rows.
-- Extend `buildDebugExport` to include `config` and `configAudit` when season data present
-- Extend `buildSeasonPackageExport` to include optional `config` if found
-- Extend `importSeasonPackageNewSeason` to write config under `newSeasonId` if present in package; add `"config"` to the tx store list
+| Field | Why constrained |
+|---|---|
+| `yardLn` | Must be a valid signed integer within `[-(fieldSize/2 - 1), +(fieldSize/2)]` range. "Our" vs "their" maps to sign. |
+| `hash` | L/M/R enum — not index-dependent, but contextually tied to field position |
+| `gainLoss` | Integer that drives index arithmetic for next-play prediction |
+| `dist` | Distance to first down — bounded by distance-to-goal (`fieldSize - currentIdx`) |
 
-**E) `src/engine/seasonContext.tsx`**
-- Add `configMode: boolean` state (default false) + `setConfigMode: (v: boolean) => void` to context interface and provider
+### Rules for AI
 
-**F) `src/engine/transaction.tsx`**
-- Import `useSeason`, read `configMode`
-- At top of `reviewProposal` callback: if `configMode`, toast "Exit Configuration Mode first." and return
-- At top of `commitProposal` callback: same guard
+1. **AI must not invent its own location interpretation.** All yardline values the AI proposes must be valid within the `fieldSize`-based index model. The AI context packet tells the AI the active `fieldSize` and the valid yardline range — the AI must stay within it.
 
-**G) `src/components/GameBar.tsx`**
-- Import `ConfigModeDialog`, add `configOpen` state
-- Add "Config" button next to season controls, visible when `activeSeason` exists (no game gate)
-- Render `<ConfigModeDialog open={configOpen} onOpenChange={setConfigOpen} />`
+2. **AI must stay consistent with Hudl-centered mapping.** The signed address convention (negative = own territory, positive = opponent territory) is authoritative. The AI context packet includes this convention explicitly so the AI does not invent an alternative.
 
-**H) `src/components/StartGameDialog.tsx`**
-- On dialog open, load `getSeasonConfig(activeSeason.seasonId)` and if found, use its `fieldSize` as the default for the local `fieldSize` state instead of hardcoded "80".
+3. **Deterministic prediction remains source of truth.** When `computePrediction` produces a `yardLn`, `dn`, or `dist` value, that value takes precedence. AI may only propose location fields when prediction is suspended or ineligible (e.g., missing prerequisites, possession change, PAT context).
 
-**I) `src/engine/seasonTransfer.ts`**
-- Import `SeasonConfig` type from configStore
-- Add optional `config?: SeasonConfig` to both `SeasonPackage` and `NormalizedSeasonPackage` types
-- In `normalizeSeasonPackageImport`, pass through `config` if present in payload
+4. **Omit rather than guess.** If the coach says "on the 30" without "our" or "their" context, and no other resolved fields disambiguate possession side, the AI must omit `yardLn` entirely.
+
+### Representation in the AI Context Packet (Section 3 update)
+
+The `AIContextPacket` gains a `locationMapping` block sent on every call where `yardLn`, `gainLoss`, or `dist` are among the unresolved fields:
+
+```text
+locationMapping: {
+  fieldSize: 80 | 100,
+  validYardLnRange: { min: -39, max: 40 }  // derived from fieldSize
+  convention: "negative = own territory, positive = opponent territory",
+  midfield: 40,  // fieldSize / 2
+  predictionActive: boolean,  // true if computePrediction produced a value for this slot
+  predictedYardLn: number | null  // if prediction produced a value, AI must not contradict it
+}
+```
+
+When `predictionActive` is true and `predictedYardLn` is non-null, AI must not propose `yardLn` at all — the deterministic engine already resolved it. The `yardLn` field would not appear in `unresolvedFields` in that case (it is already claimed by `predictedFields` provenance), but this explicit flag serves as a redundant safety signal in the prompt.
+
+### Phraseology guidance interaction
+
+The baseline phraseology for `yardLn` (Section 6) already captures "our/their" as possession clues. The `locationMapping` block gives the AI the numeric framework to apply those clues correctly. Together they form the complete location interpretation context: phraseology tells the AI *how coaches talk about location*, and `locationMapping` tells the AI *what valid location values look like*.
+
+---
+
+## Summary of all design note changes
+
+1. **Section 3 (AI Context Packet)**: Add `locationMapping` block to the packet schema.
+2. **New Section 7.5 (Hudl-Centered Location Mapping Authority)**: Full section as above — model description, constrained fields, four rules, packet representation, phraseology interaction.
+3. **Section 8 (Recommended Initial AI Scope)**: Add a note under `yardLn` and `gainLoss` that these are subject to the location mapping constraint.
+4. **Section 9 (Smallest Next Slice)**: Add a sub-step: "Include `locationMapping` in the context packet builder when location fields are unresolved."
+
+No other sections change. No implementation yet.
+
