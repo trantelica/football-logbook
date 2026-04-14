@@ -872,6 +872,12 @@ export function DraftPanel() {
       {/* Phase 10: Dev-only smoke test harness */}
       {isDevMode() && <Phase10SmokeTest />}
 
+      {/* Transcript Panel — visible in Pass 1+ with a slot selected */}
+      {activePass >= 1 && selectedSlotNum !== null && (
+        <div className="mb-3">
+          <TranscriptPanel onApply={handleTranscriptApply} />
+        </div>
+      )}
 
       {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (

@@ -12,7 +12,7 @@ import { OverwriteReview } from "@/components/OverwriteReview";
 import { StatusBar } from "@/components/StatusBar";
 import { LookupPanel } from "@/components/LookupPanel";
 import { RosterPanel } from "@/components/RosterPanel";
-import { TranscriptPanel } from "@/components/TranscriptPanel";
+
 
 const Index = () => {
   return (
@@ -27,7 +27,7 @@ const Index = () => {
 
                   <main className="flex-1 overflow-auto p-4 space-y-4">
                     <DraftPanel />
-                    <TranscriptPanel />
+                    
                     <SlotsGrid />
                     <LookupPanel />
                     <RosterPanel />
