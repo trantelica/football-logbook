@@ -40,7 +40,7 @@ import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
-import { isFieldRelevant, computeDisplayStatus, type ProposalDisplayStatus } from "@/engine/proposalDisplayStatus";
+import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
