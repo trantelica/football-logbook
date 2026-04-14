@@ -31,11 +31,16 @@ import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
 import { getUnresolvedFields, filterAiProposal } from "./aiEnrichment";
 // normalizeToSchema imported for potential future use; grade normalization is inline
+/** Match type for governed lookup AI proposals */
+export type GovernedMatchType = "exact" | "fuzzy" | "candidate_new";
+
 /** Evidence for a single AI-proposed field */
 export interface AIFieldEvidence {
   snippet: string;
   semanticRole?: string;
   utteranceId?: string;
+  /** For governed lookup fields, how the AI matched the value */
+  matchType?: GovernedMatchType;
 }
 
 /** Options for applySystemPatch */
