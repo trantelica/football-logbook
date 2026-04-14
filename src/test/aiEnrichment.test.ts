@@ -213,7 +213,7 @@ describe("filterAiProposal", () => {
     });
     expect(safePatch).toEqual({ offForm: "Shotgun Trips" });
     expect(evidence["offForm"].matchType).toBe("exact");
-    expect(evidence["offForm"].snippet).toBe("AI-proposed (exact)");
+    expect(evidence["offForm"].snippet).toBe("AI-proposed");
     expect(collisions).toHaveLength(0);
   });
 
@@ -225,7 +225,7 @@ describe("filterAiProposal", () => {
     });
     expect(safePatch).toEqual({ offPlay: "24 Dive" });
     expect(evidence["offPlay"].matchType).toBe("fuzzy");
-    expect(evidence["offPlay"].snippet).toBe("AI-proposed (fuzzy)");
+    expect(evidence["offPlay"].snippet).toBe("AI-proposed");
   });
 
   it("preserves candidate_new matchType in evidence for governed fields", () => {
@@ -236,7 +236,7 @@ describe("filterAiProposal", () => {
     });
     expect(safePatch).toEqual({ offForm: "Purple" });
     expect(evidence["offForm"].matchType).toBe("candidate_new");
-    expect(evidence["offForm"].snippet).toBe("AI-proposed (candidate_new)");
+    expect(evidence["offForm"].snippet).toBe("AI-proposed");
   });
 
   it("candidate_new values pass through safePatch for lookup governance", () => {
