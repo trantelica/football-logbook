@@ -114,7 +114,7 @@ export function DraftPanel() {
     lookupDerivedFields,
     requestAiEnrichment,
   } = useTransaction();
-  const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
+  const { getValues, isLookupField, addValue, getEntryAttributes, getLookupMap } = useLookup();
   const { roster, addPlayer } = useRoster();
   const { saveInput } = useRawInput();
   const [isAiEnriching, setIsAiEnriching] = useState(false);
