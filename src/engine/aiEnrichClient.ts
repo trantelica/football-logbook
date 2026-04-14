@@ -55,7 +55,7 @@ function buildFieldHints(
       const vals = lookupValues.get(name);
       if (vals && vals.length > 0) {
         hint.governedValues = vals;
-        hint.governedConstraint = "Value MUST match one of these exactly — do not invent new values";
+        hint.governedConstraint = "Prefer exact match from governedValues (case-insensitive). If no match exists but the coach clearly names a value, propose the raw candidate. For governed fields, return { value: string, matchType: 'exact' | 'fuzzy' | 'candidate_new' } instead of a plain string.";
       }
     }
 
