@@ -465,6 +465,7 @@ export function DraftPanel() {
           </TooltipProvider>
         )}
         {statusBadge}
+        {proposalStatusIndicator}
         {label}
         {required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
