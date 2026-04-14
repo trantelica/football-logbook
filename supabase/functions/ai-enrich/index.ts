@@ -189,10 +189,19 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
     }
 
     // Safety: strip any fields not in the unresolved list
+    // Unwrap governed field objects { value, matchType } into flat values
     const unresolvedSet = new Set(unresolvedFields);
     const filtered: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(proposal)) {
-      if (unresolvedSet.has(k) && v !== null && v !== undefined && v !== "") {
+      if (!unresolvedSet.has(k)) continue;
+      // Handle governed field shape: { value: "...", matchType: "..." }
+      if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
+        const obj = v as Record<string, unknown>;
+        const val = obj.value;
+        if (val !== null && val !== undefined && val !== "") {
+          filtered[k] = val;
+        }
+      } else if (v !== null && v !== undefined && v !== "") {
         filtered[k] = v;
       }
     }
