@@ -1,34 +1,101 @@
 /**
  * AI Enrichment Client — calls the ai-enrich edge function.
  *
- * Sends observation text, deterministic patch, unresolved fields, and
- * field hints to the backend. The caller routes the result through
- * requestAiEnrichment for filtering and provenance assignment.
+ * Sends a grounded context packet including:
+ * - observation text (coach dictation)
+ * - deterministic patch (already parsed values)
+ * - unresolved fields (only AI-eligible ones)
+ * - field hints with governed lookup values, enum values, and phraseology
+ * - location mapping (Hudl-centered yardline model) when location fields are unresolved
  *
- * AI is NOT called when observation text is empty — the model needs
- * narrative context to ground its suggestions.
+ * AI is NOT called when observation text is empty.
  */
 
 import { supabase } from "@/integrations/supabase/client";
 import { playSchema } from "./schema";
 import { getUnresolvedFields } from "./aiEnrichment";
+import { AI_ELIGIBLE_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
+import { getBaselinePhraseology } from "./phraseologyBaseline";
 import type { CandidateData } from "./types";
+import type { FieldSize } from "./prediction";
+
+/** Location mapping block for the AI context packet */
+export interface LocationMappingContext {
+  fieldSize: FieldSize;
+  validYardLnRange: { min: number; max: number };
+  convention: string;
+  midfield: number;
+  predictionActive: boolean;
+  predictedYardLn: number | null;
+}
 
 /**
- * Build field hints (allowed values) for unresolved fields so the AI
- * model knows the valid value space.
+ * Build enriched field hints for unresolved fields.
+ * Includes: label, data type, enum values, governed lookup values, and phraseology hints.
  */
-function buildFieldHints(unresolvedFields: string[]): Record<string, unknown> {
+function buildFieldHints(
+  unresolvedFields: string[],
+  lookupValues?: Map<string, string[]>,
+): Record<string, unknown> {
   const hints: Record<string, unknown> = {};
   for (const name of unresolvedFields) {
     const def = playSchema.find((f) => f.name === name);
+    const hint: Record<string, unknown> = {
+      label: def?.label ?? name,
+      type: def?.dataType ?? "string",
+    };
+
+    // Enum values from schema
     if (def?.allowedValues && def.allowedValues.length > 0) {
-      hints[name] = { label: def.label, allowedValues: def.allowedValues, type: def.dataType ?? "string" };
-    } else {
-      hints[name] = { label: def?.label ?? name, type: def?.dataType ?? "string" };
+      hint.allowedValues = def.allowedValues;
     }
+
+    // Governed lookup values from season-scoped tables
+    if (def?.lookupMode === "season" && lookupValues) {
+      const vals = lookupValues.get(name);
+      if (vals && vals.length > 0) {
+        hint.governedValues = vals;
+        hint.governedConstraint = "Value MUST match one of these exactly — do not invent new values";
+      }
+    }
+
+    // Phraseology hints from baseline
+    const phraseology = getBaselinePhraseology(name);
+    if (phraseology.length > 0) {
+      hint.phraseologyHints = phraseology;
+    }
+
+    hints[name] = hint;
   }
   return hints;
+}
+
+/**
+ * Build location mapping context when location fields are unresolved.
+ */
+function buildLocationMapping(
+  unresolvedFields: string[],
+  opts?: {
+    fieldSize?: FieldSize;
+    predictedFields?: Set<string>;
+    predictedYardLn?: number | null;
+  },
+): LocationMappingContext | undefined {
+  const hasLocationField = unresolvedFields.some((f) => LOCATION_CONSTRAINED_FIELDS.has(f));
+  if (!hasLocationField) return undefined;
+
+  const fieldSize = opts?.fieldSize ?? 80;
+  const half = fieldSize / 2;
+  const predictionActive = opts?.predictedFields?.has("yardLn") ?? false;
+
+  return {
+    fieldSize,
+    validYardLnRange: { min: -(half - 1), max: half },
+    convention: "negative = own territory, positive = opponent territory",
+    midfield: half,
+    predictionActive,
+    predictedYardLn: predictionActive ? (opts?.predictedYardLn ?? null) : null,
+  };
 }
 
 /**
@@ -51,6 +118,12 @@ export async function fetchAiProposal(
     observationText?: string;
     /** Fields already resolved by deterministic parse */
     deterministicPatch?: Record<string, unknown>;
+    /** Season-scoped lookup values keyed by field name */
+    lookupValues?: Map<string, string[]>;
+    /** Field size for location mapping */
+    fieldSize?: FieldSize;
+    /** Predicted yardLn value (if prediction engine resolved it) */
+    predictedYardLn?: number | null;
   },
 ): Promise<{ proposal: Record<string, unknown>; error?: string }> {
   // Gate: no observation text = no AI call
@@ -75,8 +148,11 @@ export async function fetchAiProposal(
     eligibleFieldNames,
   });
 
-  if (unresolvedFields.length === 0) {
-    return { proposal: {}, error: "All fields are already resolved" };
+  // Intersect with AI-eligible field set — only Bucket B fields
+  const aiEligibleUnresolved = unresolvedFields.filter((f) => AI_ELIGIBLE_FIELDS.has(f));
+
+  if (aiEligibleUnresolved.length === 0) {
+    return { proposal: {}, error: "All AI-eligible fields are already resolved" };
   }
 
   // Build a compact candidate snapshot (only non-null fields)
@@ -87,16 +163,24 @@ export async function fetchAiProposal(
     }
   }
 
-  const fieldHints = buildFieldHints(unresolvedFields);
+  const fieldHints = buildFieldHints(aiEligibleUnresolved, opts?.lookupValues);
   const deterministicPatch = opts?.deterministicPatch ?? {};
+
+  // Build location mapping if location fields are unresolved
+  const locationMapping = buildLocationMapping(aiEligibleUnresolved, {
+    fieldSize: opts?.fieldSize,
+    predictedFields: opts?.predictedFields,
+    predictedYardLn: opts?.predictedYardLn,
+  });
 
   const { data, error } = await supabase.functions.invoke("ai-enrich", {
     body: {
       observationText,
       deterministicPatch,
       candidate: compactCandidate,
-      unresolvedFields,
+      unresolvedFields: aiEligibleUnresolved,
       fieldHints,
+      locationMapping,
     },
   });
 
