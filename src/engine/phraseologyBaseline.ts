@@ -62,7 +62,7 @@ const baseline: PhraseologyHint[] = [
       "Formation usually appears before the play name in dictation",
       "'gun' often means 'Shotgun' prefix",
       "'trips' typically means 3 receivers to one side",
-      "Must match a governed lookup value EXACTLY — do not invent formations",
+      "Prefer exact match from governedValues. If no match exists but the coach clearly names a formation, propose the candidate value with matchType 'candidate_new'.",
     ],
   },
   {
@@ -71,7 +71,7 @@ const baseline: PhraseologyHint[] = [
       "Coach typically names the play directly from the playbook",
       "Play name usually appears after the formation in dictation",
       "May include a number prefix (e.g., '24 dive', '36 counter')",
-      "Must match a governed lookup value EXACTLY — do not invent plays",
+      "Prefer exact match from governedValues. If no match exists but the coach clearly names a play, propose the candidate value with matchType 'candidate_new'.",
     ],
   },
 ];
