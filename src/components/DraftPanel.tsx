@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
+import { TranscriptPanel } from "./TranscriptPanel";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
