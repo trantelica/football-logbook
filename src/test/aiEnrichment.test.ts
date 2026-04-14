@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { getUnresolvedFields, filterAiProposal } from "../engine/aiEnrichment";
 import { AI_ELIGIBLE_FIELDS } from "../engine/aiEligibility";
 import type { CandidateData } from "../engine/types";
-import type { CandidateData } from "../engine/types";
 
 function makeCandidate(overrides: Record<string, unknown> = {}): CandidateData {
   return { gameId: "g1", ...overrides } as CandidateData;
