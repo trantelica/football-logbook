@@ -1173,7 +1173,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
           <PersonnelPanel />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {playSchema.map((f) => renderField(f.name))}
+            {playSchema.map((f) => renderField(f.name, isProposal))}
           </div>
         )}
 
