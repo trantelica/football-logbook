@@ -1,9 +1,14 @@
 /**
  * AI Enrichment Edge Function
  *
- * Accepts observation text (coach dictation), deterministic parse results,
- * unresolved field names, and field hints. Calls Lovable AI Gateway to
- * propose values for unresolved fields only, grounded in the observation text.
+ * Accepts a grounded context packet:
+ * - observationText: coach dictation
+ * - deterministicPatch: already-parsed values
+ * - unresolvedFields: only AI-eligible fields
+ * - fieldHints: enum values, governed lookup values, phraseology hints
+ * - locationMapping: Hudl-centered yardline model constraints
+ *
+ * Calls Lovable AI Gateway to propose values grounded in observation text.
  */
 
 const corsHeaders = {
@@ -24,6 +29,7 @@ Deno.serve(async (req) => {
       candidate,
       unresolvedFields,
       fieldHints,
+      locationMapping,
     } = await req.json();
 
     if (
@@ -50,7 +56,21 @@ Deno.serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build a focused system prompt grounded in observation text
+    // Build location mapping instructions if provided
+    let locationInstructions = "";
+    if (locationMapping) {
+      locationInstructions = `
+Location Model (Hudl-centered, authoritative):
+- Field size: ${locationMapping.fieldSize} yards
+- Yardline range: ${locationMapping.validYardLnRange.min} to ${locationMapping.validYardLnRange.max}
+- Convention: ${locationMapping.convention}
+- Midfield: ${locationMapping.midfield}
+${locationMapping.predictionActive ? `- IMPORTANT: Prediction engine already resolved yardLn to ${locationMapping.predictedYardLn}. Do NOT propose yardLn.` : "- Prediction engine did not resolve yardLn — you may propose if observation supports it."}
+- If "our" or "their" context is missing and cannot be inferred, OMIT yardLn entirely.
+- Do NOT invent your own location interpretation model.`;
+    }
+
+    // Build a focused system prompt
     const systemPrompt = `You are a football play-by-play data assistant. A coach has dictated observations about a play. A deterministic parser has already extracted some structured fields. Your job is to infer values ONLY for the remaining unresolved fields based on what the coach said.
 
 Rules:
@@ -58,10 +78,13 @@ Rules:
 - Base your suggestions on what the coach actually said in the observation text.
 - Do not guess values that have no basis in the observation text.
 - Do not invent field names.
-- Use the field hints to ensure values match expected types and allowed values.
-- If you cannot confidently infer a field from the observation, omit it.
+- For fields with governedValues (from the team's playbook), the proposed value MUST match one of the governed values EXACTLY. Do not invent new values.
+- For fields with allowedValues (fixed enums), propose only values from that list.
+- Use phraseologyHints to understand how coaches commonly express each concept.
+- If you cannot confidently infer a field from the observation, OMIT it.
+${locationInstructions}
 
-Field hints (allowed values and types):
+Field hints (types, allowed/governed values, phraseology):
 ${JSON.stringify(fieldHints ?? {}, null, 2)}`;
 
     const userPrompt = `Coach's observation:

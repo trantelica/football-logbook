@@ -114,7 +114,7 @@ export function DraftPanel() {
     lookupDerivedFields,
     requestAiEnrichment,
   } = useTransaction();
-  const { getValues, isLookupField, addValue, getEntryAttributes } = useLookup();
+  const { getValues, isLookupField, addValue, getEntryAttributes, getLookupMap } = useLookup();
   const { roster, addPlayer } = useRoster();
   const { saveInput } = useRawInput();
   const [isAiEnriching, setIsAiEnriching] = useState(false);
@@ -1175,6 +1175,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 onClick={async () => {
                   setIsAiEnriching(true);
                   try {
+                    const lookupMap = getLookupMap();
                     const result = await fetchAiProposal(
                       candidate as Record<string, unknown>,
                       activePass,
@@ -1187,6 +1188,9 @@ PENALTY O-Holding EFF Y 2MIN N`}
                         aiProposedFields: new Set<string>(),
                         observationText: lastObservationText,
                         deterministicPatch: lastDeterministicPatch,
+                        lookupValues: lookupMap,
+                        fieldSize: (activeGame?.fieldSize ?? 80) as 80 | 100,
+                        predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
                       },
                     );
                     if (result.error) {

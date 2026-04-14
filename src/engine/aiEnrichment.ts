@@ -17,6 +17,7 @@
 
 import type { CandidateData } from "./types";
 import type { AIFieldEvidence, SystemPatchCollision } from "./transaction";
+import { AI_ELIGIBLE_FIELDS } from "./aiEligibility";
 
 /** Fields that are system-managed and never AI-enrichable */
 const EXCLUDED_FIELDS = new Set(["gameId", "playNum", "qtr", "odk", "series"]);
@@ -88,6 +89,9 @@ export function filterAiProposal(opts: {
   for (const [fieldName, proposedValue] of Object.entries(proposal)) {
     if (EXCLUDED_FIELDS.has(fieldName)) continue;
     if (proposedValue === null || proposedValue === undefined || proposedValue === "") continue;
+
+    // Reject any field not in the AI-eligible set (Bucket A/C fields)
+    if (!AI_ELIGIBLE_FIELDS.has(fieldName)) continue;
 
     if (unresolvedFields.has(fieldName)) {
       safePatch[fieldName] = proposedValue;
