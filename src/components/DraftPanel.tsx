@@ -941,6 +941,53 @@ export function DraftPanel() {
     setLastDeterministicPatch(deterministicPatch);
   };
 
+  /** Trigger AI enrichment for remaining eligible fields */
+  const handleAiSuggestFills = async () => {
+    setIsAiEnriching(true);
+    try {
+      const lookupMap = getLookupMap();
+      const result = await fetchAiProposal(
+        candidate as Record<string, unknown>,
+        activePass,
+        {
+          touchedFields,
+          deterministicParseFields,
+          predictedFields,
+          carriedForwardFields: new Set<string>(),
+          lookupDerivedFields,
+          aiProposedFields: new Set<string>(),
+          observationText: lastObservationText,
+          deterministicPatch: lastDeterministicPatch,
+          lookupValues: lookupMap,
+          fieldSize: (activeGame?.fieldSize ?? 80) as 80 | 100,
+          predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
+        },
+      );
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      const proposal = result.proposal;
+      if (!proposal || Object.keys(proposal).length === 0) {
+        toast.info("AI had no suggestions for remaining fields");
+        return;
+      }
+      const collisions = requestAiEnrichment(proposal);
+      const filled = Object.keys(proposal).length - collisions.length;
+      if (filled > 0) {
+        toast.success(`AI suggested ${filled} field(s) — review before committing`);
+      }
+      if (collisions.length > 0) {
+        toast.info(`${collisions.length} field(s) already resolved, skipped`);
+      }
+    } catch (e) {
+      console.error("AI enrichment failed:", e);
+      toast.error("AI enrichment unavailable");
+    } finally {
+      setIsAiEnriching(false);
+    }
+  };
+
   return (
     <>
       {stageSelector}
@@ -950,8 +997,23 @@ export function DraftPanel() {
 
       {/* Transcript Panel — visible in Pass 1+ with a slot selected */}
       {activePass >= 1 && selectedSlotNum !== null && (
-        <div className="mb-3">
+        <div className="mb-3 space-y-2">
           <TranscriptPanel onApply={handleTranscriptApply} />
+          {!isProposal && (
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1 text-xs h-7"
+                disabled={isAiEnriching || !lastObservationText}
+                title={!lastObservationText ? "Parse transcript first — AI needs observation context" : undefined}
+                onClick={handleAiSuggestFills}
+              >
+                <Bot className="h-3.5 w-3.5" />
+                Suggest Fills
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1240,61 +1302,6 @@ PENALTY O-Holding EFF Y 2MIN N`}
               >
                 <Eye className="h-3.5 w-3.5" />
                 Review Proposal
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="gap-1 text-xs"
-                disabled={isAiEnriching || !lastObservationText}
-                title={!lastObservationText ? "Parse transcript first — AI needs observation context" : undefined}
-                onClick={async () => {
-                  setIsAiEnriching(true);
-                  try {
-                    const lookupMap = getLookupMap();
-                    const result = await fetchAiProposal(
-                      candidate as Record<string, unknown>,
-                      activePass,
-                      {
-                        touchedFields,
-                        deterministicParseFields,
-                        predictedFields,
-                        carriedForwardFields: new Set<string>(),
-                        lookupDerivedFields,
-                        aiProposedFields: new Set<string>(),
-                        observationText: lastObservationText,
-                        deterministicPatch: lastDeterministicPatch,
-                        lookupValues: lookupMap,
-                        fieldSize: (activeGame?.fieldSize ?? 80) as 80 | 100,
-                        predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
-                      },
-                    );
-                    if (result.error) {
-                      toast.error(result.error);
-                      return;
-                    }
-                    const proposal = result.proposal;
-                    if (!proposal || Object.keys(proposal).length === 0) {
-                      toast.info("AI had no suggestions for remaining fields");
-                      return;
-                    }
-                    const collisions = requestAiEnrichment(proposal);
-                    const filled = Object.keys(proposal).length - collisions.length;
-                    if (filled > 0) {
-                      toast.success(`AI suggested ${filled} field(s) — review before committing`);
-                    }
-                    if (collisions.length > 0) {
-                      toast.info(`${collisions.length} field(s) already resolved, skipped`);
-                    }
-                  } catch (e) {
-                    console.error("AI enrichment failed:", e);
-                    toast.error("AI enrichment unavailable");
-                  } finally {
-                    setIsAiEnriching(false);
-                  }
-                }}
-              >
-                <Bot className="h-3.5 w-3.5" />
-                Suggest Fills
               </Button>
             </>
           )}
