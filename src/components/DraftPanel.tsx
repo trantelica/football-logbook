@@ -1553,6 +1553,9 @@ interface LookupComboboxProps {
   disabled: boolean;
   inputClassName: string;
   error?: string;
+  /** Optional pre-rendered label node — when provided, replaces the default bare Label
+   *  so the combobox participates in the shared proposal-status / provenance badge treatment. */
+  labelSlot?: React.ReactNode;
 }
 
 function LookupCombobox({
@@ -1566,6 +1569,7 @@ function LookupCombobox({
   disabled,
   inputClassName,
   error,
+  labelSlot,
 }: LookupComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
