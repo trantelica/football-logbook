@@ -691,6 +691,7 @@ export function DraftPanel() {
             disabled={isDisabled}
             inputClassName={inputClasses}
             error={error}
+            labelSlot={renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
           />
           {stageLockLabel}
           {isLookupCommitError(fieldName) && !stageLocked && (
