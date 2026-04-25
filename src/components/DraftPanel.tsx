@@ -322,57 +322,8 @@ export function DraftPanel() {
 
   const renderFieldLabel = (fieldName: string, label: string, required: boolean) => {
     const meta = proposalMeta.get(fieldName);
-
-    // Status badge for needs_clarification or governance_blocked
-    const statusBadge = meta && (meta.status === "needs_clarification" || meta.status === "governance_blocked") ? (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={cn(
-              "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
-              meta.status === "governance_blocked"
-                ? "text-destructive bg-destructive/10"
-                : "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
-            )}>
-              {meta.status === "governance_blocked" ? (
-                <><ShieldAlert className="h-2.5 w-2.5" />Gov</>
-              ) : (
-                <><AlertCircle className="h-2.5 w-2.5" />?</>
-              )}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{meta.status === "governance_blocked" ? "Value not in approved lookup list" : "Needs clarification"}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    ) : null;
-
-    // Proposal-mode status indicator for unresolved/blocked fields
-    const proposalStatusIndicator = isProposal ? (() => {
-      const displayStatus = computeDisplayStatus(fieldName, {
-        candidateValue: (candidate as Record<string, unknown>)[fieldName],
-        proposalMeta,
-        aiProposedFields,
-      });
-      if (displayStatus === "unresolved") {
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
-            <AlertCircle className="h-2.5 w-2.5" />
-            Needs review
-          </span>
-        );
-      }
-      if (displayStatus === "blocked") {
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1">
-            <ShieldAlert className="h-2.5 w-2.5" />
-            Blocked
-          </span>
-        );
-      }
-      return null;
-    })() : null;
+    const statusBadge = renderMetaStatusBadge(fieldName);
+    const proposalStatusIndicator = renderProposalStatusIndicator(fieldName);
 
     return (
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 flex-wrap">
@@ -487,6 +438,66 @@ export function DraftPanel() {
 
 
 
+  /** Shared proposal-mode status indicator (Needs review / Blocked).
+   *  Used by both renderFieldLabel and combobox provenance slots so all
+   *  proposal-editable fields participate in the same clarity model. */
+  const renderProposalStatusIndicator = (fieldName: string): React.ReactNode => {
+    if (!isProposal) return null;
+    const displayStatus = computeDisplayStatus(fieldName, {
+      candidateValue: (candidate as Record<string, unknown>)[fieldName],
+      proposalMeta,
+      aiProposedFields,
+    });
+    if (displayStatus === "unresolved") {
+      return (
+        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+          <AlertCircle className="h-2.5 w-2.5" />
+          Needs review
+        </span>
+      );
+    }
+    if (displayStatus === "blocked") {
+      return (
+        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1">
+          <ShieldAlert className="h-2.5 w-2.5" />
+          Blocked
+        </span>
+      );
+    }
+    return null;
+  };
+
+  /** Shared meta-status badge (governance_blocked / needs_clarification). */
+  const renderMetaStatusBadge = (fieldName: string): React.ReactNode => {
+    const meta = proposalMeta.get(fieldName);
+    if (!meta || (meta.status !== "needs_clarification" && meta.status !== "governance_blocked")) {
+      return null;
+    }
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
+              meta.status === "governance_blocked"
+                ? "text-destructive bg-destructive/10"
+                : "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
+            )}>
+              {meta.status === "governance_blocked" ? (
+                <><ShieldAlert className="h-2.5 w-2.5" />Gov</>
+              ) : (
+                <><AlertCircle className="h-2.5 w-2.5" />?</>
+              )}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{meta.status === "governance_blocked" ? "Value not in approved lookup list" : "Needs clarification"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
   /** Check if a field is relevant for proposal display */
   const checkFieldRelevance = (fieldName: string): boolean => {
     const fieldDef = playSchema.find((f) => f.name === fieldName);
@@ -587,59 +598,71 @@ export function DraftPanel() {
             committedDot={committedDot(fieldName)}
             provenanceBadge={(() => {
               const actorMeta = proposalMeta.get(fieldName);
-              if (deterministicParseFields.has(fieldName)) {
-                return (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
-                          <Terminal className="h-2.5 w-2.5" />Parse
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>From transcript parse. Editable.</p>
-                        {actorMeta?.transcriptEvidence && (
-                          <p className="text-[10px] mt-1 opacity-80 font-mono">"{actorMeta.transcriptEvidence}"</p>
-                        )}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              }
-              if (isAiProposed(fieldName)) {
-                return (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
-                          <Bot className="h-2.5 w-2.5" />AI
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>AI-proposed value. Editable.</p>
-                        {actorMeta?.transcriptEvidence && (
-                          <p className="text-[10px] mt-1 opacity-80 font-mono">"{actorMeta.transcriptEvidence}"</p>
-                        )}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              }
-              if (isPredicted(fieldName)) {
-                return (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
-                          Pred
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              }
-              return null;
+              const sourceBadge = (() => {
+                if (deterministicParseFields.has(fieldName)) {
+                  return (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                            <Terminal className="h-2.5 w-2.5" />Parse
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>From transcript parse. Editable.</p>
+                          {actorMeta?.transcriptEvidence && (
+                            <p className="text-[10px] mt-1 opacity-80 font-mono">"{actorMeta.transcriptEvidence}"</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                }
+                if (isAiProposed(fieldName)) {
+                  return (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                            <Bot className="h-2.5 w-2.5" />AI
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>AI-proposed value. Editable.</p>
+                          {actorMeta?.transcriptEvidence && (
+                            <p className="text-[10px] mt-1 opacity-80 font-mono">"{actorMeta.transcriptEvidence}"</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                }
+                if (isPredicted(fieldName)) {
+                  return (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                            Pred
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Auto-predicted from previous play. Editable.</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                }
+                return null;
+              })();
+              const metaBadge = renderMetaStatusBadge(fieldName);
+              const proposalIndicator = renderProposalStatusIndicator(fieldName);
+              if (!sourceBadge && !metaBadge && !proposalIndicator) return null;
+              return (
+                <>
+                  {sourceBadge}
+                  {metaBadge}
+                  {proposalIndicator}
+                </>
+              );
             })()}
           />
           {(() => {
@@ -691,6 +714,7 @@ export function DraftPanel() {
             disabled={isDisabled}
             inputClassName={inputClasses}
             error={error}
+            labelSlot={renderFieldLabel(fieldName, fieldDef.label, fieldDef.requiredAtCommit)}
           />
           {stageLockLabel}
           {isLookupCommitError(fieldName) && !stageLocked && (
@@ -1553,6 +1577,9 @@ interface LookupComboboxProps {
   disabled: boolean;
   inputClassName: string;
   error?: string;
+  /** Optional pre-rendered label node — when provided, replaces the default bare Label
+   *  so the combobox participates in the shared proposal-status / provenance badge treatment. */
+  labelSlot?: React.ReactNode;
 }
 
 function LookupCombobox({
@@ -1566,6 +1593,7 @@ function LookupCombobox({
   disabled,
   inputClassName,
   error,
+  labelSlot,
 }: LookupComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -1602,10 +1630,12 @@ function LookupCombobox({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <Label className="text-xs font-medium text-muted-foreground">
-        {fieldLabel}
-        {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
+      {labelSlot ?? (
+        <Label className="text-xs font-medium text-muted-foreground">
+          {fieldLabel}
+          {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
+        </Label>
+      )}
       <Input
         className={inputClassName}
         value={displayValue}
