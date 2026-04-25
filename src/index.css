@@ -125,3 +125,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .kbd {
+    @apply inline-flex items-center justify-center rounded border border-border/60 bg-muted px-1 py-px font-mono text-[9px] font-medium text-muted-foreground;
+    min-width: 1rem;
+  }
+}

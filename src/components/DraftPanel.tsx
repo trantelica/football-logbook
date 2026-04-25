@@ -41,6 +41,7 @@ import { isDevMode } from "@/engine/devMode";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
+import { Pass1SectionPanel } from "./Pass1SectionPanel";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -995,8 +996,8 @@ export function DraftPanel() {
       {/* Phase 10: Dev-only smoke test harness */}
       {isDevMode() && <Phase10SmokeTest />}
 
-      {/* Transcript Panel — visible in Pass 1+ with a slot selected */}
-      {activePass >= 1 && selectedSlotNum !== null && (
+      {/* Transcript Panel — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
+      {activePass >= 2 && selectedSlotNum !== null && (
         <div className="mb-3 space-y-2">
           <TranscriptPanel onApply={handleTranscriptApply} />
           {!isProposal && (
@@ -1017,8 +1018,8 @@ export function DraftPanel() {
         </div>
       )}
 
-      {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
-      {activePass >= 1 && selectedSlotNum !== null && (
+      {/* Raw Input Section — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
+      {activePass >= 2 && selectedSlotNum !== null && (
         <Collapsible open={rawInputOpen} onOpenChange={setRawInputOpen} className="mb-3">
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 mb-1">
@@ -1273,11 +1274,19 @@ PENALTY O-Holding EFF Y 2MIN N`}
           </div>
         )}
 
-        {/* Pass 3: Blocking panel; Pass 2: Personnel panel; Pass 1: standard field grid */}
+        {/* Pass 3: Blocking; Pass 2: Personnel; Pass 1: Section-based candidate; Pass 0: legacy grid */}
         {activePass === 3 ? (
           <BlockingPanel />
         ) : activePass === 2 ? (
           <PersonnelPanel />
+        ) : activePass === 1 && selectedSlotNum !== null ? (
+          <Pass1SectionPanel
+            proposalSlot={
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {playSchema.map((f) => renderField(f.name, isProposal))}
+              </div>
+            }
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {playSchema.map((f) => renderField(f.name, isProposal))}
