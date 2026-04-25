@@ -235,7 +235,12 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
     if (toolCall?.function?.arguments) {
       try {
         const parsed = JSON.parse(toolCall.function.arguments);
-        proposal = parsed.suggestions ?? {};
+        // New schema returns fields directly; legacy schema wrapped them under `suggestions`.
+        if (parsed && typeof parsed === "object" && parsed.suggestions && typeof parsed.suggestions === "object") {
+          proposal = parsed.suggestions as Record<string, unknown>;
+        } else if (parsed && typeof parsed === "object") {
+          proposal = parsed as Record<string, unknown>;
+        }
       } catch {
         console.error("Failed to parse AI tool call arguments");
       }
