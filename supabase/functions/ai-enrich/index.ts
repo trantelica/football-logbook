@@ -128,20 +128,8 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
               function: {
                 name: "suggest_fields",
                 description:
-                  "Return suggested values for unresolved play fields based on the coach's observation",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    suggestions: {
-                      type: "object",
-                      description:
-                        "Map of field name to suggested value. Only include fields from the unresolved list that can be inferred from the observation text.",
-                      additionalProperties: true,
-                    },
-                  },
-                  required: ["suggestions"],
-                  additionalProperties: false,
-                },
+                  "Return suggested values for unresolved play fields based on the coach's observation. Omit any field you cannot confidently infer.",
+                parameters: buildSuggestFieldsSchema(unresolvedFields, fieldHints ?? {}),
               },
             },
           ],
