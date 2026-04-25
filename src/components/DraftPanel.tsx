@@ -41,6 +41,7 @@ import { isDevMode } from "@/engine/devMode";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
+import { Pass1SectionPanel } from "./Pass1SectionPanel";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
