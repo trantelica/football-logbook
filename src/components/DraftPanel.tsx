@@ -487,6 +487,66 @@ export function DraftPanel() {
 
 
 
+  /** Shared proposal-mode status indicator (Needs review / Blocked).
+   *  Used by both renderFieldLabel and combobox provenance slots so all
+   *  proposal-editable fields participate in the same clarity model. */
+  const renderProposalStatusIndicator = (fieldName: string): React.ReactNode => {
+    if (!isProposal) return null;
+    const displayStatus = computeDisplayStatus(fieldName, {
+      candidateValue: (candidate as Record<string, unknown>)[fieldName],
+      proposalMeta,
+      aiProposedFields,
+    });
+    if (displayStatus === "unresolved") {
+      return (
+        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+          <AlertCircle className="h-2.5 w-2.5" />
+          Needs review
+        </span>
+      );
+    }
+    if (displayStatus === "blocked") {
+      return (
+        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1">
+          <ShieldAlert className="h-2.5 w-2.5" />
+          Blocked
+        </span>
+      );
+    }
+    return null;
+  };
+
+  /** Shared meta-status badge (governance_blocked / needs_clarification). */
+  const renderMetaStatusBadge = (fieldName: string): React.ReactNode => {
+    const meta = proposalMeta.get(fieldName);
+    if (!meta || (meta.status !== "needs_clarification" && meta.status !== "governance_blocked")) {
+      return null;
+    }
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
+              meta.status === "governance_blocked"
+                ? "text-destructive bg-destructive/10"
+                : "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
+            )}>
+              {meta.status === "governance_blocked" ? (
+                <><ShieldAlert className="h-2.5 w-2.5" />Gov</>
+              ) : (
+                <><AlertCircle className="h-2.5 w-2.5" />?</>
+              )}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{meta.status === "governance_blocked" ? "Value not in approved lookup list" : "Needs clarification"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
   /** Check if a field is relevant for proposal display */
   const checkFieldRelevance = (fieldName: string): boolean => {
     const fieldDef = playSchema.find((f) => f.name === fieldName);
