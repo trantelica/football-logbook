@@ -1018,8 +1018,8 @@ export function DraftPanel() {
         </div>
       )}
 
-      {/* Raw Input Section — visible in Pass 1+ with a slot selected */}
-      {activePass >= 1 && selectedSlotNum !== null && (
+      {/* Raw Input Section — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
+      {activePass >= 2 && selectedSlotNum !== null && (
         <Collapsible open={rawInputOpen} onOpenChange={setRawInputOpen} className="mb-3">
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 mb-1">
