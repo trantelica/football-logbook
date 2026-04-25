@@ -1606,10 +1606,12 @@ function LookupCombobox({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <Label className="text-xs font-medium text-muted-foreground">
-        {fieldLabel}
-        {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
+      {labelSlot ?? (
+        <Label className="text-xs font-medium text-muted-foreground">
+          {fieldLabel}
+          {requiredAtCommit && <span className="text-destructive ml-0.5">*</span>}
+        </Label>
+      )}
       <Input
         className={inputClassName}
         value={displayValue}
