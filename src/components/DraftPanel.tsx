@@ -1274,11 +1274,19 @@ PENALTY O-Holding EFF Y 2MIN N`}
           </div>
         )}
 
-        {/* Pass 3: Blocking panel; Pass 2: Personnel panel; Pass 1: standard field grid */}
+        {/* Pass 3: Blocking; Pass 2: Personnel; Pass 1: Section-based candidate; Pass 0: legacy grid */}
         {activePass === 3 ? (
           <BlockingPanel />
         ) : activePass === 2 ? (
           <PersonnelPanel />
+        ) : activePass === 1 && selectedSlotNum !== null ? (
+          <Pass1SectionPanel
+            proposalSlot={
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {playSchema.map((f) => renderField(f.name, isProposal))}
+              </div>
+            }
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {playSchema.map((f) => renderField(f.name, isProposal))}
