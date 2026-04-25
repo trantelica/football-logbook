@@ -322,57 +322,8 @@ export function DraftPanel() {
 
   const renderFieldLabel = (fieldName: string, label: string, required: boolean) => {
     const meta = proposalMeta.get(fieldName);
-
-    // Status badge for needs_clarification or governance_blocked
-    const statusBadge = meta && (meta.status === "needs_clarification" || meta.status === "governance_blocked") ? (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={cn(
-              "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
-              meta.status === "governance_blocked"
-                ? "text-destructive bg-destructive/10"
-                : "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
-            )}>
-              {meta.status === "governance_blocked" ? (
-                <><ShieldAlert className="h-2.5 w-2.5" />Gov</>
-              ) : (
-                <><AlertCircle className="h-2.5 w-2.5" />?</>
-              )}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{meta.status === "governance_blocked" ? "Value not in approved lookup list" : "Needs clarification"}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    ) : null;
-
-    // Proposal-mode status indicator for unresolved/blocked fields
-    const proposalStatusIndicator = isProposal ? (() => {
-      const displayStatus = computeDisplayStatus(fieldName, {
-        candidateValue: (candidate as Record<string, unknown>)[fieldName],
-        proposalMeta,
-        aiProposedFields,
-      });
-      if (displayStatus === "unresolved") {
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
-            <AlertCircle className="h-2.5 w-2.5" />
-            Needs review
-          </span>
-        );
-      }
-      if (displayStatus === "blocked") {
-        return (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1">
-            <ShieldAlert className="h-2.5 w-2.5" />
-            Blocked
-          </span>
-        );
-      }
-      return null;
-    })() : null;
+    const statusBadge = renderMetaStatusBadge(fieldName);
+    const proposalStatusIndicator = renderProposalStatusIndicator(fieldName);
 
     return (
       <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1 flex-wrap">
