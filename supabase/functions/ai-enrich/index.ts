@@ -17,6 +17,71 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Build a typed JSON-schema object for the suggest_fields tool.
+ * Each unresolved field becomes a top-level optional property whose shape is
+ * derived from its hint (governed → {value,matchType}; enum → string with enum;
+ * integer → integer; default → string).
+ *
+ * Without concrete properties, Gemini returns an empty object — see prior debug.
+ */
+function buildSuggestFieldsSchema(
+  unresolvedFields: string[],
+  fieldHints: Record<string, unknown>,
+): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const name of unresolvedFields) {
+    const hint = (fieldHints[name] ?? {}) as {
+      type?: string;
+      label?: string;
+      allowedValues?: string[];
+      governedValues?: string[];
+    };
+    const label = hint.label ?? name;
+
+    if (hint.governedValues && hint.governedValues.length > 0) {
+      // Governed lookup field — { value, matchType }
+      properties[name] = {
+        type: "object",
+        description: `Governed lookup value for ${label}. Use exact governed value when possible; otherwise propose candidate_new.`,
+        properties: {
+          value: { type: "string", description: "Canonical governed value or new candidate string" },
+          matchType: {
+            type: "string",
+            enum: ["exact", "fuzzy", "candidate_new"],
+            description: "exact = matches governedValues; fuzzy = clear single match; candidate_new = unseen value",
+          },
+        },
+        required: ["value", "matchType"],
+        additionalProperties: false,
+      };
+    } else if (hint.allowedValues && hint.allowedValues.length > 0) {
+      properties[name] = {
+        type: "string",
+        enum: hint.allowedValues,
+        description: `Enum value for ${label}`,
+      };
+    } else if (hint.type === "integer") {
+      properties[name] = {
+        type: "integer",
+        description: `Integer value for ${label}`,
+      };
+    } else {
+      properties[name] = {
+        type: "string",
+        description: `Value for ${label}`,
+      };
+    }
+  }
+
+  return {
+    type: "object",
+    description: "Object containing only the fields you can confidently infer from the coach's observation. Omit any field you cannot infer.",
+    properties,
+    additionalProperties: false,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
