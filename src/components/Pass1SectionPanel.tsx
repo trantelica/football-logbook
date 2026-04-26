@@ -915,8 +915,12 @@ function SectionCard(props: SectionCardProps) {
         ))}
       </div>
 
-      {/* Section text area */}
+      {/* Section text area.
+          When recording, value = base + live (computed by parent) + optional interim suffix.
+          When not recording, value = persisted section.text.
+          Never appends running transcript repeatedly. */}
       <Textarea
+        data-section-id={section.id}
         className={cn(
           "text-xs font-mono min-h-[64px] resize-y bg-background/50",
           isRecording && "border-destructive/30",
@@ -928,7 +932,11 @@ function SectionCard(props: SectionCardProps) {
               ? `Type ${section.title.toLowerCase()} narration…`
               : `Press ${section.dictateKey} to dictate, or enable Text Editing to type.`
         }
-        value={state.text + (isRecording && recordingInterim ? (state.text ? "\n" : "") + recordingInterim : "")}
+        value={
+          isRecording && recordingInterim
+            ? renderedText + (renderedText.endsWith("\n") || !renderedText ? "" : " ") + recordingInterim
+            : renderedText
+        }
         readOnly={!textEditing || isRecording}
         onChange={(e) => {
           if (textEditing && !isRecording) onTextChange(e.target.value);
