@@ -80,11 +80,18 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\byard\s*line\b/gi, "YARD"],
   [/\byardline\b/gi, "YARD"],
   [/\bYL\b/g, "YARD"],
-  // "our" side → negative yard-line value
-  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?our\s+(\d+)\b/gi, "YARD -$1"],
-  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?their\s+(\d+)\b/gi, "YARD $1"],
-  // Generic "ball on the N" (no side qualifier) — positive
+  // "from their N" / "from our N" / "on their N yard line" — handle BEFORE generic.
+  [/\bfrom\s+(?:the\s+)?their\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD $1"],
+  [/\bfrom\s+(?:the\s+)?our\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD -$1"],
+  [/\bon\s+(?:the\s+)?their\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD $1"],
+  [/\bon\s+(?:the\s+)?our\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD -$1"],
+  // "ball on the N" (no side qualifier) — positive
   [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(-?\d+)\b/gi, "YARD $1"],
+
+  // "right side of the field" / "left side of the field" / "middle of the field"
+  [/\bright\s+side\s+of\s+the\s+field\b/gi, "HASH R"],
+  [/\bleft\s+side\s+of\s+the\s+field\b/gi, "HASH L"],
+  [/\bmiddle\s+of\s+the\s+field\b/gi, "HASH M"],
 
   // Gain/loss phrases: "3 yard gain", "4 yard loss", "no gain", "plus 5", "minus 3"
   [/\bno\s+gain\b/gi, "GN/LS 0"],
