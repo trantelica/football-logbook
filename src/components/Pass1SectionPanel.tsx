@@ -417,10 +417,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         }
 
         // Nothing applied. Check whether clarification is warranted.
-        // Important = owned + requiredAtCommit + still unresolved on candidate.
+        // Important = section-defined clarification-worthy fields ∩ still-unresolved on candidate.
         const c = candidate as Record<string, unknown>;
-        const importantUnresolved = section.ownedFields.filter((f) => {
-          if (!requiredAtCommitByName.get(f)) return false;
+        const clarificationFields = CLARIFICATION_FIELDS_BY_SECTION[id];
+        const importantUnresolved = clarificationFields.filter((f) => {
           const v = c[f];
           return v === null || v === undefined || v === "";
         });
