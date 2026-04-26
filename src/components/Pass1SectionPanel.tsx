@@ -109,6 +109,25 @@ const FIELD_LABELS: Record<string, string> = (() => {
 const GOVERNED_LOOKUP_FIELDS = new Set(["offForm", "offPlay", "motion"]);
 
 /**
+ * Literal absent-data placeholders that the AI sometimes returns instead of
+ * omitting a field. These must NEVER reach governance / candidate state.
+ * Absent data must be expressed as null/empty, not as a string token.
+ */
+const ABSENT_PLACEHOLDERS = new Set([
+  "none", "n/a", "na", "null", "nil", "nothing", "no",
+  "no motion", "no penalty", "no result",
+  "—", "-", "--", "unknown", "n.a.",
+]);
+
+function isAbsentPlaceholder(raw: unknown): boolean {
+  if (raw === null || raw === undefined) return true;
+  if (typeof raw !== "string") return false;
+  const v = raw.trim().toLowerCase();
+  if (!v) return true;
+  return ABSENT_PLACEHOLDERS.has(v);
+}
+
+/**
  * Heuristic: a governed value looks like a real field candidate
  * (e.g. "Black", "26 Punch", "Z Jet") and not a transcript chunk.
  *  - ≤ 32 chars
@@ -120,12 +139,13 @@ function looksLikeGovernedCandidate(raw: unknown): boolean {
   if (typeof raw !== "string") return false;
   const v = raw.trim();
   if (!v) return false;
+  if (isAbsentPlaceholder(v)) return false;
   if (v.length > 32) return false;
   if (/[.,;:!?]/.test(v)) return false;
   const tokens = v.split(/\s+/);
   if (tokens.length > 4) return false;
   // Reject narration / filler tokens
-  if (/\b(we|we're|were|im|i'm|the|a|running|called|ran|run|gonna|going|then)\b/i.test(v)) {
+  if (/\b(we|we're|were|im|i'm|the|a|running|called|ran|run|gonna|going|then|and)\b/i.test(v)) {
     return false;
   }
   return true;
