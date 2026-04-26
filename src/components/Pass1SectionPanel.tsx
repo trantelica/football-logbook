@@ -100,6 +100,37 @@ const FIELD_LABELS: Record<string, string> = (() => {
   return m;
 })();
 
+/**
+ * Governed lookup fields where an AI proposal value must look like a field
+ * candidate (a short canonical token), NOT a transcript-shaped sentence.
+ * Used to prevent governance from firing against raw natural-language blobs
+ * such as "we're in black formation we're running 26 punch".
+ */
+const GOVERNED_LOOKUP_FIELDS = new Set(["offForm", "offPlay", "motion"]);
+
+/**
+ * Heuristic: a governed value looks like a real field candidate
+ * (e.g. "Black", "26 Punch", "Z Jet") and not a transcript chunk.
+ *  - ≤ 32 chars
+ *  - ≤ 4 whitespace-separated tokens
+ *  - no sentence punctuation (. , ; : ! ?)
+ *  - no obvious narration verbs ("we're", "running", "called", etc.)
+ */
+function looksLikeGovernedCandidate(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  const v = raw.trim();
+  if (!v) return false;
+  if (v.length > 32) return false;
+  if (/[.,;:!?]/.test(v)) return false;
+  const tokens = v.split(/\s+/);
+  if (tokens.length > 4) return false;
+  // Reject narration / filler tokens
+  if (/\b(we|we're|were|im|i'm|the|a|running|called|ran|run|gonna|going|then)\b/i.test(v)) {
+    return false;
+  }
+  return true;
+}
+
 export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1SectionPanelProps) {
   const {
     state,
@@ -283,13 +314,16 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
   // ── Update Proposal (section-scoped) ──
   const runUpdateProposal = useCallback(
-    async (id: SectionId, opts: { allowOverwrite?: boolean; suppressClarification?: boolean } = {}): Promise<UpdateResult> => {
+    async (
+      id: SectionId,
+      opts: { allowOverwrite?: boolean; suppressClarification?: boolean; textOverride?: string } = {},
+    ): Promise<UpdateResult> => {
       if (isProposal) {
         toast.info("In review mode — back to edit before updating sections.");
         return { kind: "deferred" };
       }
       const section = SECTIONS.find((s) => s.id === id)!;
-      const text = sectionState[id].text.trim();
+      const text = (opts.textOverride ?? sectionState[id].text).trim();
       if (!text) {
         toast.info(`${section.title}: nothing to interpret.`);
         return { kind: "deferred" };
@@ -349,7 +383,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 });
               }
               setOverwriteState(null);
-              void runUpdateProposal(id, { allowOverwrite: true, suppressClarification: opts.suppressClarification });
+              void runUpdateProposal(id, { allowOverwrite: true, suppressClarification: opts.suppressClarification, textOverride: text });
             },
           });
           setBusySection(null);
@@ -389,25 +423,45 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
         const aiProposal = aiResult.proposal ?? {};
         const ownedAiProposal: Record<string, unknown> = {};
+        const droppedGovernedFields: string[] = [];
         for (const [k, v] of Object.entries(aiProposal)) {
-          if (ownedSet.has(k)) ownedAiProposal[k] = v;
+          if (!ownedSet.has(k)) continue;
+          // For governed lookup fields (offForm/offPlay/motion), require the
+          // proposed value to look like a real field candidate. Drop raw
+          // transcript-shaped blobs BEFORE governance has a chance to fire on them.
+          if (GOVERNED_LOOKUP_FIELDS.has(k)) {
+            const inner =
+              v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
+                ? (v as { value: unknown }).value
+                : v;
+            if (!looksLikeGovernedCandidate(inner)) {
+              droppedGovernedFields.push(k);
+              continue;
+            }
+          }
+          ownedAiProposal[k] = v;
         }
         let aiCollisions: SystemPatchCollision[] = [];
         if (Object.keys(ownedAiProposal).length > 0) {
           aiCollisions = requestAiEnrichment(ownedAiProposal);
         }
-
-        // Mark section as no-longer-dirty.
-        setSectionState((s) => ({
-          ...s,
-          [id]: { ...s[id], dirty: false, lastAppliedText: text },
-        }));
+        if (droppedGovernedFields.length > 0) {
+          // Surface lightly so coach knows AI couldn't pull a clean candidate.
+          const labels = droppedGovernedFields.map((f) => FIELD_LABELS[f] ?? f).join(", ");
+          toast.info(`${section.title}: ${labels} — needs a clearer cue.`);
+        }
 
         const filledCount =
           Object.keys(fillablePatch).length +
           (Object.keys(ownedAiProposal).length - aiCollisions.length);
 
+        // Per spec: clear dirty/unsynced only after the proposal has actually
+        // been updated for this section.
         if (filledCount > 0) {
+          setSectionState((s) => ({
+            ...s,
+            [id]: { ...s[id], dirty: false, lastAppliedText: text },
+          }));
           toast.success(`${section.title}: updated ${filledCount} field(s).`);
           return { kind: "applied", count: filledCount };
         }
@@ -463,7 +517,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 key: "3",
                 label: "Retry update",
                 onSelect: () => {
-                  void runUpdateProposal(id, { suppressClarification: true });
+                  void runUpdateProposal(id, { suppressClarification: true, textOverride: text });
                 },
               },
             ],
@@ -552,11 +606,36 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
    */
   const finishDictationEntry = useCallback(async (): Promise<boolean> => {
     if (isProposal) return true; // already review-ready
+
+    // Compute the post-dictation text snapshot for every section SYNCHRONOUSLY
+    // before stopDictation enqueues its setSectionState. Without this snapshot
+    // the loop below would read the stale closure copy of `sectionState` and
+    // skip any section that was just being dictated into (e.g. Play Results),
+    // leaving it permanently Unsynced.
+    const recId = recordingForRef.current;
+    const liveBase = baseTextBeforeDictationRef.current;
+    const liveText = recording.text;
+    const snapshot: Record<SectionId, { text: string; dirty: boolean }> = {
+      situation: { ...sectionState.situation },
+      playDetails: { ...sectionState.playDetails },
+      playResults: { ...sectionState.playResults },
+    };
+    if (recId) {
+      const merged = joinBaseAndLive(liveBase, liveText);
+      const prev = snapshot[recId];
+      snapshot[recId] = {
+        text: merged,
+        dirty: merged !== prev.text || prev.dirty || merged !== sectionState[recId].lastAppliedText,
+      };
+    }
+
     stopDictation();
+
     for (const s of SECTIONS) {
-      if (sectionState[s.id].dirty && sectionState[s.id].text.trim()) {
+      const snap = snapshot[s.id];
+      if (snap.dirty && snap.text.trim()) {
         // eslint-disable-next-line no-await-in-loop
-        await runUpdateProposal(s.id);
+        await runUpdateProposal(s.id, { textOverride: snap.text });
         if (overwriteOpenRef.current || clarificationOpenRef.current) {
           // Coach must respond first; do NOT auto-advance to review.
           return false;
@@ -567,7 +646,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     reviewProposal();
     toast.success("Ready for review.");
     return true;
-  }, [isProposal, stopDictation, sectionState, runUpdateProposal, reviewProposal]);
+  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal]);
 
   // ── Commit handlers ──
   // On a clean path (no clarification, no overwrite, no governance/review modal),
