@@ -3,6 +3,10 @@
  * Cleans common STT artifacts, converts number words, expands phrase-based
  * markers into canonical anchor tokens, and ensures anchors are uppercase.
  *
+ * This module is INTERNAL normalization: it produces text used for
+ * deterministic interpretation only. The coach-visible raw transcript is
+ * never mutated by this function.
+ *
  * Based on Pass 1 Parser Scaffold.
  */
 
