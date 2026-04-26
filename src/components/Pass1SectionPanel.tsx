@@ -639,6 +639,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       requestAiEnrichment,
       getLookupMap,
       CLARIFICATION_FIELDS_BY_SECTION,
+      requestLookupInterrupt,
     ],
   );
 
