@@ -54,6 +54,14 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // GN/LS variants via spoken punctuation
   [/\bGN\s*[/-]\s*LS\b/gi, "GN/LS"],
 
+  // Ordinal "and N" phrases (no explicit "down" word required).
+  // Examples: "4th and 10", "first and goal" (skipped — only digit), "third and 7".
+  // Run BEFORE the bare ordinal-down rules so we capture both DN and DIST in one pass.
+  [/\b(1st|first)\s+and\s+(\d+)\b/gi, "DN 1 DIST $2"],
+  [/\b(2nd|second)\s+and\s+(\d+)\b/gi, "DN 2 DIST $2"],
+  [/\b(3rd|third)\s+and\s+(\d+)\b/gi, "DN 3 DIST $2"],
+  [/\b(4th|fourth)\s+and\s+(\d+)\b/gi, "DN 4 DIST $2"],
+
   // Down phrases: "1st down", "2nd down", "3rd down", "4th down", "down 3"
   [/\b(1st|first)\s+down\b/gi, "DN 1"],
   [/\b(2nd|second)\s+down\b/gi, "DN 2"],
