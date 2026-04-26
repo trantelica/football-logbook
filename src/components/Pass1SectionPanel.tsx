@@ -498,7 +498,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       applySystemPatch,
       requestAiEnrichment,
       getLookupMap,
-      requiredAtCommitByName,
+      CLARIFICATION_FIELDS_BY_SECTION,
     ],
   );
 
