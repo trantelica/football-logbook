@@ -100,6 +100,37 @@ const FIELD_LABELS: Record<string, string> = (() => {
   return m;
 })();
 
+/**
+ * Governed lookup fields where an AI proposal value must look like a field
+ * candidate (a short canonical token), NOT a transcript-shaped sentence.
+ * Used to prevent governance from firing against raw natural-language blobs
+ * such as "we're in black formation we're running 26 punch".
+ */
+const GOVERNED_LOOKUP_FIELDS = new Set(["offForm", "offPlay", "motion"]);
+
+/**
+ * Heuristic: a governed value looks like a real field candidate
+ * (e.g. "Black", "26 Punch", "Z Jet") and not a transcript chunk.
+ *  - ≤ 32 chars
+ *  - ≤ 4 whitespace-separated tokens
+ *  - no sentence punctuation (. , ; : ! ?)
+ *  - no obvious narration verbs ("we're", "running", "called", etc.)
+ */
+function looksLikeGovernedCandidate(raw: unknown): boolean {
+  if (typeof raw !== "string") return false;
+  const v = raw.trim();
+  if (!v) return false;
+  if (v.length > 32) return false;
+  if (/[.,;:!?]/.test(v)) return false;
+  const tokens = v.split(/\s+/);
+  if (tokens.length > 4) return false;
+  // Reject narration / filler tokens
+  if (/\b(we|we're|were|im|i'm|the|a|running|called|ran|run|gonna|going|then)\b/i.test(v)) {
+    return false;
+  }
+  return true;
+}
+
 export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1SectionPanelProps) {
   const {
     state,
