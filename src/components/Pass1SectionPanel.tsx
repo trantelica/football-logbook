@@ -244,12 +244,22 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     }));
   }, []);
 
-  // Map field name → required-at-commit (for clarification heuristic).
-  const requiredAtCommitByName = React.useMemo(() => {
-    const m = new Map<string, boolean>();
-    for (const f of playSchema) m.set(f.name, !!f.requiredAtCommit);
-    return m;
-  }, []);
+  /**
+   * Section-level clarification-worthy fields.
+   * These are the owned fields whose absence is meaningful enough to surface a
+   * clarification prompt when an Update Proposal yields nothing applied.
+   * Intentionally narrower than ownedFields and broader than schema
+   * requiredAtCommit (e.g. offForm/motion/offPlay are critical to coach
+   * workflow even though not strictly required-at-commit).
+   */
+  const CLARIFICATION_FIELDS_BY_SECTION: Record<SectionId, readonly string[]> = React.useMemo(
+    () => ({
+      situation: ["dn", "dist", "yardLn", "hash"],
+      playDetails: ["offForm", "motion", "offPlay"],
+      playResults: ["result", "gainLoss"],
+    }),
+    [],
+  );
 
   /** Owned fields in this section that are still unresolved on the candidate. */
   const unresolvedOwnedFields = useCallback(
