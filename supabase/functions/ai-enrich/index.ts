@@ -146,6 +146,7 @@ Rules:
 - For fields with allowedValues (fixed enums), propose only values from that list.
 - Use phraseologyHints to understand how coaches commonly express each concept.
 - If you cannot confidently infer a field from the observation, OMIT it.
+- NEVER return literal placeholder strings such as "None", "N/A", "no motion", "no penalty", "unknown", "—", or empty strings to indicate absence. If a value is absent or unclear, OMIT the field entirely.
 
 Governed lookup fields (fields with governedValues):
 For these fields, follow this priority cascade:
