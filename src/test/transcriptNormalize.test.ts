@@ -151,4 +151,19 @@ describe("normalizeTranscriptForParse", () => {
     // No digit nearby and no "the russia" actor framing → left alone
     expect(normalizeTranscriptForParse("we played in russia last year")).not.toMatch(/RUSHER/);
   });
+
+  // --- Motion phrase normalization ---
+
+  it("normalizes '<digit> across motion' into MOTION token", () => {
+    expect(normalizeTranscriptForParse("with a 2 across motion")).toContain("MOTION 2 Across");
+    expect(normalizeTranscriptForParse("with a two across motion")).toContain("MOTION 2 Across");
+  });
+
+  it("normalizes '<letter> across motion' into MOTION token", () => {
+    expect(normalizeTranscriptForParse("Z across motion")).toContain("MOTION Z Across");
+  });
+
+  it("normalizes single-token motions like 'jet motion'", () => {
+    expect(normalizeTranscriptForParse("with a jet motion")).toContain("MOTION Jet");
+  });
 });
