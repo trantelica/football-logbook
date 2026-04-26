@@ -196,12 +196,20 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   [/(?:#|number\s+)?(\d+)\s+is\s+the\s+rusher\b/gi, "RUSHER $1"],
   // "4 carried it", "4 carries it", "4 ran it"
   [/(?:#|number\s+)?(\d+)\s+(?:carried|carries|ran|rushed)\s+(?:it|the\s+ball)\b/gi, "RUSHER $1"],
+  // "ball being carried by N" / "the ball was carried by N" / "carried by N" / "rushed by N"
+  [/\b(?:ball\s+)?(?:being\s+|was\s+)?carried\s+by\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
+  [/\brushed\s+by\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
+  // "handed off to N" / "hand off to N"
+  [/\bhand(?:ed)?\s+off\s+to\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
 
   // ── PASSER (solo) ──
   // "number 12 threw it", "12 threw it", "#12 threw it"
   [/(?:#|number\s+)?(\d+)\s+(?:threw|throws|passed|passes)\s+(?:it|the\s+ball)\b/gi, "PASSER $1"],
   // "thrown by 12", "passed by 12"
   [/\b(?:thrown|passed)\s+by\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+  // "N is at quarterback" / "quarterback is N" / "N at quarterback"
+  [/(?:#|number\s+)?(\d+)\s+(?:is\s+)?at\s+quarterback\b/gi, "PASSER $1"],
+  [/\bquarterback\s+is\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
 
   // ── RECEIVER (solo) ──
   // "caught by 88", "caught by number 88", "caught by #88"
@@ -211,6 +219,15 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "target was 88" / "targeted 88"
   [/\btargeted\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\btarget\s+was\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
+  [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+
+  // ── Gain/loss natural-language (Play Results) ──
+  // "we gained N yards" / "gained N yards" / "picked up N yards"
+  [/\b(?:we\s+)?(?:gained|gain|picked\s+up)\s+(\d+)\s+yards?\b/gi, "GN/LS $1"],
+  // "we lost N yards" / "lost N yards"
+  [/\b(?:we\s+)?(?:lost|lose)\s+(\d+)\s+yards?\b/gi, "GN/LS -$1"],
 ];
 
 /**
