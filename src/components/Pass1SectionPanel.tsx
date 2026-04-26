@@ -606,11 +606,36 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
    */
   const finishDictationEntry = useCallback(async (): Promise<boolean> => {
     if (isProposal) return true; // already review-ready
+
+    // Compute the post-dictation text snapshot for every section SYNCHRONOUSLY
+    // before stopDictation enqueues its setSectionState. Without this snapshot
+    // the loop below would read the stale closure copy of `sectionState` and
+    // skip any section that was just being dictated into (e.g. Play Results),
+    // leaving it permanently Unsynced.
+    const recId = recordingForRef.current;
+    const liveBase = baseTextBeforeDictationRef.current;
+    const liveText = recording.text;
+    const snapshot: Record<SectionId, { text: string; dirty: boolean }> = {
+      situation: { ...sectionState.situation },
+      playDetails: { ...sectionState.playDetails },
+      playResults: { ...sectionState.playResults },
+    };
+    if (recId) {
+      const merged = joinBaseAndLive(liveBase, liveText);
+      const prev = snapshot[recId];
+      snapshot[recId] = {
+        text: merged,
+        dirty: merged !== prev.text || prev.dirty || merged !== sectionState[recId].lastAppliedText,
+      };
+    }
+
     stopDictation();
+
     for (const s of SECTIONS) {
-      if (sectionState[s.id].dirty && sectionState[s.id].text.trim()) {
+      const snap = snapshot[s.id];
+      if (snap.dirty && snap.text.trim()) {
         // eslint-disable-next-line no-await-in-loop
-        await runUpdateProposal(s.id);
+        await runUpdateProposal(s.id, { textOverride: snap.text });
         if (overwriteOpenRef.current || clarificationOpenRef.current) {
           // Coach must respond first; do NOT auto-advance to review.
           return false;
@@ -621,7 +646,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     reviewProposal();
     toast.success("Ready for review.");
     return true;
-  }, [isProposal, stopDictation, sectionState, runUpdateProposal, reviewProposal]);
+  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal]);
 
   // ── Commit handlers ──
   // On a clean path (no clarification, no overwrite, no governance/review modal),
