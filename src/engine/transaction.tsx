@@ -96,6 +96,8 @@ interface TransactionContextValue {
   /** Lookup interrupt: an AI-patched field has an unknown governed lookup value */
   lookupInterruptPending: { fieldName: string; fieldLabel: string; value: string; source?: "ai" | "manual" } | null;
   clearLookupInterrupt: () => void;
+  /** Imperative trigger: open governance for a field/value (idempotent if same field already pending). */
+  requestLookupInterrupt: (fieldName: string, value: string, source?: "ai" | "manual") => void;
   
   // Phase 4: Workflow stage & ODK filter
   activePass: number;
