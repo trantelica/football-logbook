@@ -227,7 +227,11 @@ export function normalizeTranscriptForParse(s: string): string {
 
   // Apply phrase normalizations (order matters)
   for (const [re, replacement] of PHRASE_NORMALIZATIONS) {
-    t = t.replace(re, replacement);
+    if (typeof replacement === "string") {
+      t = t.replace(re, replacement);
+    } else {
+      t = t.replace(re, replacement);
+    }
   }
 
   // Collapse whitespace
