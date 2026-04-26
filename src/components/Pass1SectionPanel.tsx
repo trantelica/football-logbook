@@ -758,16 +758,26 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         baseTextBeforeDictationRef.current = "";
         recording.clear();
       }
-      // Clear that section's owned uncommitted candidate fields. Do not touch other sections.
-      // We avoid clearing fields that look manually-set with no prior section involvement —
-      // but section "Clear" is intentionally aggressive on its own owned fields.
+      // Clear that section's owned uncommitted candidate fields.
+      // Use null (true absent) rather than "" so non-string fields (integer,
+      // enum) clear cleanly and don't linger as empty strings.
+      let cleared = 0;
       for (const f of section.ownedFields) {
         const val = (candidate as Record<string, unknown>)[f];
         if (val !== null && val !== undefined && val !== "") {
-          updateField(f, "");
+          try {
+            updateField(f, null);
+            cleared++;
+          } catch (e) {
+            console.error(`[clearSection] updateField failed for ${f}:`, e);
+          }
         }
       }
-      toast(`${section.title}: cleared.`);
+      toast(
+        cleared > 0
+          ? `${section.title}: cleared (${cleared} field${cleared === 1 ? "" : "s"}).`
+          : `${section.title}: text cleared.`,
+      );
     },
     [isProposal, candidate, updateField, recording],
   );
