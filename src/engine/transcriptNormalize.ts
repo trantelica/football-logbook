@@ -19,6 +19,20 @@ const NUMBER_WORDS: Record<string, string> = {
 
 const NUMBER_WORD_RE = new RegExp(`\\b(${Object.keys(NUMBER_WORDS).join("|")})\\b`, "gi");
 
+/** Tens for compound number-word handling: "eighty eight" → 88, "thirty" → 30 */
+const TENS_WORDS: Record<string, number> = {
+  twenty: 20, thirty: 30, forty: 40, fifty: 50,
+  sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+const ONES_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9,
+};
+const TENS_RE = new RegExp(
+  `\\b(${Object.keys(TENS_WORDS).join("|")})(?:[\\s-]+(${Object.keys(ONES_WORDS).join("|")}))?\\b`,
+  "gi",
+);
+
 const ANCHORS = [
   "GN/LS", "GNLS", "PENYARDS", "2MIN",
   "PENALTY", "RESULT", "MOTION", "FORM", "PLAY",
