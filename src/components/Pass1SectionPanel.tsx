@@ -526,38 +526,61 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     [isProposal, candidate, updateField, recording],
   );
 
-  // ── Finish dictation entry (F) ──
-  const finishDictationEntry = useCallback(async () => {
+  // Track open modals via refs so the keyboard handlers don't need to re-bind.
+  const overwriteOpenRef = useRef(false);
+  const clarificationOpenRef = useRef(false);
+  useEffect(() => { overwriteOpenRef.current = !!overwriteState; }, [overwriteState]);
+  useEffect(() => { clarificationOpenRef.current = !!clarification; }, [clarification]);
+
+  /**
+   * F — Finish dictation entry.
+   * 1. Stop active dictation cleanly (persists base+live merged text).
+   * 2. Run Update Proposal for every dirty section sequentially.
+   * 3. If nothing is blocking (no overwrite, no clarification, no inline modal),
+   *    transition to `proposal` state so N / L commit immediately.
+   * Returns true if we ended in `proposal` state and are commit-ready.
+   */
+  const finishDictationEntry = useCallback(async (): Promise<boolean> => {
+    if (isProposal) return true; // already review-ready
     stopDictation();
-    // Run Update Proposal for any dirty section.
     for (const s of SECTIONS) {
       if (sectionState[s.id].dirty && sectionState[s.id].text.trim()) {
-        // sequential to keep toast/clarification ordering predictable
         // eslint-disable-next-line no-await-in-loop
         await runUpdateProposal(s.id);
+        if (overwriteOpenRef.current || clarificationOpenRef.current) {
+          // Coach must respond first; do NOT auto-advance to review.
+          return false;
+        }
       }
     }
+    // Auto-transition to review state so N/L are true commit actions.
+    reviewProposal();
     toast.success("Ready for review.");
-  }, [stopDictation, sectionState, runUpdateProposal]);
+    return true;
+  }, [isProposal, stopDictation, sectionState, runUpdateProposal, reviewProposal]);
 
   // ── Commit handlers ──
   const handleCommitAndNext = useCallback(async () => {
     if (state !== "proposal") {
-      reviewProposal();
-      // Defer commit to the next paint so any opened review modals (PAT, possession) can intercept.
+      // Run F first; if it blocked on clarification/overwrite, do not commit.
+      const ready = await finishDictationEntry();
+      if (!ready) return;
+      // After reviewProposal(), validation modals (PAT/possession) may have intercepted.
+      // We defer commit to a paint so those modals can render.
       return;
     }
     await commitAndNext();
-  }, [state, reviewProposal, commitAndNext]);
+  }, [state, finishDictationEntry, commitAndNext]);
 
-  const handleCommitAndLeave = useCallback(() => {
+  const handleCommitAndLeave = useCallback(async () => {
     if (state !== "proposal") {
-      reviewProposal();
+      const ready = await finishDictationEntry();
+      if (!ready) return;
       return;
     }
-    commitProposal();
+    await commitProposal();
     deselectSlot();
-  }, [state, reviewProposal, commitProposal, deselectSlot]);
+  }, [state, finishDictationEntry, commitProposal, deselectSlot]);
 
   // ── Single-key shortcuts (Text Editing OFF) ──
   useEffect(() => {
