@@ -91,6 +91,21 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   // Formation phrase: "formation"
   [/\bformation\b/gi, "FORM"],
 
+  // Motion phrases: "<token> <direction> motion" → "MOTION <token> <Direction>"
+  // Examples handled:
+  //   "with a 2 across motion"          → "MOTION 2 Across"
+  //   "with a two across motion"        → "MOTION 2 Across"   (after number-word pass)
+  //   "Z across motion"                 → "MOTION Z Across"
+  //   "in 3 out motion"                 → "MOTION 3 Out"
+  //   "with a jet motion"               → "MOTION Jet"
+  // Direction tokens kept narrow to known motion directions to avoid greedy grabs.
+  [/\b(?:with(?:\s+a)?|in|on)?\s*((?:\d+|[A-Z]))\s+(across|out|in|over|under|return|jet|fly|orbit)\s+motion\b/gi,
+    (_m, who: string, dir: string) =>
+      `MOTION ${who.toUpperCase()} ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`],
+  // Single-token motion: "with a jet motion", "jet motion"
+  [/\b(?:with(?:\s+a)?|in|on)?\s*(jet|fly|orbit|return|across|out)\s+motion\b/gi,
+    (_m, dir: string) => `MOTION ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`],
+
   // Two-minute phrases — marker presence implies Y
   [/\btwo\s+minute\b/gi, "2MIN Y"],
   [/\b2\s+minute\b/gi, "2MIN Y"],
