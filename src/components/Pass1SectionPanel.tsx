@@ -74,6 +74,7 @@ interface Pass1SectionPanelProps {
 }
 
 interface SectionState {
+  /** Persisted text for this section (everything outside an active dictation). */
   text: string;
   /** Whether text changed since the last successful Update Proposal. */
   dirty: boolean;
@@ -82,6 +83,15 @@ interface SectionState {
 }
 
 const INITIAL_SECTION_STATE: SectionState = { text: "", dirty: false, lastAppliedText: "" };
+
+/** Join a persisted base with the in-flight live dictation transcript. */
+function joinBaseAndLive(base: string, live: string): string {
+  const b = base.trimEnd();
+  const l = live.trim();
+  if (!b) return l;
+  if (!l) return base;
+  return b + (b.endsWith("\n") ? "" : "\n") + l;
+}
 
 /** Build a label lookup once. */
 const FIELD_LABELS: Record<string, string> = (() => {
