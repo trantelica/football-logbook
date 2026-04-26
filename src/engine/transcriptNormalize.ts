@@ -54,6 +54,14 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // GN/LS variants via spoken punctuation
   [/\bGN\s*[/-]\s*LS\b/gi, "GN/LS"],
 
+  // Ordinal "and N" phrases (no explicit "down" word required).
+  // Examples: "4th and 10", "first and goal" (skipped — only digit), "third and 7".
+  // Run BEFORE the bare ordinal-down rules so we capture both DN and DIST in one pass.
+  [/\b(1st|first)\s+and\s+(\d+)\b/gi, "DN 1 DIST $2"],
+  [/\b(2nd|second)\s+and\s+(\d+)\b/gi, "DN 2 DIST $2"],
+  [/\b(3rd|third)\s+and\s+(\d+)\b/gi, "DN 3 DIST $2"],
+  [/\b(4th|fourth)\s+and\s+(\d+)\b/gi, "DN 4 DIST $2"],
+
   // Down phrases: "1st down", "2nd down", "3rd down", "4th down", "down 3"
   [/\b(1st|first)\s+down\b/gi, "DN 1"],
   [/\b(2nd|second)\s+down\b/gi, "DN 2"],
@@ -72,11 +80,18 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\byard\s*line\b/gi, "YARD"],
   [/\byardline\b/gi, "YARD"],
   [/\bYL\b/g, "YARD"],
-  // "our" side → negative yard-line value
-  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?our\s+(\d+)\b/gi, "YARD -$1"],
-  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?their\s+(\d+)\b/gi, "YARD $1"],
-  // Generic "ball on the N" (no side qualifier) — positive
+  // "from their N" / "from our N" / "on their N yard line" — handle BEFORE generic.
+  [/\bfrom\s+(?:the\s+)?their\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD $1"],
+  [/\bfrom\s+(?:the\s+)?our\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD -$1"],
+  [/\bon\s+(?:the\s+)?their\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD $1"],
+  [/\bon\s+(?:the\s+)?our\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD -$1"],
+  // "ball on the N" (no side qualifier) — positive
   [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(-?\d+)\b/gi, "YARD $1"],
+
+  // "right side of the field" / "left side of the field" / "middle of the field"
+  [/\bright\s+side\s+of\s+the\s+field\b/gi, "HASH R"],
+  [/\bleft\s+side\s+of\s+the\s+field\b/gi, "HASH L"],
+  [/\bmiddle\s+of\s+the\s+field\b/gi, "HASH M"],
 
   // Gain/loss phrases: "3 yard gain", "4 yard loss", "no gain", "plus 5", "minus 3"
   [/\bno\s+gain\b/gi, "GN/LS 0"],
@@ -181,12 +196,20 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   [/(?:#|number\s+)?(\d+)\s+is\s+the\s+rusher\b/gi, "RUSHER $1"],
   // "4 carried it", "4 carries it", "4 ran it"
   [/(?:#|number\s+)?(\d+)\s+(?:carried|carries|ran|rushed)\s+(?:it|the\s+ball)\b/gi, "RUSHER $1"],
+  // "ball being carried by N" / "the ball was carried by N" / "carried by N" / "rushed by N"
+  [/\b(?:ball\s+)?(?:being\s+|was\s+)?carried\s+by\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
+  [/\brushed\s+by\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
+  // "handed off to N" / "hand off to N"
+  [/\bhand(?:ed)?\s+off\s+to\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
 
   // ── PASSER (solo) ──
   // "number 12 threw it", "12 threw it", "#12 threw it"
   [/(?:#|number\s+)?(\d+)\s+(?:threw|throws|passed|passes)\s+(?:it|the\s+ball)\b/gi, "PASSER $1"],
   // "thrown by 12", "passed by 12"
   [/\b(?:thrown|passed)\s+by\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+  // "N is at quarterback" / "quarterback is N" / "N at quarterback"
+  [/(?:#|number\s+)?(\d+)\s+(?:is\s+)?at\s+quarterback\b/gi, "PASSER $1"],
+  [/\bquarterback\s+is\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
 
   // ── RECEIVER (solo) ──
   // "caught by 88", "caught by number 88", "caught by #88"
@@ -196,6 +219,15 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "target was 88" / "targeted 88"
   [/\btargeted\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\btarget\s+was\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
+  [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+
+  // ── Gain/loss natural-language (Play Results) ──
+  // "we gained N yards" / "gained N yards" / "picked up N yards"
+  [/\b(?:we\s+)?(?:gained|gain|picked\s+up)\s+(\d+)\s+yards?\b/gi, "GN/LS $1"],
+  // "we lost N yards" / "lost N yards"
+  [/\b(?:we\s+)?(?:lost|lose)\s+(\d+)\s+yards?\b/gi, "GN/LS -$1"],
 ];
 
 /**

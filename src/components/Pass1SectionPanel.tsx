@@ -109,6 +109,25 @@ const FIELD_LABELS: Record<string, string> = (() => {
 const GOVERNED_LOOKUP_FIELDS = new Set(["offForm", "offPlay", "motion"]);
 
 /**
+ * Literal absent-data placeholders that the AI sometimes returns instead of
+ * omitting a field. These must NEVER reach governance / candidate state.
+ * Absent data must be expressed as null/empty, not as a string token.
+ */
+const ABSENT_PLACEHOLDERS = new Set([
+  "none", "n/a", "na", "null", "nil", "nothing", "no",
+  "no motion", "no penalty", "no result",
+  "—", "-", "--", "unknown", "n.a.",
+]);
+
+function isAbsentPlaceholder(raw: unknown): boolean {
+  if (raw === null || raw === undefined) return true;
+  if (typeof raw !== "string") return false;
+  const v = raw.trim().toLowerCase();
+  if (!v) return true;
+  return ABSENT_PLACEHOLDERS.has(v);
+}
+
+/**
  * Heuristic: a governed value looks like a real field candidate
  * (e.g. "Black", "26 Punch", "Z Jet") and not a transcript chunk.
  *  - ≤ 32 chars
@@ -120,12 +139,13 @@ function looksLikeGovernedCandidate(raw: unknown): boolean {
   if (typeof raw !== "string") return false;
   const v = raw.trim();
   if (!v) return false;
+  if (isAbsentPlaceholder(v)) return false;
   if (v.length > 32) return false;
   if (/[.,;:!?]/.test(v)) return false;
   const tokens = v.split(/\s+/);
   if (tokens.length > 4) return false;
   // Reject narration / filler tokens
-  if (/\b(we|we're|were|im|i'm|the|a|running|called|ran|run|gonna|going|then)\b/i.test(v)) {
+  if (/\b(we|we're|were|im|i'm|the|a|running|called|ran|run|gonna|going|then|and)\b/i.test(v)) {
     return false;
   }
   return true;
@@ -231,12 +251,18 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   );
 
   // ── Dictation switching ──
-  const stopDictation = useCallback(() => {
+  /**
+   * Stop the active dictation cleanly and persist its merged text into the
+   * owning section. Returns a map of any sections whose text was just updated
+   * so the caller can use it as a fresh "base" without waiting for React state.
+   */
+  const stopDictation = useCallback((): { updatedId: SectionId | null; updatedText: string | null } => {
     const id = recordingForRef.current;
     if (recording.listening) recording.stopListening();
+    let updatedText: string | null = null;
     if (id) {
-      // Persist merged base+live text exactly once into section state.
       const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+      updatedText = merged;
       setSectionState((s) => {
         const prev = s[id];
         if (prev.text === merged) return s;
@@ -246,6 +272,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     recordingForRef.current = null;
     baseTextBeforeDictationRef.current = "";
     recording.clear();
+    return { updatedId: id, updatedText };
   }, [recording]);
 
   const dictateInto = useCallback(
@@ -256,12 +283,21 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         stopDictation();
         return;
       }
-      // If recording into a different section, persist that one cleanly first.
+      // If recording into a different section, persist that one cleanly first
+      // and capture the just-merged text so we can switch immediately without
+      // waiting for React state to flush.
+      let stopped: { updatedId: SectionId | null; updatedText: string | null } = { updatedId: null, updatedText: null };
       if (recording.listening || recordingForRef.current) {
-        stopDictation();
+        stopped = stopDictation();
       }
       // Snapshot current persisted text as the base; live transcript appends to it.
-      baseTextBeforeDictationRef.current = sectionState[id].text;
+      // Prefer the synchronous merged text from a just-stopped dictation if it
+      // belongs to the same target section; otherwise fall back to sectionState.
+      const base =
+        stopped.updatedId === id && stopped.updatedText !== null
+          ? stopped.updatedText
+          : sectionState[id].text;
+      baseTextBeforeDictationRef.current = base;
       recording.clear();
       recordingForRef.current = id;
       recording.startListening();
@@ -384,9 +420,30 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const normalized = normalizeTranscriptForParse(text);
         const parseResult = parseRawInput(normalized);
         const ownedSet = new Set(section.ownedFields);
+        const lookupMapEarly = getLookupMap();
         const scopedParsePatch: Record<string, unknown> = {};
+        const droppedDeterministicFields: string[] = [];
         for (const [k, v] of Object.entries(parseResult.patch)) {
-          if (ownedSet.has(k)) scopedParsePatch[k] = v;
+          if (!ownedSet.has(k)) continue;
+          // Drop literal absent placeholders before they can collide or govern.
+          if (isAbsentPlaceholder(v)) continue;
+          // Governed lookup fields: the deterministic parser's multi-word
+          // consumption can grab transcript fragments (e.g. "and run 26 punch"
+          // following a stray FORM anchor). Reject anything that doesn't look
+          // like a real candidate token.
+          if (GOVERNED_LOOKUP_FIELDS.has(k) && !looksLikeGovernedCandidate(v)) {
+            droppedDeterministicFields.push(k);
+            continue;
+          }
+          scopedParsePatch[k] = v;
+        }
+        if (droppedDeterministicFields.length > 0) {
+          // Quietly drop — these would have triggered bogus collision review
+          // against an already-valid governed value using a sentence fragment.
+          console.debug(
+            `[${section.title}] dropped deterministic fragments for governed fields:`,
+            droppedDeterministicFields,
+          );
         }
 
         // Detect manual-edit collisions inside owned fields.
@@ -396,6 +453,20 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           const current = (candidate as Record<string, unknown>)[k];
           const hasExisting = current !== null && current !== undefined && current !== "";
           if (hasExisting && String(current) !== String(v)) {
+            // For governed fields: if the existing candidate value is already
+            // a known canonical lookup entry, do NOT raise a collision driven
+            // by a fresh re-parse of the same Section blurb. This prevents
+            // "re-interpret the whole text into every owned field" loops where
+            // the coach is only resolving one field (e.g. motion) but the
+            // parser keeps re-proposing offForm/offPlay from the same text.
+            if (GOVERNED_LOOKUP_FIELDS.has(k)) {
+              const known = lookupMapEarly.get(k) ?? [];
+              const existingCanonical = String(current).toLowerCase().replace(/\s+/g, " ");
+              const isExistingValid = known.some(
+                (e) => e.toLowerCase().replace(/\s+/g, " ") === existingCanonical,
+              );
+              if (isExistingValid) continue;
+            }
             manualCollisions.push({ fieldName: k, currentValue: current, proposedValue: v });
           } else if (!hasExisting) {
             fillablePatch[k] = v;
@@ -476,17 +547,41 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const droppedGovernedFields: string[] = [];
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
+
+          // Unwrap governed proposal { value, matchType } once for inspection.
+          const inner =
+            v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
+              ? (v as { value: unknown }).value
+              : v;
+
+          // Drop literal absent placeholders ("None", "N/A", "no motion", …)
+          // BEFORE governance / collision logic for ANY field. Absent data must
+          // be null/empty, never a placeholder string that masquerades as a
+          // governed lookup value.
+          if (isAbsentPlaceholder(inner)) continue;
+
           // For governed lookup fields (offForm/offPlay/motion), require the
           // proposed value to look like a real field candidate. Drop raw
           // transcript-shaped blobs BEFORE governance has a chance to fire on them.
           if (GOVERNED_LOOKUP_FIELDS.has(k)) {
-            const inner =
-              v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
-                ? (v as { value: unknown }).value
-                : v;
             if (!looksLikeGovernedCandidate(inner)) {
               droppedGovernedFields.push(k);
               continue;
+            }
+            // Field-candidate-based update: if the existing candidate value is
+            // already a known canonical lookup entry AND the AI is proposing
+            // the same value (case/space-insensitive), treat as a no-op rather
+            // than re-running collision/governance against an already-valid
+            // governed value.
+            const existing = (candidate as Record<string, unknown>)[k];
+            if (existing !== null && existing !== undefined && existing !== "") {
+              const known = lookupMapEarly.get(k) ?? [];
+              const existingCanonical = String(existing).toLowerCase().replace(/\s+/g, " ");
+              const innerCanonical = String(inner).toLowerCase().replace(/\s+/g, " ");
+              const isExistingValid = known.some(
+                (e) => e.toLowerCase().replace(/\s+/g, " ") === existingCanonical,
+              );
+              if (isExistingValid && existingCanonical === innerCanonical) continue;
             }
           }
           ownedAiProposal[k] = v;
