@@ -420,9 +420,30 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const normalized = normalizeTranscriptForParse(text);
         const parseResult = parseRawInput(normalized);
         const ownedSet = new Set(section.ownedFields);
+        const lookupMapEarly = getLookupMap();
         const scopedParsePatch: Record<string, unknown> = {};
+        const droppedDeterministicFields: string[] = [];
         for (const [k, v] of Object.entries(parseResult.patch)) {
-          if (ownedSet.has(k)) scopedParsePatch[k] = v;
+          if (!ownedSet.has(k)) continue;
+          // Drop literal absent placeholders before they can collide or govern.
+          if (isAbsentPlaceholder(v)) continue;
+          // Governed lookup fields: the deterministic parser's multi-word
+          // consumption can grab transcript fragments (e.g. "and run 26 punch"
+          // following a stray FORM anchor). Reject anything that doesn't look
+          // like a real candidate token.
+          if (GOVERNED_LOOKUP_FIELDS.has(k) && !looksLikeGovernedCandidate(v)) {
+            droppedDeterministicFields.push(k);
+            continue;
+          }
+          scopedParsePatch[k] = v;
+        }
+        if (droppedDeterministicFields.length > 0) {
+          // Quietly drop — these would have triggered bogus collision review
+          // against an already-valid governed value using a sentence fragment.
+          console.debug(
+            `[${section.title}] dropped deterministic fragments for governed fields:`,
+            droppedDeterministicFields,
+          );
         }
 
         // Detect manual-edit collisions inside owned fields.
@@ -432,6 +453,20 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           const current = (candidate as Record<string, unknown>)[k];
           const hasExisting = current !== null && current !== undefined && current !== "";
           if (hasExisting && String(current) !== String(v)) {
+            // For governed fields: if the existing candidate value is already
+            // a known canonical lookup entry, do NOT raise a collision driven
+            // by a fresh re-parse of the same Section blurb. This prevents
+            // "re-interpret the whole text into every owned field" loops where
+            // the coach is only resolving one field (e.g. motion) but the
+            // parser keeps re-proposing offForm/offPlay from the same text.
+            if (GOVERNED_LOOKUP_FIELDS.has(k)) {
+              const known = lookupMapEarly.get(k) ?? [];
+              const existingCanonical = String(current).toLowerCase().replace(/\s+/g, " ");
+              const isExistingValid = known.some(
+                (e) => e.toLowerCase().replace(/\s+/g, " ") === existingCanonical,
+              );
+              if (isExistingValid) continue;
+            }
             manualCollisions.push({ fieldName: k, currentValue: current, proposedValue: v });
           } else if (!hasExisting) {
             fillablePatch[k] = v;
