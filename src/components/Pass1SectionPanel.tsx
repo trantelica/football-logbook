@@ -547,17 +547,41 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const droppedGovernedFields: string[] = [];
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
+
+          // Unwrap governed proposal { value, matchType } once for inspection.
+          const inner =
+            v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
+              ? (v as { value: unknown }).value
+              : v;
+
+          // Drop literal absent placeholders ("None", "N/A", "no motion", …)
+          // BEFORE governance / collision logic for ANY field. Absent data must
+          // be null/empty, never a placeholder string that masquerades as a
+          // governed lookup value.
+          if (isAbsentPlaceholder(inner)) continue;
+
           // For governed lookup fields (offForm/offPlay/motion), require the
           // proposed value to look like a real field candidate. Drop raw
           // transcript-shaped blobs BEFORE governance has a chance to fire on them.
           if (GOVERNED_LOOKUP_FIELDS.has(k)) {
-            const inner =
-              v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
-                ? (v as { value: unknown }).value
-                : v;
             if (!looksLikeGovernedCandidate(inner)) {
               droppedGovernedFields.push(k);
               continue;
+            }
+            // Field-candidate-based update: if the existing candidate value is
+            // already a known canonical lookup entry AND the AI is proposing
+            // the same value (case/space-insensitive), treat as a no-op rather
+            // than re-running collision/governance against an already-valid
+            // governed value.
+            const existing = (candidate as Record<string, unknown>)[k];
+            if (existing !== null && existing !== undefined && existing !== "") {
+              const known = lookupMapEarly.get(k) ?? [];
+              const existingCanonical = String(existing).toLowerCase().replace(/\s+/g, " ");
+              const innerCanonical = String(inner).toLowerCase().replace(/\s+/g, " ");
+              const isExistingValid = known.some(
+                (e) => e.toLowerCase().replace(/\s+/g, " ") === existingCanonical,
+              );
+              if (isExistingValid && existingCanonical === innerCanonical) continue;
             }
           }
           ownedAiProposal[k] = v;
