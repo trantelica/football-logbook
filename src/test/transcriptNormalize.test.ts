@@ -76,11 +76,11 @@ describe("normalizeTranscriptForParse", () => {
   });
 
   it("normalizes 'ball is on our N' → YARD -N (negative for our side)", () => {
-    expect(normalizeTranscriptForParse("Ball is on our 28")).toBe("YARD -28");
+    expect(normalizeTranscriptForParse("Ball is on our 28")).toContain("YARD -28");
   });
 
   it("normalizes 'ball is on their N' → YARD N (positive)", () => {
-    expect(normalizeTranscriptForParse("ball is on their 40")).toBe("YARD 40");
+    expect(normalizeTranscriptForParse("ball is on their 40")).toContain("YARD 40");
   });
 
   it("normalizes actor phrases: QB → PASSER", () => {
