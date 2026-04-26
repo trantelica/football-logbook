@@ -334,6 +334,22 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Phase 10D: Lookup interrupt state
   const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string; source?: "ai" | "manual" } | null>(null);
   const clearLookupInterrupt = useCallback(() => setLookupInterruptPending(null), []);
+  const requestLookupInterrupt = useCallback(
+    (fieldName: string, value: string, source: "ai" | "manual" = "manual") => {
+      const fd = getFieldDef(fieldName);
+      setLookupInterruptPending((prev) => {
+        // Don't clobber an already-open interrupt for the same field.
+        if (prev && prev.fieldName === fieldName && prev.value === value) return prev;
+        return {
+          fieldName,
+          fieldLabel: fd?.label ?? fieldName,
+          value,
+          source,
+        };
+      });
+    },
+    [],
+  );
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
