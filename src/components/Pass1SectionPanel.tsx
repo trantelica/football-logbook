@@ -231,12 +231,18 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   );
 
   // ── Dictation switching ──
-  const stopDictation = useCallback(() => {
+  /**
+   * Stop the active dictation cleanly and persist its merged text into the
+   * owning section. Returns a map of any sections whose text was just updated
+   * so the caller can use it as a fresh "base" without waiting for React state.
+   */
+  const stopDictation = useCallback((): { updatedId: SectionId | null; updatedText: string | null } => {
     const id = recordingForRef.current;
     if (recording.listening) recording.stopListening();
+    let updatedText: string | null = null;
     if (id) {
-      // Persist merged base+live text exactly once into section state.
       const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+      updatedText = merged;
       setSectionState((s) => {
         const prev = s[id];
         if (prev.text === merged) return s;
@@ -246,6 +252,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     recordingForRef.current = null;
     baseTextBeforeDictationRef.current = "";
     recording.clear();
+    return { updatedId: id, updatedText };
   }, [recording]);
 
   const dictateInto = useCallback(
@@ -256,12 +263,21 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         stopDictation();
         return;
       }
-      // If recording into a different section, persist that one cleanly first.
+      // If recording into a different section, persist that one cleanly first
+      // and capture the just-merged text so we can switch immediately without
+      // waiting for React state to flush.
+      let stopped: { updatedId: SectionId | null; updatedText: string | null } = { updatedId: null, updatedText: null };
       if (recording.listening || recordingForRef.current) {
-        stopDictation();
+        stopped = stopDictation();
       }
       // Snapshot current persisted text as the base; live transcript appends to it.
-      baseTextBeforeDictationRef.current = sectionState[id].text;
+      // Prefer the synchronous merged text from a just-stopped dictation if it
+      // belongs to the same target section; otherwise fall back to sectionState.
+      const base =
+        stopped.updatedId === id && stopped.updatedText !== null
+          ? stopped.updatedText
+          : sectionState[id].text;
+      baseTextBeforeDictationRef.current = base;
       recording.clear();
       recordingForRef.current = id;
       recording.startListening();
