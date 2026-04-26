@@ -100,12 +100,20 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   //   "in 3 out motion"                 → "MOTION 3 Out"
   //   "with a jet motion"               → "MOTION Jet"
   // Direction tokens kept narrow to known motion directions to avoid greedy grabs.
-  [/\b(?:with(?:\s+a)?|in|on)?\s*((?:\d+|[A-Z]))\s+(across|out|in|over|under|return|jet|fly|orbit)\s+motion\b/gi,
-    (_m, who: string, dir: string) =>
-      `MOTION ${who.toUpperCase()} ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`],
-  // Single-token motion: "with a jet motion", "jet motion"
-  [/\b(?:with(?:\s+a)?|in|on)?\s*(jet|fly|orbit|return|across|out)\s+motion\b/gi,
+  // Single-token motion (run BEFORE the 2-token rule so "with a jet motion"
+  // doesn't get parsed as "<a> jet motion").
+  [/\b(?:with(?:\s+a)?|in|on)?\s*(jet|fly|orbit|return)\s+motion\b/gi,
     (_m, dir: string) => `MOTION ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`],
+  // Two-token motion: "<token> <direction> motion".
+  // `who` is restricted to a digit-string OR a single uppercase letter (case-sensitive
+  // matcher in a case-insensitive regex still matches lowercase letters; we filter
+  // article "a"/"an" inside the replacement function and bail out if matched).
+  [/\b(?:with(?:\s+a)?|in|on)?\s*((?:\d+|[A-Z]))\s+(across|out|in|over|under|return)\s+motion\b/gi,
+    (m, who: string, dir: string) => {
+      // Reject the indefinite article being captured as `who`.
+      if (/^(a|an)$/i.test(who)) return m;
+      return `MOTION ${who.toUpperCase()} ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`;
+    }],
 
   // Two-minute phrases — marker presence implies Y
   [/\btwo\s+minute\b/gi, "2MIN Y"],
