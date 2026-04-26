@@ -452,7 +452,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           Object.keys(fillablePatch).length +
           (Object.keys(ownedAiProposal).length - aiCollisions.length);
 
+        // Per spec: clear dirty/unsynced only after the proposal has actually
+        // been updated for this section.
         if (filledCount > 0) {
+          setSectionState((s) => ({
+            ...s,
+            [id]: { ...s[id], dirty: false, lastAppliedText: text },
+          }));
           toast.success(`${section.title}: updated ${filledCount} field(s).`);
           return { kind: "applied", count: filledCount };
         }
