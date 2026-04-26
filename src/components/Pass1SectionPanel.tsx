@@ -517,7 +517,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 key: "3",
                 label: "Retry update",
                 onSelect: () => {
-                  void runUpdateProposal(id, { suppressClarification: true });
+                  void runUpdateProposal(id, { suppressClarification: true, textOverride: text });
                 },
               },
             ],
