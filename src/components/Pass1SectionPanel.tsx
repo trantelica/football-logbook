@@ -694,24 +694,28 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left column: Section cards */}
         <div className="lg:col-span-2 space-y-3">
-          {SECTIONS.map((section) => (
-            <SectionCard
-              key={section.id}
-              section={section}
-              state={sectionState[section.id]}
-              isActive={activeSection === section.id}
-              isRecording={recording.listening && recordingForRef.current === section.id}
-              recordingInterim={recording.listening && recordingForRef.current === section.id ? recording.interim : ""}
-              busy={busySection === section.id}
-              textEditing={textEditing}
-              isProposal={isProposal}
-              onFocus={() => setActiveSection(section.id)}
-              onTextChange={(v) => setSectionText(section.id, v)}
-              onDictate={() => dictateInto(section.id)}
-              onUpdate={() => runUpdateProposal(section.id)}
-              onClear={() => clearSection(section.id)}
-            />
-          ))}
+          {SECTIONS.map((section) => {
+            const isRec = recording.listening && recordingForRef.current === section.id;
+            return (
+              <SectionCard
+                key={section.id}
+                section={section}
+                state={sectionState[section.id]}
+                renderedText={computeSectionRenderedText(section.id)}
+                isActive={activeSection === section.id}
+                isRecording={isRec}
+                recordingInterim={isRec ? recording.interim : ""}
+                busy={busySection === section.id}
+                textEditing={textEditing}
+                isProposal={isProposal}
+                onFocus={() => setActiveSection(section.id)}
+                onTextChange={(v) => setSectionText(section.id, v)}
+                onDictate={() => dictateInto(section.id)}
+                onUpdate={() => runUpdateProposal(section.id)}
+                onClear={() => clearSection(section.id)}
+              />
+            );
+          })}
         </div>
 
         {/* Right column: Unified Proposal Candidate (sticky) */}
