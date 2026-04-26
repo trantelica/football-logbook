@@ -74,6 +74,7 @@ interface Pass1SectionPanelProps {
 }
 
 interface SectionState {
+  /** Persisted text for this section (everything outside an active dictation). */
   text: string;
   /** Whether text changed since the last successful Update Proposal. */
   dirty: boolean;
@@ -82,6 +83,15 @@ interface SectionState {
 }
 
 const INITIAL_SECTION_STATE: SectionState = { text: "", dirty: false, lastAppliedText: "" };
+
+/** Join a persisted base with the in-flight live dictation transcript. */
+function joinBaseAndLive(base: string, live: string): string {
+  const b = base.trimEnd();
+  const l = live.trim();
+  if (!b) return l;
+  if (!l) return base;
+  return b + (b.endsWith("\n") ? "" : "\n") + l;
+}
 
 /** Build a label lookup once. */
 const FIELD_LABELS: Record<string, string> = (() => {
@@ -128,7 +138,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   /** Single shared dictation hook; we route its output to whichever section is recording. */
   const recording = useTranscriptCapture();
   const recordingForRef = useRef<SectionId | null>(null);
-  const lastFlushedTextRef = useRef<string>("");
+  /** Snapshot of section.text at the moment dictation started for that section. */
+  const baseTextBeforeDictationRef = useRef<string>("");
 
   /** Text Editing toggle. */
   const [textEditing, setTextEditing] = useState(false);
@@ -144,7 +155,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     onConfirm: (selectedFields: Set<string>) => void;
   } | null>(null);
 
-  /** Section-scoped AI clarification modal scaffolding (single-key answerable). */
+  /** Section-scoped AI clarification modal (single-key answerable). */
   const [clarification, setClarification] = useState<{
     section: SectionId;
     title: string;
@@ -165,68 +176,65 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       });
       recording.clear();
       recordingForRef.current = null;
-      lastFlushedTextRef.current = "";
+      baseTextBeforeDictationRef.current = "";
       setBusySection(null);
       setOverwriteState(null);
       setClarification(null);
     }
   }, [commitCount, recording]);
 
-  // ── Live-route dictated text into the section that owns the recording ──
-  useEffect(() => {
-    if (!recordingForRef.current) return;
-    const id = recordingForRef.current;
-    const fullText = recording.text;
-    if (fullText === lastFlushedTextRef.current) return;
-    lastFlushedTextRef.current = fullText;
-    setSectionState((s) => {
-      const prev = s[id];
-      // Replace section text with the live transcript while recording into it.
-      // Coach's existing pre-dictation text is preserved as a prefix in `dictateInto`.
-      const newText = prev.text.length > 0 && fullText.length > 0
-        ? prev.text.endsWith("\n") || fullText.startsWith("\n")
-          ? prev.text + fullText
-          : prev.text + " " + fullText
-        : fullText;
-      // Only rebuild if differs
-      if (newText === prev.text) return s;
-      return { ...s, [id]: { ...prev, text: newText, dirty: true } };
-    });
-  }, [recording.text]);
+  /**
+   * Compute the rendered text for a section, accounting for active dictation.
+   * While that section is being dictated into, render base + live transcript.
+   * Otherwise render the persisted section.text as-is.
+   */
+  const computeSectionRenderedText = useCallback(
+    (id: SectionId): string => {
+      const persisted = sectionState[id].text;
+      if (recordingForRef.current !== id) return persisted;
+      return joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+    },
+    [sectionState, recording.text],
+  );
 
   // ── Dictation switching ──
+  const stopDictation = useCallback(() => {
+    const id = recordingForRef.current;
+    if (recording.listening) recording.stopListening();
+    if (id) {
+      // Persist merged base+live text exactly once into section state.
+      const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+      setSectionState((s) => {
+        const prev = s[id];
+        if (prev.text === merged) return s;
+        return { ...s, [id]: { ...prev, text: merged, dirty: merged !== prev.lastAppliedText } };
+      });
+    }
+    recordingForRef.current = null;
+    baseTextBeforeDictationRef.current = "";
+    recording.clear();
+  }, [recording]);
+
   const dictateInto = useCallback(
     (id: SectionId) => {
       setActiveSection(id);
-      // If already recording into this section, stop.
+      // If already recording into this section, treat as toggle-stop.
       if (recordingForRef.current === id && recording.listening) {
-        recording.stopListening();
-        recordingForRef.current = null;
-        lastFlushedTextRef.current = "";
+        stopDictation();
         return;
       }
-      // If recording into a different section, stop it cleanly first.
-      if (recording.listening) {
-        recording.stopListening();
-        recordingForRef.current = null;
-        lastFlushedTextRef.current = "";
+      // If recording into a different section, persist that one cleanly first.
+      if (recording.listening || recordingForRef.current) {
+        stopDictation();
       }
-      // Start fresh capture buffer; the section retains its existing text as prefix.
+      // Snapshot current persisted text as the base; live transcript appends to it.
+      baseTextBeforeDictationRef.current = sectionState[id].text;
       recording.clear();
-      lastFlushedTextRef.current = "";
       recordingForRef.current = id;
       recording.startListening();
     },
-    [recording],
+    [recording, sectionState, stopDictation],
   );
-
-  const stopDictation = useCallback(() => {
-    if (recording.listening) {
-      recording.stopListening();
-      recordingForRef.current = null;
-      lastFlushedTextRef.current = "";
-    }
-  }, [recording]);
 
   // ── Section text edit (Text Editing ON) ──
   const setSectionText = useCallback((id: SectionId, value: string) => {
@@ -236,18 +244,45 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     }));
   }, []);
 
+  // Map field name → required-at-commit (for clarification heuristic).
+  const requiredAtCommitByName = React.useMemo(() => {
+    const m = new Map<string, boolean>();
+    for (const f of playSchema) m.set(f.name, !!f.requiredAtCommit);
+    return m;
+  }, []);
+
+  /** Owned fields in this section that are still unresolved on the candidate. */
+  const unresolvedOwnedFields = useCallback(
+    (id: SectionId): string[] => {
+      const sec = SECTIONS.find((s) => s.id === id)!;
+      const c = candidate as Record<string, unknown>;
+      return sec.ownedFields.filter((f) => {
+        const v = c[f];
+        return v === null || v === undefined || v === "";
+      });
+    },
+    [candidate],
+  );
+
+  /** Result returned by runUpdateProposal so callers (F) can react. */
+  type UpdateResult =
+    | { kind: "applied"; count: number }
+    | { kind: "nothing"; importantUnresolved: string[] }
+    | { kind: "deferred" } // overwrite review or empty/proposal
+    | { kind: "error" };
+
   // ── Update Proposal (section-scoped) ──
   const runUpdateProposal = useCallback(
-    async (id: SectionId, opts: { allowOverwrite?: boolean } = {}) => {
+    async (id: SectionId, opts: { allowOverwrite?: boolean; suppressClarification?: boolean } = {}): Promise<UpdateResult> => {
       if (isProposal) {
         toast.info("In review mode — back to edit before updating sections.");
-        return;
+        return { kind: "deferred" };
       }
       const section = SECTIONS.find((s) => s.id === id)!;
       const text = sectionState[id].text.trim();
       if (!text) {
         toast.info(`${section.title}: nothing to interpret.`);
-        return;
+        return { kind: "deferred" };
       }
       setBusySection(id);
       try {
@@ -266,7 +301,6 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         for (const [k, v] of Object.entries(scopedParsePatch)) {
           const current = (candidate as Record<string, unknown>)[k];
           const hasExisting = current !== null && current !== undefined && current !== "";
-          // A "manual" or otherwise resolved field that disagrees with the parse is a collision.
           if (hasExisting && String(current) !== String(v)) {
             manualCollisions.push({ fieldName: k, currentValue: current, proposedValue: v });
           } else if (!hasExisting) {
@@ -305,17 +339,14 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 });
               }
               setOverwriteState(null);
-              // Continue with AI step after overwrite resolution.
-              void runUpdateProposal(id, { allowOverwrite: true });
+              void runUpdateProposal(id, { allowOverwrite: true, suppressClarification: opts.suppressClarification });
             },
           });
-          // Do NOT proceed to AI until overwrite is resolved.
           setBusySection(null);
-          return;
+          return { kind: "deferred" };
         }
 
         // ── Step 2: AI enrichment, masked so AI may only fill owned, still-unresolved fields ──
-        // Mask non-owned fields by adding them to touchedFields so they appear "resolved" to AI logic.
         const maskedTouched = new Set<string>(touchedFields);
         for (const f of ALL_SECTION_OWNED_FIELDS) {
           if (!ownedSet.has(f)) maskedTouched.add(f);
@@ -341,13 +372,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         );
 
         if (aiResult.error && Object.keys(scopedParsePatch).length === 0) {
-          // Only surface AI errors when deterministic parse contributed nothing.
           if (aiResult.error !== "All AI-eligible fields are already resolved") {
             toast.info(aiResult.error);
           }
         }
 
-        // Filter AI proposal again to owned fields (defensive — should already be true via masking).
         const aiProposal = aiResult.proposal ?? {};
         const ownedAiProposal: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(aiProposal)) {
@@ -367,16 +396,79 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const filledCount =
           Object.keys(fillablePatch).length +
           (Object.keys(ownedAiProposal).length - aiCollisions.length);
+
         if (filledCount > 0) {
           toast.success(`${section.title}: updated ${filledCount} field(s).`);
-        } else if (aiCollisions.length > 0) {
+          return { kind: "applied", count: filledCount };
+        }
+        if (aiCollisions.length > 0) {
           toast.info(`${section.title}: no new fields applied.`);
-        } else if (Object.keys(scopedParsePatch).length === 0 && Object.keys(ownedAiProposal).length === 0) {
+          return { kind: "applied", count: 0 };
+        }
+
+        // Nothing applied. Check whether clarification is warranted.
+        // Important = owned + requiredAtCommit + still unresolved on candidate.
+        const c = candidate as Record<string, unknown>;
+        const importantUnresolved = section.ownedFields.filter((f) => {
+          if (!requiredAtCommitByName.get(f)) return false;
+          const v = c[f];
+          return v === null || v === undefined || v === "";
+        });
+
+        if (!opts.suppressClarification && importantUnresolved.length > 0) {
+          // Open section-scoped clarification modal.
+          const snippet = text.length > 120 ? text.slice(0, 117) + "…" : text;
+          const fieldList = importantUnresolved
+            .map((f) => FIELD_LABELS[f] ?? f)
+            .join(", ");
+          setClarification({
+            section: id,
+            title: "Need a clearer cue",
+            snippet,
+            question: `${section.title}: couldn't confidently fill ${fieldList} from this text. Choose:`,
+            options: [
+              {
+                key: "1",
+                label: "Edit Section text",
+                onSelect: () => {
+                  setActiveSection(id);
+                  setTextEditing(true);
+                  // Defer focus until modal closes.
+                  setTimeout(() => {
+                    const ta = document.querySelector<HTMLTextAreaElement>(
+                      `textarea[data-section-id="${id}"]`,
+                    );
+                    ta?.focus();
+                  }, 0);
+                },
+              },
+              {
+                key: "2",
+                label: "Leave this Section unresolved",
+                onSelect: () => {
+                  toast(`${section.title}: left unresolved.`);
+                },
+              },
+              {
+                key: "3",
+                label: "Retry update",
+                onSelect: () => {
+                  void runUpdateProposal(id, { suppressClarification: true });
+                },
+              },
+            ],
+          });
+          return { kind: "nothing", importantUnresolved };
+        }
+
+        if (Object.keys(scopedParsePatch).length === 0 && Object.keys(ownedAiProposal).length === 0) {
           toast.info(`${section.title}: nothing recognized.`);
         }
+        return { kind: "nothing", importantUnresolved };
       } catch (e) {
         console.error("Section update failed:", e);
         toast.error(`${SECTIONS.find((s) => s.id === id)?.title ?? "Section"}: update failed.`);
+        return { kind: "error" };
       } finally {
         setBusySection(null);
       }
@@ -396,6 +488,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       applySystemPatch,
       requestAiEnrichment,
       getLookupMap,
+      requiredAtCommitByName,
     ],
   );
 
@@ -413,10 +506,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         [id]: { ...INITIAL_SECTION_STATE },
       }));
       // Stop dictation if it was recording into this section.
-      if (recordingForRef.current === id && recording.listening) {
-        recording.stopListening();
+      if (recordingForRef.current === id) {
+        if (recording.listening) recording.stopListening();
         recordingForRef.current = null;
-        lastFlushedTextRef.current = "";
+        baseTextBeforeDictationRef.current = "";
+        recording.clear();
       }
       // Clear that section's owned uncommitted candidate fields. Do not touch other sections.
       // We avoid clearing fields that look manually-set with no prior section involvement —
@@ -432,38 +526,61 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     [isProposal, candidate, updateField, recording],
   );
 
-  // ── Finish dictation entry (F) ──
-  const finishDictationEntry = useCallback(async () => {
+  // Track open modals via refs so the keyboard handlers don't need to re-bind.
+  const overwriteOpenRef = useRef(false);
+  const clarificationOpenRef = useRef(false);
+  useEffect(() => { overwriteOpenRef.current = !!overwriteState; }, [overwriteState]);
+  useEffect(() => { clarificationOpenRef.current = !!clarification; }, [clarification]);
+
+  /**
+   * F — Finish dictation entry.
+   * 1. Stop active dictation cleanly (persists base+live merged text).
+   * 2. Run Update Proposal for every dirty section sequentially.
+   * 3. If nothing is blocking (no overwrite, no clarification, no inline modal),
+   *    transition to `proposal` state so N / L commit immediately.
+   * Returns true if we ended in `proposal` state and are commit-ready.
+   */
+  const finishDictationEntry = useCallback(async (): Promise<boolean> => {
+    if (isProposal) return true; // already review-ready
     stopDictation();
-    // Run Update Proposal for any dirty section.
     for (const s of SECTIONS) {
       if (sectionState[s.id].dirty && sectionState[s.id].text.trim()) {
-        // sequential to keep toast/clarification ordering predictable
         // eslint-disable-next-line no-await-in-loop
         await runUpdateProposal(s.id);
+        if (overwriteOpenRef.current || clarificationOpenRef.current) {
+          // Coach must respond first; do NOT auto-advance to review.
+          return false;
+        }
       }
     }
+    // Auto-transition to review state so N/L are true commit actions.
+    reviewProposal();
     toast.success("Ready for review.");
-  }, [stopDictation, sectionState, runUpdateProposal]);
+    return true;
+  }, [isProposal, stopDictation, sectionState, runUpdateProposal, reviewProposal]);
 
   // ── Commit handlers ──
   const handleCommitAndNext = useCallback(async () => {
     if (state !== "proposal") {
-      reviewProposal();
-      // Defer commit to the next paint so any opened review modals (PAT, possession) can intercept.
+      // Run F first; if it blocked on clarification/overwrite, do not commit.
+      const ready = await finishDictationEntry();
+      if (!ready) return;
+      // After reviewProposal(), validation modals (PAT/possession) may have intercepted.
+      // We defer commit to a paint so those modals can render.
       return;
     }
     await commitAndNext();
-  }, [state, reviewProposal, commitAndNext]);
+  }, [state, finishDictationEntry, commitAndNext]);
 
-  const handleCommitAndLeave = useCallback(() => {
+  const handleCommitAndLeave = useCallback(async () => {
     if (state !== "proposal") {
-      reviewProposal();
+      const ready = await finishDictationEntry();
+      if (!ready) return;
       return;
     }
-    commitProposal();
+    await commitProposal();
     deselectSlot();
-  }, [state, reviewProposal, commitProposal, deselectSlot]);
+  }, [state, finishDictationEntry, commitProposal, deselectSlot]);
 
   // ── Single-key shortcuts (Text Editing OFF) ──
   useEffect(() => {
@@ -577,24 +694,28 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left column: Section cards */}
         <div className="lg:col-span-2 space-y-3">
-          {SECTIONS.map((section) => (
-            <SectionCard
-              key={section.id}
-              section={section}
-              state={sectionState[section.id]}
-              isActive={activeSection === section.id}
-              isRecording={recording.listening && recordingForRef.current === section.id}
-              recordingInterim={recording.listening && recordingForRef.current === section.id ? recording.interim : ""}
-              busy={busySection === section.id}
-              textEditing={textEditing}
-              isProposal={isProposal}
-              onFocus={() => setActiveSection(section.id)}
-              onTextChange={(v) => setSectionText(section.id, v)}
-              onDictate={() => dictateInto(section.id)}
-              onUpdate={() => runUpdateProposal(section.id)}
-              onClear={() => clearSection(section.id)}
-            />
-          ))}
+          {SECTIONS.map((section) => {
+            const isRec = recording.listening && recordingForRef.current === section.id;
+            return (
+              <SectionCard
+                key={section.id}
+                section={section}
+                state={sectionState[section.id]}
+                renderedText={computeSectionRenderedText(section.id)}
+                isActive={activeSection === section.id}
+                isRecording={isRec}
+                recordingInterim={isRec ? recording.interim : ""}
+                busy={busySection === section.id}
+                textEditing={textEditing}
+                isProposal={isProposal}
+                onFocus={() => setActiveSection(section.id)}
+                onTextChange={(v) => setSectionText(section.id, v)}
+                onDictate={() => dictateInto(section.id)}
+                onUpdate={() => runUpdateProposal(section.id)}
+                onClear={() => clearSection(section.id)}
+              />
+            );
+          })}
         </div>
 
         {/* Right column: Unified Proposal Candidate (sticky) */}
@@ -683,6 +804,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 interface SectionCardProps {
   section: SectionDef;
   state: SectionState;
+  /** The text to render in the textarea (already merged with live dictation when recording). */
+  renderedText: string;
   isActive: boolean;
   isRecording: boolean;
   recordingInterim: string;
@@ -700,6 +823,7 @@ function SectionCard(props: SectionCardProps) {
   const {
     section,
     state,
+    renderedText,
     isActive,
     isRecording,
     recordingInterim,
@@ -755,7 +879,7 @@ function SectionCard(props: SectionCardProps) {
             variant="outline"
             className="h-7 text-xs gap-1"
             onClick={(e) => { e.stopPropagation(); onUpdate(); }}
-            disabled={busy || isProposal || !state.text.trim()}
+            disabled={busy || isProposal || (!state.text.trim() && !isRecording)}
             title="Update Proposal (U)"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -791,8 +915,12 @@ function SectionCard(props: SectionCardProps) {
         ))}
       </div>
 
-      {/* Section text area */}
+      {/* Section text area.
+          When recording, value = base + live (computed by parent) + optional interim suffix.
+          When not recording, value = persisted section.text.
+          Never appends running transcript repeatedly. */}
       <Textarea
+        data-section-id={section.id}
         className={cn(
           "text-xs font-mono min-h-[64px] resize-y bg-background/50",
           isRecording && "border-destructive/30",
@@ -804,7 +932,11 @@ function SectionCard(props: SectionCardProps) {
               ? `Type ${section.title.toLowerCase()} narration…`
               : `Press ${section.dictateKey} to dictate, or enable Text Editing to type.`
         }
-        value={state.text + (isRecording && recordingInterim ? (state.text ? "\n" : "") + recordingInterim : "")}
+        value={
+          isRecording && recordingInterim
+            ? renderedText + (renderedText.endsWith("\n") || !renderedText ? "" : " ") + recordingInterim
+            : renderedText
+        }
         readOnly={!textEditing || isRecording}
         onChange={(e) => {
           if (textEditing && !isRecording) onTextChange(e.target.value);
