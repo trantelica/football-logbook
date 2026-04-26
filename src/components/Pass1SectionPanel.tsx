@@ -420,19 +420,33 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
         const aiProposal = aiResult.proposal ?? {};
         const ownedAiProposal: Record<string, unknown> = {};
+        const droppedGovernedFields: string[] = [];
         for (const [k, v] of Object.entries(aiProposal)) {
-          if (ownedSet.has(k)) ownedAiProposal[k] = v;
+          if (!ownedSet.has(k)) continue;
+          // For governed lookup fields (offForm/offPlay/motion), require the
+          // proposed value to look like a real field candidate. Drop raw
+          // transcript-shaped blobs BEFORE governance has a chance to fire on them.
+          if (GOVERNED_LOOKUP_FIELDS.has(k)) {
+            const inner =
+              v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
+                ? (v as { value: unknown }).value
+                : v;
+            if (!looksLikeGovernedCandidate(inner)) {
+              droppedGovernedFields.push(k);
+              continue;
+            }
+          }
+          ownedAiProposal[k] = v;
         }
         let aiCollisions: SystemPatchCollision[] = [];
         if (Object.keys(ownedAiProposal).length > 0) {
           aiCollisions = requestAiEnrichment(ownedAiProposal);
         }
-
-        // Mark section as no-longer-dirty.
-        setSectionState((s) => ({
-          ...s,
-          [id]: { ...s[id], dirty: false, lastAppliedText: text },
-        }));
+        if (droppedGovernedFields.length > 0) {
+          // Surface lightly so coach knows AI couldn't pull a clean candidate.
+          const labels = droppedGovernedFields.map((f) => FIELD_LABELS[f] ?? f).join(", ");
+          toast.info(`${section.title}: ${labels} — needs a clearer cue.`);
+        }
 
         const filledCount =
           Object.keys(fillablePatch).length +
