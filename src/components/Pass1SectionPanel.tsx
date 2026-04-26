@@ -138,7 +138,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   /** Single shared dictation hook; we route its output to whichever section is recording. */
   const recording = useTranscriptCapture();
   const recordingForRef = useRef<SectionId | null>(null);
-  const lastFlushedTextRef = useRef<string>("");
+  /** Snapshot of section.text at the moment dictation started for that section. */
+  const baseTextBeforeDictationRef = useRef<string>("");
 
   /** Text Editing toggle. */
   const [textEditing, setTextEditing] = useState(false);
@@ -154,7 +155,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     onConfirm: (selectedFields: Set<string>) => void;
   } | null>(null);
 
-  /** Section-scoped AI clarification modal scaffolding (single-key answerable). */
+  /** Section-scoped AI clarification modal (single-key answerable). */
   const [clarification, setClarification] = useState<{
     section: SectionId;
     title: string;
@@ -175,68 +176,65 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       });
       recording.clear();
       recordingForRef.current = null;
-      lastFlushedTextRef.current = "";
+      baseTextBeforeDictationRef.current = "";
       setBusySection(null);
       setOverwriteState(null);
       setClarification(null);
     }
   }, [commitCount, recording]);
 
-  // ── Live-route dictated text into the section that owns the recording ──
-  useEffect(() => {
-    if (!recordingForRef.current) return;
-    const id = recordingForRef.current;
-    const fullText = recording.text;
-    if (fullText === lastFlushedTextRef.current) return;
-    lastFlushedTextRef.current = fullText;
-    setSectionState((s) => {
-      const prev = s[id];
-      // Replace section text with the live transcript while recording into it.
-      // Coach's existing pre-dictation text is preserved as a prefix in `dictateInto`.
-      const newText = prev.text.length > 0 && fullText.length > 0
-        ? prev.text.endsWith("\n") || fullText.startsWith("\n")
-          ? prev.text + fullText
-          : prev.text + " " + fullText
-        : fullText;
-      // Only rebuild if differs
-      if (newText === prev.text) return s;
-      return { ...s, [id]: { ...prev, text: newText, dirty: true } };
-    });
-  }, [recording.text]);
+  /**
+   * Compute the rendered text for a section, accounting for active dictation.
+   * While that section is being dictated into, render base + live transcript.
+   * Otherwise render the persisted section.text as-is.
+   */
+  const computeSectionRenderedText = useCallback(
+    (id: SectionId): string => {
+      const persisted = sectionState[id].text;
+      if (recordingForRef.current !== id) return persisted;
+      return joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+    },
+    [sectionState, recording.text],
+  );
 
   // ── Dictation switching ──
+  const stopDictation = useCallback(() => {
+    const id = recordingForRef.current;
+    if (recording.listening) recording.stopListening();
+    if (id) {
+      // Persist merged base+live text exactly once into section state.
+      const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+      setSectionState((s) => {
+        const prev = s[id];
+        if (prev.text === merged) return s;
+        return { ...s, [id]: { ...prev, text: merged, dirty: merged !== prev.lastAppliedText } };
+      });
+    }
+    recordingForRef.current = null;
+    baseTextBeforeDictationRef.current = "";
+    recording.clear();
+  }, [recording]);
+
   const dictateInto = useCallback(
     (id: SectionId) => {
       setActiveSection(id);
-      // If already recording into this section, stop.
+      // If already recording into this section, treat as toggle-stop.
       if (recordingForRef.current === id && recording.listening) {
-        recording.stopListening();
-        recordingForRef.current = null;
-        lastFlushedTextRef.current = "";
+        stopDictation();
         return;
       }
-      // If recording into a different section, stop it cleanly first.
-      if (recording.listening) {
-        recording.stopListening();
-        recordingForRef.current = null;
-        lastFlushedTextRef.current = "";
+      // If recording into a different section, persist that one cleanly first.
+      if (recording.listening || recordingForRef.current) {
+        stopDictation();
       }
-      // Start fresh capture buffer; the section retains its existing text as prefix.
+      // Snapshot current persisted text as the base; live transcript appends to it.
+      baseTextBeforeDictationRef.current = sectionState[id].text;
       recording.clear();
-      lastFlushedTextRef.current = "";
       recordingForRef.current = id;
       recording.startListening();
     },
-    [recording],
+    [recording, sectionState, stopDictation],
   );
-
-  const stopDictation = useCallback(() => {
-    if (recording.listening) {
-      recording.stopListening();
-      recordingForRef.current = null;
-      lastFlushedTextRef.current = "";
-    }
-  }, [recording]);
 
   // ── Section text edit (Text Editing ON) ──
   const setSectionText = useCallback((id: SectionId, value: string) => {
