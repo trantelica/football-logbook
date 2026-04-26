@@ -307,6 +307,54 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     [candidate],
   );
 
+  /**
+   * Scan a section's owned governed lookup fields against the current lookup
+   * tables. If the candidate holds a non-empty value that is NOT a member of
+   * that field's known approved values, raise the lookup governance interrupt.
+   *
+   * Returns true if a governance interrupt is now pending (either freshly
+   * raised here, or already pending from a prior step). Callers use this to
+   * block Finish / Commit until the coach resolves governance.
+   *
+   * Inline error text is intentionally not the only handling path — this
+   * imperative trigger guarantees the modal opens at the moments where
+   * governance becomes actionable (after Update, before Finish, before Commit).
+   */
+  const checkSectionGovernance = useCallback(
+    (id: SectionId): boolean => {
+      if (lookupInterruptPending) return true;
+      const sec = SECTIONS.find((s) => s.id === id)!;
+      const c = candidate as Record<string, unknown>;
+      const lookupMap = getLookupMap();
+      for (const f of sec.ownedFields) {
+        if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
+        const v = c[f];
+        if (v === null || v === undefined || v === "") continue;
+        const valStr = String(v).trim();
+        if (!valStr) continue;
+        const known = lookupMap.get(f) ?? [];
+        const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
+        const found = known.some((k) => k.toLowerCase().replace(/\s+/g, " ") === canonical);
+        if (!found) {
+          const src: "ai" | "manual" = aiProposedFields.has(f) ? "ai" : "manual";
+          requestLookupInterrupt(f, valStr, src);
+          return true;
+        }
+      }
+      return false;
+    },
+    [candidate, getLookupMap, lookupInterruptPending, requestLookupInterrupt, aiProposedFields],
+  );
+
+  /** Scan ALL sections in display order; raise the first unresolved governed value. */
+  const checkAllSectionsGovernance = useCallback((): boolean => {
+    if (lookupInterruptPending) return true;
+    for (const s of SECTIONS) {
+      if (checkSectionGovernance(s.id)) return true;
+    }
+    return false;
+  }, [checkSectionGovernance, lookupInterruptPending]);
+
   /** Result returned by runUpdateProposal so callers (F) can react. */
   type UpdateResult =
     | { kind: "applied"; count: number }
