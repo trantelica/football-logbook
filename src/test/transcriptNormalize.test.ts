@@ -166,4 +166,63 @@ describe("normalizeTranscriptForParse", () => {
   it("normalizes single-token motions like 'jet motion'", () => {
     expect(normalizeTranscriptForParse("with a jet motion")).toContain("MOTION Jet");
   });
+
+  // --- Ordinal-and-distance phrases (Situation) ---
+
+  it("normalizes '4th and 10' → 'DN 4 DIST 10'", () => {
+    const out = normalizeTranscriptForParse("4th and 10");
+    expect(out).toContain("DN 4");
+    expect(out).toContain("DIST 10");
+  });
+
+  it("normalizes 'fourth and 10 from their 35 yard line at the right side of the field'", () => {
+    const out = normalizeTranscriptForParse(
+      "4th and 10 from their 35 yard line at the right side of the field",
+    );
+    expect(out).toContain("DN 4");
+    expect(out).toContain("DIST 10");
+    expect(out).toContain("YARD 35");
+    expect(out).toContain("HASH R");
+  });
+
+  it("normalizes 'first and 10' / 'second and 7' / 'third and 3'", () => {
+    expect(normalizeTranscriptForParse("first and 10")).toContain("DN 1");
+    expect(normalizeTranscriptForParse("second and 7")).toContain("DN 2");
+    expect(normalizeTranscriptForParse("third and 3")).toContain("DN 3");
+  });
+
+  // --- Play Results natural-language phrases ---
+
+  it("extracts rusher from 'ball being carried by number 12'", () => {
+    expect(normalizeTranscriptForParse("ball being carried by number 12")).toContain("RUSHER 12");
+  });
+
+  it("extracts rusher from 'the ball was carried by number 12'", () => {
+    expect(normalizeTranscriptForParse("the ball was carried by number 12")).toContain("RUSHER 12");
+  });
+
+  it("extracts rusher from 'carried by number 12'", () => {
+    expect(normalizeTranscriptForParse("carried by number 12")).toContain("RUSHER 12");
+  });
+
+  it("extracts receiver from 'The pass was thrown to number four.'", () => {
+    expect(normalizeTranscriptForParse("The pass was thrown to number four.")).toContain("RECEIVER 4");
+  });
+
+  it("extracts passer from 'Number 1 is at quarterback.'", () => {
+    expect(normalizeTranscriptForParse("Number 1 is at quarterback.")).toContain("PASSER 1");
+  });
+
+  it("extracts gainLoss from 'We gained 12 yards.'", () => {
+    expect(normalizeTranscriptForParse("We gained 12 yards.")).toContain("GN/LS 12");
+  });
+
+  it("extracts full Play Results sentence (receiver + passer + gain)", () => {
+    const out = normalizeTranscriptForParse(
+      "The pass was thrown to number four. Number 1 is at quarterback. We gained 12 yards.",
+    );
+    expect(out).toContain("RECEIVER 4");
+    expect(out).toContain("PASSER 1");
+    expect(out).toContain("GN/LS 12");
+  });
 });
