@@ -421,10 +421,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         [id]: { ...INITIAL_SECTION_STATE },
       }));
       // Stop dictation if it was recording into this section.
-      if (recordingForRef.current === id && recording.listening) {
-        recording.stopListening();
+      if (recordingForRef.current === id) {
+        if (recording.listening) recording.stopListening();
         recordingForRef.current = null;
-        lastFlushedTextRef.current = "";
+        baseTextBeforeDictationRef.current = "";
+        recording.clear();
       }
       // Clear that section's owned uncommitted candidate fields. Do not touch other sections.
       // We avoid clearing fields that look manually-set with no prior section involvement —
