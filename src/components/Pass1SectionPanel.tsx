@@ -244,18 +244,45 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     }));
   }, []);
 
+  // Map field name → required-at-commit (for clarification heuristic).
+  const requiredAtCommitByName = React.useMemo(() => {
+    const m = new Map<string, boolean>();
+    for (const f of playSchema) m.set(f.name, !!f.requiredAtCommit);
+    return m;
+  }, []);
+
+  /** Owned fields in this section that are still unresolved on the candidate. */
+  const unresolvedOwnedFields = useCallback(
+    (id: SectionId): string[] => {
+      const sec = SECTIONS.find((s) => s.id === id)!;
+      const c = candidate as Record<string, unknown>;
+      return sec.ownedFields.filter((f) => {
+        const v = c[f];
+        return v === null || v === undefined || v === "";
+      });
+    },
+    [candidate],
+  );
+
+  /** Result returned by runUpdateProposal so callers (F) can react. */
+  type UpdateResult =
+    | { kind: "applied"; count: number }
+    | { kind: "nothing"; importantUnresolved: string[] }
+    | { kind: "deferred" } // overwrite review or empty/proposal
+    | { kind: "error" };
+
   // ── Update Proposal (section-scoped) ──
   const runUpdateProposal = useCallback(
-    async (id: SectionId, opts: { allowOverwrite?: boolean } = {}) => {
+    async (id: SectionId, opts: { allowOverwrite?: boolean; suppressClarification?: boolean } = {}): Promise<UpdateResult> => {
       if (isProposal) {
         toast.info("In review mode — back to edit before updating sections.");
-        return;
+        return { kind: "deferred" };
       }
       const section = SECTIONS.find((s) => s.id === id)!;
       const text = sectionState[id].text.trim();
       if (!text) {
         toast.info(`${section.title}: nothing to interpret.`);
-        return;
+        return { kind: "deferred" };
       }
       setBusySection(id);
       try {
@@ -274,7 +301,6 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         for (const [k, v] of Object.entries(scopedParsePatch)) {
           const current = (candidate as Record<string, unknown>)[k];
           const hasExisting = current !== null && current !== undefined && current !== "";
-          // A "manual" or otherwise resolved field that disagrees with the parse is a collision.
           if (hasExisting && String(current) !== String(v)) {
             manualCollisions.push({ fieldName: k, currentValue: current, proposedValue: v });
           } else if (!hasExisting) {
@@ -313,17 +339,14 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 });
               }
               setOverwriteState(null);
-              // Continue with AI step after overwrite resolution.
-              void runUpdateProposal(id, { allowOverwrite: true });
+              void runUpdateProposal(id, { allowOverwrite: true, suppressClarification: opts.suppressClarification });
             },
           });
-          // Do NOT proceed to AI until overwrite is resolved.
           setBusySection(null);
-          return;
+          return { kind: "deferred" };
         }
 
         // ── Step 2: AI enrichment, masked so AI may only fill owned, still-unresolved fields ──
-        // Mask non-owned fields by adding them to touchedFields so they appear "resolved" to AI logic.
         const maskedTouched = new Set<string>(touchedFields);
         for (const f of ALL_SECTION_OWNED_FIELDS) {
           if (!ownedSet.has(f)) maskedTouched.add(f);
@@ -349,13 +372,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         );
 
         if (aiResult.error && Object.keys(scopedParsePatch).length === 0) {
-          // Only surface AI errors when deterministic parse contributed nothing.
           if (aiResult.error !== "All AI-eligible fields are already resolved") {
             toast.info(aiResult.error);
           }
         }
 
-        // Filter AI proposal again to owned fields (defensive — should already be true via masking).
         const aiProposal = aiResult.proposal ?? {};
         const ownedAiProposal: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(aiProposal)) {
@@ -375,16 +396,79 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const filledCount =
           Object.keys(fillablePatch).length +
           (Object.keys(ownedAiProposal).length - aiCollisions.length);
+
         if (filledCount > 0) {
           toast.success(`${section.title}: updated ${filledCount} field(s).`);
-        } else if (aiCollisions.length > 0) {
+          return { kind: "applied", count: filledCount };
+        }
+        if (aiCollisions.length > 0) {
           toast.info(`${section.title}: no new fields applied.`);
-        } else if (Object.keys(scopedParsePatch).length === 0 && Object.keys(ownedAiProposal).length === 0) {
+          return { kind: "applied", count: 0 };
+        }
+
+        // Nothing applied. Check whether clarification is warranted.
+        // Important = owned + requiredAtCommit + still unresolved on candidate.
+        const c = candidate as Record<string, unknown>;
+        const importantUnresolved = section.ownedFields.filter((f) => {
+          if (!requiredAtCommitByName.get(f)) return false;
+          const v = c[f];
+          return v === null || v === undefined || v === "";
+        });
+
+        if (!opts.suppressClarification && importantUnresolved.length > 0) {
+          // Open section-scoped clarification modal.
+          const snippet = text.length > 120 ? text.slice(0, 117) + "…" : text;
+          const fieldList = importantUnresolved
+            .map((f) => FIELD_LABELS[f] ?? f)
+            .join(", ");
+          setClarification({
+            section: id,
+            title: "Need a clearer cue",
+            snippet,
+            question: `${section.title}: couldn't confidently fill ${fieldList} from this text. Choose:`,
+            options: [
+              {
+                key: "1",
+                label: "Edit Section text",
+                onSelect: () => {
+                  setActiveSection(id);
+                  setTextEditing(true);
+                  // Defer focus until modal closes.
+                  setTimeout(() => {
+                    const ta = document.querySelector<HTMLTextAreaElement>(
+                      `textarea[data-section-id="${id}"]`,
+                    );
+                    ta?.focus();
+                  }, 0);
+                },
+              },
+              {
+                key: "2",
+                label: "Leave this Section unresolved",
+                onSelect: () => {
+                  toast(`${section.title}: left unresolved.`);
+                },
+              },
+              {
+                key: "3",
+                label: "Retry update",
+                onSelect: () => {
+                  void runUpdateProposal(id, { suppressClarification: true });
+                },
+              },
+            ],
+          });
+          return { kind: "nothing", importantUnresolved };
+        }
+
+        if (Object.keys(scopedParsePatch).length === 0 && Object.keys(ownedAiProposal).length === 0) {
           toast.info(`${section.title}: nothing recognized.`);
         }
+        return { kind: "nothing", importantUnresolved };
       } catch (e) {
         console.error("Section update failed:", e);
         toast.error(`${SECTIONS.find((s) => s.id === id)?.title ?? "Section"}: update failed.`);
+        return { kind: "error" };
       } finally {
         setBusySection(null);
       }
@@ -404,6 +488,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       applySystemPatch,
       requestAiEnrichment,
       getLookupMap,
+      requiredAtCommitByName,
     ],
   );
 
