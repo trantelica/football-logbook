@@ -150,6 +150,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     commitAndNext,
     deselectSlot,
     commitCount,
+    lookupInterruptPending,
+    requestLookupInterrupt,
   } = useTransaction();
   const { getLookupMap } = useLookup();
   const { activeGame } = useGameContext();
