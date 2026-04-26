@@ -570,14 +570,18 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   }, [isProposal, stopDictation, sectionState, runUpdateProposal, reviewProposal]);
 
   // ── Commit handlers ──
+  // On a clean path (no clarification, no overwrite, no governance/review modal),
+  // a single press of N or L runs finishDictationEntry() AND completes the commit.
   const handleCommitAndNext = useCallback(async () => {
     if (state !== "proposal") {
-      // Run F first; if it blocked on clarification/overwrite, do not commit.
       const ready = await finishDictationEntry();
       if (!ready) return;
-      // After reviewProposal(), validation modals (PAT/possession) may have intercepted.
-      // We defer commit to a paint so those modals can render.
-      return;
+      // finishDictationEntry called reviewProposal(); if a governance/PAT/possession
+      // modal intercepted, the transaction state will not be "proposal" anymore
+      // (or another modal is open). Guard by re-reading state via the closure-safe
+      // ref pattern: we check overwrite/clarification refs here, and rely on
+      // commitAndNext itself to no-op gracefully if state isn't "proposal".
+      if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
     await commitAndNext();
   }, [state, finishDictationEntry, commitAndNext]);
@@ -586,7 +590,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     if (state !== "proposal") {
       const ready = await finishDictationEntry();
       if (!ready) return;
-      return;
+      if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
     await commitProposal();
     deselectSlot();
