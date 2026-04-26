@@ -729,11 +729,17 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         }
       }
     }
+    // Sweep ALL sections for any unresolved governed lookup value (covers
+    // sections that were not dirty this pass but still hold an unknown value
+    // from a prior Update). If governance fires, do not transition to review.
+    if (checkAllSectionsGovernance()) {
+      return false;
+    }
     // Auto-transition to review state so N/L are true commit actions.
     reviewProposal();
     toast.success("Ready for review.");
     return true;
-  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal]);
+  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal, checkAllSectionsGovernance]);
 
   // ── Commit handlers ──
   // On a clean path (no clarification, no overwrite, no governance/review modal),
@@ -742,15 +748,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     if (state !== "proposal") {
       const ready = await finishDictationEntry();
       if (!ready) return;
-      // finishDictationEntry called reviewProposal(); if a governance/PAT/possession
-      // modal intercepted, the transaction state will not be "proposal" anymore
-      // (or another modal is open). Guard by re-reading state via the closure-safe
-      // ref pattern: we check overwrite/clarification refs here, and rely on
-      // commitAndNext itself to no-op gracefully if state isn't "proposal".
       if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
+    // Final governance gate — even in proposal state, never commit a row whose
+    // governed lookup values are not in the playbook.
+    if (checkAllSectionsGovernance()) return;
     await commitAndNext();
-  }, [state, finishDictationEntry, commitAndNext]);
+  }, [state, finishDictationEntry, commitAndNext, checkAllSectionsGovernance]);
 
   const handleCommitAndLeave = useCallback(async () => {
     if (state !== "proposal") {
@@ -758,9 +762,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       if (!ready) return;
       if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
+    if (checkAllSectionsGovernance()) return;
     await commitProposal();
     deselectSlot();
-  }, [state, finishDictationEntry, commitProposal, deselectSlot]);
+  }, [state, finishDictationEntry, commitProposal, deselectSlot, checkAllSectionsGovernance]);
 
   // ── Single-key shortcuts (Text Editing OFF) ──
   useEffect(() => {
