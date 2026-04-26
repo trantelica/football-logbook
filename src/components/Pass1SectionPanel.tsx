@@ -150,6 +150,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     commitAndNext,
     deselectSlot,
     commitCount,
+    lookupInterruptPending,
+    requestLookupInterrupt,
   } = useTransaction();
   const { getLookupMap } = useLookup();
   const { activeGame } = useGameContext();
@@ -305,6 +307,54 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     [candidate],
   );
 
+  /**
+   * Scan a section's owned governed lookup fields against the current lookup
+   * tables. If the candidate holds a non-empty value that is NOT a member of
+   * that field's known approved values, raise the lookup governance interrupt.
+   *
+   * Returns true if a governance interrupt is now pending (either freshly
+   * raised here, or already pending from a prior step). Callers use this to
+   * block Finish / Commit until the coach resolves governance.
+   *
+   * Inline error text is intentionally not the only handling path — this
+   * imperative trigger guarantees the modal opens at the moments where
+   * governance becomes actionable (after Update, before Finish, before Commit).
+   */
+  const checkSectionGovernance = useCallback(
+    (id: SectionId): boolean => {
+      if (lookupInterruptPending) return true;
+      const sec = SECTIONS.find((s) => s.id === id)!;
+      const c = candidate as Record<string, unknown>;
+      const lookupMap = getLookupMap();
+      for (const f of sec.ownedFields) {
+        if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
+        const v = c[f];
+        if (v === null || v === undefined || v === "") continue;
+        const valStr = String(v).trim();
+        if (!valStr) continue;
+        const known = lookupMap.get(f) ?? [];
+        const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
+        const found = known.some((k) => k.toLowerCase().replace(/\s+/g, " ") === canonical);
+        if (!found) {
+          const src: "ai" | "manual" = aiProposedFields.has(f) ? "ai" : "manual";
+          requestLookupInterrupt(f, valStr, src);
+          return true;
+        }
+      }
+      return false;
+    },
+    [candidate, getLookupMap, lookupInterruptPending, requestLookupInterrupt, aiProposedFields],
+  );
+
+  /** Scan ALL sections in display order; raise the first unresolved governed value. */
+  const checkAllSectionsGovernance = useCallback((): boolean => {
+    if (lookupInterruptPending) return true;
+    for (const s of SECTIONS) {
+      if (checkSectionGovernance(s.id)) return true;
+    }
+    return false;
+  }, [checkSectionGovernance, lookupInterruptPending]);
+
   /** Result returned by runUpdateProposal so callers (F) can react. */
   type UpdateResult =
     | { kind: "applied"; count: number }
@@ -455,6 +505,42 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           Object.keys(fillablePatch).length +
           (Object.keys(ownedAiProposal).length - aiCollisions.length);
 
+        // Build a projected candidate that includes everything we just applied
+        // synchronously, so we can check governance immediately rather than
+        // waiting for React state to settle.
+        const projected = { ...(candidate as Record<string, unknown>), ...fillablePatch };
+        for (const [k, v] of Object.entries(ownedAiProposal)) {
+          if (aiCollisions.find((c) => c.fieldName === k)) continue;
+          // Unwrap governed proposal {value,matchType}
+          if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
+            projected[k] = (v as { value: unknown }).value;
+          } else {
+            projected[k] = v;
+          }
+        }
+
+        // Governance check: any owned governed lookup field with an unknown
+        // value must trigger the lookup governance modal — inline error alone
+        // is not sufficient.
+        const lookupMapForGov = getLookupMap();
+        for (const f of section.ownedFields) {
+          if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
+          const v = projected[f];
+          if (v === null || v === undefined || v === "") continue;
+          const valStr = String(v).trim();
+          if (!valStr) continue;
+          const known = lookupMapForGov.get(f) ?? [];
+          const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
+          const found = known.some((k) => k.toLowerCase().replace(/\s+/g, " ") === canonical);
+          if (!found) {
+            const src: "ai" | "manual" = (Object.prototype.hasOwnProperty.call(ownedAiProposal, f))
+              ? "ai"
+              : "manual";
+            requestLookupInterrupt(f, valStr, src);
+            break;
+          }
+        }
+
         // Per spec: clear dirty/unsynced only after the proposal has actually
         // been updated for this section.
         if (filledCount > 0) {
@@ -553,6 +639,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       requestAiEnrichment,
       getLookupMap,
       CLARIFICATION_FIELDS_BY_SECTION,
+      requestLookupInterrupt,
     ],
   );
 
@@ -642,11 +729,17 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         }
       }
     }
+    // Sweep ALL sections for any unresolved governed lookup value (covers
+    // sections that were not dirty this pass but still hold an unknown value
+    // from a prior Update). If governance fires, do not transition to review.
+    if (checkAllSectionsGovernance()) {
+      return false;
+    }
     // Auto-transition to review state so N/L are true commit actions.
     reviewProposal();
     toast.success("Ready for review.");
     return true;
-  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal]);
+  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal, checkAllSectionsGovernance]);
 
   // ── Commit handlers ──
   // On a clean path (no clarification, no overwrite, no governance/review modal),
@@ -655,15 +748,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     if (state !== "proposal") {
       const ready = await finishDictationEntry();
       if (!ready) return;
-      // finishDictationEntry called reviewProposal(); if a governance/PAT/possession
-      // modal intercepted, the transaction state will not be "proposal" anymore
-      // (or another modal is open). Guard by re-reading state via the closure-safe
-      // ref pattern: we check overwrite/clarification refs here, and rely on
-      // commitAndNext itself to no-op gracefully if state isn't "proposal".
       if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
+    // Final governance gate — even in proposal state, never commit a row whose
+    // governed lookup values are not in the playbook.
+    if (checkAllSectionsGovernance()) return;
     await commitAndNext();
-  }, [state, finishDictationEntry, commitAndNext]);
+  }, [state, finishDictationEntry, commitAndNext, checkAllSectionsGovernance]);
 
   const handleCommitAndLeave = useCallback(async () => {
     if (state !== "proposal") {
@@ -671,9 +762,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       if (!ready) return;
       if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
+    if (checkAllSectionsGovernance()) return;
     await commitProposal();
     deselectSlot();
-  }, [state, finishDictationEntry, commitProposal, deselectSlot]);
+  }, [state, finishDictationEntry, commitProposal, deselectSlot, checkAllSectionsGovernance]);
 
   // ── Single-key shortcuts (Text Editing OFF) ──
   useEffect(() => {

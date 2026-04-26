@@ -49,7 +49,8 @@ const ANCHOR_RE = new RegExp(`\\b(${ANCHORS.join("|")})\\b`, "gi");
  * Applied BEFORE anchor uppercasing so replacements produce canonical anchor tokens.
  * Order matters — longer / more specific phrases first.
  */
-const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
+type PhraseRule = [RegExp, string] | [RegExp, (substring: string, ...args: string[]) => string];
+const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // GN/LS variants via spoken punctuation
   [/\bGN\s*[/-]\s*LS\b/gi, "GN/LS"],
 
@@ -90,6 +91,29 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
 
   // Formation phrase: "formation"
   [/\bformation\b/gi, "FORM"],
+
+  // Motion phrases: "<token> <direction> motion" → "MOTION <token> <Direction>"
+  // Examples handled:
+  //   "with a 2 across motion"          → "MOTION 2 Across"
+  //   "with a two across motion"        → "MOTION 2 Across"   (after number-word pass)
+  //   "Z across motion"                 → "MOTION Z Across"
+  //   "in 3 out motion"                 → "MOTION 3 Out"
+  //   "with a jet motion"               → "MOTION Jet"
+  // Direction tokens kept narrow to known motion directions to avoid greedy grabs.
+  // Single-token motion (run BEFORE the 2-token rule so "with a jet motion"
+  // doesn't get parsed as "<a> jet motion").
+  [/\b(?:with(?:\s+a)?|in|on)?\s*(jet|fly|orbit|return)\s+motion\b/gi,
+    (_m, dir: string) => `MOTION ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`],
+  // Two-token motion: "<token> <direction> motion".
+  // `who` is restricted to a digit-string OR a single uppercase letter (case-sensitive
+  // matcher in a case-insensitive regex still matches lowercase letters; we filter
+  // article "a"/"an" inside the replacement function and bail out if matched).
+  [/\b(?:with(?:\s+a)?|in|on)?\s*((?:\d+|[A-Z]))\s+(across|out|in|over|under|return)\s+motion\b/gi,
+    (m, who: string, dir: string) => {
+      // Reject the indefinite article being captured as `who`.
+      if (/^(a|an)$/i.test(who)) return m;
+      return `MOTION ${who.toUpperCase()} ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`;
+    }],
 
   // Two-minute phrases — marker presence implies Y
   [/\btwo\s+minute\b/gi, "2MIN Y"],
@@ -211,7 +235,11 @@ export function normalizeTranscriptForParse(s: string): string {
 
   // Apply phrase normalizations (order matters)
   for (const [re, replacement] of PHRASE_NORMALIZATIONS) {
-    t = t.replace(re, replacement);
+    if (typeof replacement === "string") {
+      t = t.replace(re, replacement);
+    } else {
+      t = t.replace(re, replacement);
+    }
   }
 
   // Collapse whitespace

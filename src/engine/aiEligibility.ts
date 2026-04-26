@@ -20,6 +20,7 @@ export const AI_ELIGIBLE_FIELDS = new Set([
   "gainLoss",
   "offForm",
   "offPlay",
+  "motion",
 ]);
 
 /** Location-related fields subject to Hudl-centered mapping constraint */
