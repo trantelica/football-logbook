@@ -244,12 +244,22 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     }));
   }, []);
 
-  // Map field name → required-at-commit (for clarification heuristic).
-  const requiredAtCommitByName = React.useMemo(() => {
-    const m = new Map<string, boolean>();
-    for (const f of playSchema) m.set(f.name, !!f.requiredAtCommit);
-    return m;
-  }, []);
+  /**
+   * Section-level clarification-worthy fields.
+   * These are the owned fields whose absence is meaningful enough to surface a
+   * clarification prompt when an Update Proposal yields nothing applied.
+   * Intentionally narrower than ownedFields and broader than schema
+   * requiredAtCommit (e.g. offForm/motion/offPlay are critical to coach
+   * workflow even though not strictly required-at-commit).
+   */
+  const CLARIFICATION_FIELDS_BY_SECTION: Record<SectionId, readonly string[]> = React.useMemo(
+    () => ({
+      situation: ["dn", "dist", "yardLn", "hash"],
+      playDetails: ["offForm", "motion", "offPlay"],
+      playResults: ["result", "gainLoss"],
+    }),
+    [],
+  );
 
   /** Owned fields in this section that are still unresolved on the candidate. */
   const unresolvedOwnedFields = useCallback(
@@ -407,10 +417,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         }
 
         // Nothing applied. Check whether clarification is warranted.
-        // Important = owned + requiredAtCommit + still unresolved on candidate.
+        // Important = section-defined clarification-worthy fields ∩ still-unresolved on candidate.
         const c = candidate as Record<string, unknown>;
-        const importantUnresolved = section.ownedFields.filter((f) => {
-          if (!requiredAtCommitByName.get(f)) return false;
+        const clarificationFields = CLARIFICATION_FIELDS_BY_SECTION[id];
+        const importantUnresolved = clarificationFields.filter((f) => {
           const v = c[f];
           return v === null || v === undefined || v === "";
         });
@@ -488,7 +498,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       applySystemPatch,
       requestAiEnrichment,
       getLookupMap,
-      requiredAtCommitByName,
+      CLARIFICATION_FIELDS_BY_SECTION,
     ],
   );
 
@@ -560,14 +570,18 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   }, [isProposal, stopDictation, sectionState, runUpdateProposal, reviewProposal]);
 
   // ── Commit handlers ──
+  // On a clean path (no clarification, no overwrite, no governance/review modal),
+  // a single press of N or L runs finishDictationEntry() AND completes the commit.
   const handleCommitAndNext = useCallback(async () => {
     if (state !== "proposal") {
-      // Run F first; if it blocked on clarification/overwrite, do not commit.
       const ready = await finishDictationEntry();
       if (!ready) return;
-      // After reviewProposal(), validation modals (PAT/possession) may have intercepted.
-      // We defer commit to a paint so those modals can render.
-      return;
+      // finishDictationEntry called reviewProposal(); if a governance/PAT/possession
+      // modal intercepted, the transaction state will not be "proposal" anymore
+      // (or another modal is open). Guard by re-reading state via the closure-safe
+      // ref pattern: we check overwrite/clarification refs here, and rely on
+      // commitAndNext itself to no-op gracefully if state isn't "proposal".
+      if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
     await commitAndNext();
   }, [state, finishDictationEntry, commitAndNext]);
@@ -576,7 +590,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     if (state !== "proposal") {
       const ready = await finishDictationEntry();
       if (!ready) return;
-      return;
+      if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
     await commitProposal();
     deselectSlot();
