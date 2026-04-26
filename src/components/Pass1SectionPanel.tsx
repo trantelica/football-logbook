@@ -505,6 +505,42 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           Object.keys(fillablePatch).length +
           (Object.keys(ownedAiProposal).length - aiCollisions.length);
 
+        // Build a projected candidate that includes everything we just applied
+        // synchronously, so we can check governance immediately rather than
+        // waiting for React state to settle.
+        const projected = { ...(candidate as Record<string, unknown>), ...fillablePatch };
+        for (const [k, v] of Object.entries(ownedAiProposal)) {
+          if (aiCollisions.find((c) => c.fieldName === k)) continue;
+          // Unwrap governed proposal {value,matchType}
+          if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
+            projected[k] = (v as { value: unknown }).value;
+          } else {
+            projected[k] = v;
+          }
+        }
+
+        // Governance check: any owned governed lookup field with an unknown
+        // value must trigger the lookup governance modal — inline error alone
+        // is not sufficient.
+        const lookupMapForGov = getLookupMap();
+        for (const f of section.ownedFields) {
+          if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
+          const v = projected[f];
+          if (v === null || v === undefined || v === "") continue;
+          const valStr = String(v).trim();
+          if (!valStr) continue;
+          const known = lookupMapForGov.get(f) ?? [];
+          const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
+          const found = known.some((k) => k.toLowerCase().replace(/\s+/g, " ") === canonical);
+          if (!found) {
+            const src: "ai" | "manual" = (Object.prototype.hasOwnProperty.call(ownedAiProposal, f))
+              ? "ai"
+              : "manual";
+            requestLookupInterrupt(f, valStr, src);
+            break;
+          }
+        }
+
         // Per spec: clear dirty/unsynced only after the proposal has actually
         // been updated for this section.
         if (filledCount > 0) {
