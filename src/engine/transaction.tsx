@@ -1637,6 +1637,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         applySystemPatch,
         lookupInterruptPending,
         clearLookupInterrupt,
+        requestLookupInterrupt,
         activePass,
         setActivePass,
         odkFilter,
