@@ -114,6 +114,78 @@ const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
   [/\bconcept\b/gi, "PLAY"],
 ];
 
+/**
+ * Light, narrowly-scoped STT artifact substitutions for football vocabulary.
+ * Each rule is conservative and only fires inside a recognizable football
+ * context to avoid corrupting unrelated text. These run BEFORE actor / phrase
+ * normalization so downstream rules see canonical words.
+ */
+const STT_SAFETY_SUBSTITUTIONS: [RegExp, string][] = [
+  // "Russia" is a frequent mis-recognition of "rusher" in coach dictation.
+  // Only treat it as "rusher" when it appears in an actor/result-shaped context:
+  //   "<digit> is the russia"          → rusher cue
+  //   "russia <digit>"                 → rusher cue (anchor-led)
+  //   "the russia"                     → rusher cue (followed by digits later)
+  // We deliberately do NOT replace bare "Russia" outside these contexts.
+  [/\b(\d+)\s+is\s+the\s+russia\b/gi, "$1 is the rusher"],
+  [/\bthe\s+russia\b/gi, "the rusher"],
+  [/\brussia\s+(\d+)\b/gi, "rusher $1"],
+];
+
+/**
+ * Actor extraction patterns. These produce canonical anchor-led tokens
+ * (RUSHER N / PASSER N / RECEIVER N) regardless of whether the jersey number
+ * appears before or after the actor cue. They MUST run after number-word
+ * conversion (so "number four" becomes "number 4") and BEFORE the bare
+ * "ball carrier"→RUSHER / "QB"→PASSER rules in PHRASE_NORMALIZATIONS, which
+ * would otherwise strip the jersey number.
+ *
+ * "Number" / "#" prefixes on jersey numbers are accepted but optional.
+ */
+const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
+  // ── PASSER + RECEIVER pair (run first — most specific) ──
+  // "12 passed to 88", "12 threw to 88", "12 throws to 88"
+  [/(?:#|number\s+)?(\d+)\s+(?:passed|threw|throws|pass|throw)\s+(?:it\s+)?to\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1 RECEIVER $2"],
+  // "12 to 88 complete/incomplete" — keep narrow; require explicit verb above instead.
+
+  // ── RUSHER ──
+  // "number 4 is the ball carrier" / "#4 is the ball carrier" / "4 is the ball carrier"
+  [/(?:#|number\s+)?(\d+)\s+is\s+the\s+ball\s+carrier\b/gi, "RUSHER $1"],
+  // "ball carrier is number 4" / "ball carrier is 4" / "ball carrier is #4"
+  [/\bball\s+carrier\s+is\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
+  // "4 is the rusher" / "number 4 is the rusher"
+  [/(?:#|number\s+)?(\d+)\s+is\s+the\s+rusher\b/gi, "RUSHER $1"],
+  // "4 carried it", "4 carries it", "4 ran it"
+  [/(?:#|number\s+)?(\d+)\s+(?:carried|carries|ran|rushed)\s+(?:it|the\s+ball)\b/gi, "RUSHER $1"],
+
+  // ── PASSER (solo) ──
+  // "number 12 threw it", "12 threw it", "#12 threw it"
+  [/(?:#|number\s+)?(\d+)\s+(?:threw|throws|passed|passes)\s+(?:it|the\s+ball)\b/gi, "PASSER $1"],
+  // "thrown by 12", "passed by 12"
+  [/\b(?:thrown|passed)\s+by\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+
+  // ── RECEIVER (solo) ──
+  // "caught by 88", "caught by number 88", "caught by #88"
+  [/\bcaught\s+by\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // "88 caught it", "88 catches it"
+  [/(?:#|number\s+)?(\d+)\s+(?:caught|catches)\s+(?:it|the\s+ball|the\s+pass)\b/gi, "RECEIVER $1"],
+  // "target was 88" / "targeted 88"
+  [/\btargeted\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  [/\btarget\s+was\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+];
+
+/**
+ * Convert compound number words like "eighty eight" / "thirty-two" to digits.
+ * Keeps standalone tens ("thirty" → 30) and bare ones (handled by NUMBER_WORD_RE).
+ */
+function normalizeCompoundNumbers(t: string): string {
+  return t.replace(TENS_RE, (_m, tens: string, ones: string | undefined) => {
+    const tensVal = TENS_WORDS[tens.toLowerCase()] ?? 0;
+    const onesVal = ones ? ONES_WORDS[ones.toLowerCase()] ?? 0 : 0;
+    return String(tensVal + onesVal);
+  });
+}
+
 export function normalizeTranscriptForParse(s: string): string {
   let t = s;
 
@@ -122,13 +194,25 @@ export function normalizeTranscriptForParse(s: string): string {
   t = t.replace(/\bdash\b/gi, "-");
   t = t.replace(/\bslash\b/gi, "/");
 
+  // Light STT safety substitutions (narrow football contexts only)
+  for (const [re, replacement] of STT_SAFETY_SUBSTITUTIONS) {
+    t = t.replace(re, replacement);
+  }
+
+  // Convert number words to digits FIRST so actor patterns can match digits.
+  t = normalizeCompoundNumbers(t);
+  t = t.replace(NUMBER_WORD_RE, (m) => NUMBER_WORDS[m.toLowerCase()]);
+
+  // Actor patterns — MUST run before generic phrase normalizations strip
+  // the jersey number from "ball carrier" / "QB" cues.
+  for (const [re, replacement] of ACTOR_NORMALIZATIONS) {
+    t = t.replace(re, replacement);
+  }
+
   // Apply phrase normalizations (order matters)
   for (const [re, replacement] of PHRASE_NORMALIZATIONS) {
     t = t.replace(re, replacement);
   }
-
-  // Convert number words to digits (0-20)
-  t = t.replace(NUMBER_WORD_RE, (m) => NUMBER_WORDS[m.toLowerCase()]);
 
   // Collapse whitespace
   t = t.replace(/\s+/g, " ").trim();
@@ -141,3 +225,4 @@ export function normalizeTranscriptForParse(s: string): string {
 
   return t;
 }
+
