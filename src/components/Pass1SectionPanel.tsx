@@ -685,6 +685,22 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       return false;
     }
 
+    /**
+     * Suspend section workflow shortcuts whenever ANY blocking modal/dialog is
+     * open (lookup governance, clarification, overwrite review, PAT, possession,
+     * grade overwrite, etc.). We detect this generically by looking for any
+     * Radix Dialog / AlertDialog primitive currently open in the DOM, instead
+     * of enumerating each dialog component individually.
+     */
+    function anyBlockingModalOpen(): boolean {
+      // Internal scoped modals.
+      if (overwriteOpenRef.current || clarificationOpenRef.current) return true;
+      // Any Radix Dialog or AlertDialog in the open state (rendered to portal).
+      return !!document.querySelector(
+        '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
+      );
+    }
+
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         if (textEditing) {
@@ -699,6 +715,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
       // Suppress shortcuts entirely when Text Editing is ON.
       if (textEditing) return;
+
+      // Suppress shortcuts whenever a blocking modal is open — typing into a
+      // modal field (or even just having one open) must never trigger
+      // S/D/R/U/C/F/N/L. This prevents the lookup governance modal, the
+      // clarification modal, overwrite review, PAT, and possession dialogs
+      // from leaking keystrokes into the section workflow.
+      if (anyBlockingModalOpen()) return;
 
       // If focus is on a text input (e.g. proposal-side input), do not steal keystrokes.
       if (isTextInputTarget(e.target)) return;

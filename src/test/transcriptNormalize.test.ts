@@ -103,4 +103,52 @@ describe("normalizeTranscriptForParse", () => {
     const out = normalizeTranscriptForParse(input);
     expect(out).toBe("FORM Black PLAY 26 Punch GN/LS 4");
   });
+
+  // --- Actor extraction (Play Results) ---
+
+  it("extracts rusher from 'number four is the ball carrier'", () => {
+    expect(normalizeTranscriptForParse("number four is the ball carrier")).toContain("RUSHER 4");
+  });
+
+  it("extracts rusher from '#4 is the ball carrier'", () => {
+    expect(normalizeTranscriptForParse("#4 is the ball carrier")).toContain("RUSHER 4");
+  });
+
+  it("extracts rusher from 'four carried it'", () => {
+    expect(normalizeTranscriptForParse("four carried it")).toContain("RUSHER 4");
+  });
+
+  it("extracts rusher from 'ball carrier is number 22'", () => {
+    expect(normalizeTranscriptForParse("ball carrier is number 22")).toContain("RUSHER 22");
+  });
+
+  it("extracts passer from 'number twelve threw it'", () => {
+    expect(normalizeTranscriptForParse("number twelve threw it")).toContain("PASSER 12");
+  });
+
+  it("extracts passer + receiver from 'twelve passed to eighty eight'", () => {
+    const out = normalizeTranscriptForParse("twelve passed to eighty eight");
+    expect(out).toContain("PASSER 12");
+    expect(out).toContain("RECEIVER 88");
+  });
+
+  it("extracts receiver from 'caught by eighty eight'", () => {
+    expect(normalizeTranscriptForParse("caught by eighty eight")).toContain("RECEIVER 88");
+  });
+
+  it("converts compound number words like 'eighty eight' → 88", () => {
+    expect(normalizeTranscriptForParse("RECEIVER eighty eight")).toBe("RECEIVER 88");
+  });
+
+  // --- Light dictation safety substitutions ---
+
+  it("treats 'Russia' as 'rusher' when adjacent to a jersey number cue", () => {
+    expect(normalizeTranscriptForParse("4 is the russia")).toContain("RUSHER 4");
+    expect(normalizeTranscriptForParse("russia 7")).toContain("RUSHER 7");
+  });
+
+  it("does not replace 'Russia' outside an actor context", () => {
+    // No digit nearby and no "the russia" actor framing → left alone
+    expect(normalizeTranscriptForParse("we played in russia last year")).not.toMatch(/RUSHER/);
+  });
 });
