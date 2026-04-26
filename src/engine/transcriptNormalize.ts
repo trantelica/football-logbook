@@ -49,7 +49,8 @@ const ANCHOR_RE = new RegExp(`\\b(${ANCHORS.join("|")})\\b`, "gi");
  * Applied BEFORE anchor uppercasing so replacements produce canonical anchor tokens.
  * Order matters — longer / more specific phrases first.
  */
-const PHRASE_NORMALIZATIONS: [RegExp, string][] = [
+type PhraseRule = [RegExp, string] | [RegExp, (substring: string, ...args: string[]) => string];
+const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // GN/LS variants via spoken punctuation
   [/\bGN\s*[/-]\s*LS\b/gi, "GN/LS"],
 
