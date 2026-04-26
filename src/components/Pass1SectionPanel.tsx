@@ -314,13 +314,16 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
   // ── Update Proposal (section-scoped) ──
   const runUpdateProposal = useCallback(
-    async (id: SectionId, opts: { allowOverwrite?: boolean; suppressClarification?: boolean } = {}): Promise<UpdateResult> => {
+    async (
+      id: SectionId,
+      opts: { allowOverwrite?: boolean; suppressClarification?: boolean; textOverride?: string } = {},
+    ): Promise<UpdateResult> => {
       if (isProposal) {
         toast.info("In review mode — back to edit before updating sections.");
         return { kind: "deferred" };
       }
       const section = SECTIONS.find((s) => s.id === id)!;
-      const text = sectionState[id].text.trim();
+      const text = (opts.textOverride ?? sectionState[id].text).trim();
       if (!text) {
         toast.info(`${section.title}: nothing to interpret.`);
         return { kind: "deferred" };
