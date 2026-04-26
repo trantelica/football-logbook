@@ -879,7 +879,7 @@ function SectionCard(props: SectionCardProps) {
             variant="outline"
             className="h-7 text-xs gap-1"
             onClick={(e) => { e.stopPropagation(); onUpdate(); }}
-            disabled={busy || isProposal || !state.text.trim()}
+            disabled={busy || isProposal || (!state.text.trim() && !isRecording)}
             title="Update Proposal (U)"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
