@@ -383,7 +383,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 });
               }
               setOverwriteState(null);
-              void runUpdateProposal(id, { allowOverwrite: true, suppressClarification: opts.suppressClarification });
+              void runUpdateProposal(id, { allowOverwrite: true, suppressClarification: opts.suppressClarification, textOverride: text });
             },
           });
           setBusySection(null);
