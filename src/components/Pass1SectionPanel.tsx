@@ -804,6 +804,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 interface SectionCardProps {
   section: SectionDef;
   state: SectionState;
+  /** The text to render in the textarea (already merged with live dictation when recording). */
+  renderedText: string;
   isActive: boolean;
   isRecording: boolean;
   recordingInterim: string;
@@ -821,6 +823,7 @@ function SectionCard(props: SectionCardProps) {
   const {
     section,
     state,
+    renderedText,
     isActive,
     isRecording,
     recordingInterim,
