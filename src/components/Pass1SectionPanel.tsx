@@ -893,7 +893,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     reviewProposal();
     toast.success("Ready for review.");
     return true;
-  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal, checkAllSectionsGovernance]);
+  }, [isProposal, stopDictation, sectionState, recording.text, recording.interim, runUpdateProposal, reviewProposal, checkAllSectionsGovernance]);
 
   // ── Commit handlers ──
   // On a clean path (no clarification, no overwrite, no governance/review modal),
