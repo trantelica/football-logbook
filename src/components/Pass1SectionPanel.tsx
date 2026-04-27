@@ -368,7 +368,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
         const v = c[f];
         if (v === null || v === undefined || v === "") continue;
-        const valStr = String(v).trim();
+        const valStr = normalizeGovernedCandidate(v) || String(v).trim();
         if (!valStr) continue;
         const known = lookupMap.get(f) ?? [];
         const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
@@ -636,7 +636,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
           const v = projected[f];
           if (v === null || v === undefined || v === "") continue;
-          const valStr = String(v).trim();
+          // Normalize governed value before governance modal so coach sees
+          // "3 Jet Sweep" rather than "three jet sweep".
+          const valStr = normalizeGovernedCandidate(v) || String(v).trim();
           if (!valStr) continue;
           const known = lookupMapForGov.get(f) ?? [];
           const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
