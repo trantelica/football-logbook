@@ -1283,7 +1283,11 @@ PENALTY O-Holding EFF Y 2MIN N`}
           <Pass1SectionPanel
             proposalSlot={
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {playSchema.map((f) => renderField(f.name, isProposal))}
+                {playSchema
+                  // Hide fields that don't enter until Pass 2/3 (positions, grades).
+                  // Pass 1 proposal must only show Pass-0 scaffolded + Pass-1 fields.
+                  .filter((f) => f.defaultPassEntry <= 1)
+                  .map((f) => renderField(f.name, isProposal))}
               </div>
             }
           />
