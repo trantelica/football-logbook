@@ -1172,7 +1172,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
               Dev: Apply AI Patch (collision)
             </Button>
           </div>
-        </div>
+          </div>
+        </details>
       )}
 
 
