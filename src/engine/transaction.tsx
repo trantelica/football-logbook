@@ -158,6 +158,12 @@ interface TransactionContextValue {
 
   // Phase 10: AI enrichment — propose values for unresolved fields only
   requestAiEnrichment: (aiProposal: Record<string, unknown>) => SystemPatchCollision[];
+
+  /**
+   * Clear AI/parse provenance for the given fields and re-seed Pass 1
+   * predicted/scaffolded values where applicable. Used by Section "Clear".
+   */
+  reseedAutoFieldsFor: (fieldNames: string[]) => Promise<void>;
 }
 
 const TransactionContext = createContext<TransactionContextValue | null>(null);
