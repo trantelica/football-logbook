@@ -759,28 +759,31 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         baseTextBeforeDictationRef.current = "";
         recording.clear();
       }
-      // Clear that section's owned uncommitted candidate fields.
-      // Use null (true absent) rather than "" so non-string fields (integer,
-      // enum) clear cleanly and don't linger as empty strings.
-      let cleared = 0;
+      // Clear ONLY this section's owned candidate fields whose current
+      // provenance came from this section's text — i.e. AI-proposed or
+      // deterministic parse. Carry-forward, predicted, lookup-derived, and
+      // coach-edited values must remain untouched.
+      //
+      // Predicted/scaffolded fields that were temporarily overwritten by AI
+      // are restored to their predicted/scaffolded value via reseedAutoFieldsFor
+      // so that the next dictated segment can rely on carry-forward behavior.
+      const fieldsToReseed: string[] = [];
       for (const f of section.ownedFields) {
-        const val = (candidate as Record<string, unknown>)[f];
-        if (val !== null && val !== undefined && val !== "") {
-          try {
-            updateField(f, null);
-            cleared++;
-          } catch (e) {
-            console.error(`[clearSection] updateField failed for ${f}:`, e);
-          }
+        if (aiProposedFields.has(f) || deterministicParseFields.has(f)) {
+          fieldsToReseed.push(f);
         }
       }
+      if (fieldsToReseed.length > 0) {
+        // Fire-and-forget; reseedAutoFieldsFor handles state updates atomically.
+        void reseedAutoFieldsFor(fieldsToReseed);
+      }
       toast(
-        cleared > 0
-          ? `${section.title}: cleared (${cleared} field${cleared === 1 ? "" : "s"}).`
+        fieldsToReseed.length > 0
+          ? `${section.title}: text cleared (${fieldsToReseed.length} field${fieldsToReseed.length === 1 ? "" : "s"} reset).`
           : `${section.title}: text cleared.`,
       );
     },
-    [isProposal, candidate, updateField, recording],
+    [isProposal, aiProposedFields, deterministicParseFields, reseedAutoFieldsFor, recording],
   );
 
   // Track open modals via refs so the keyboard handlers don't need to re-bind.
