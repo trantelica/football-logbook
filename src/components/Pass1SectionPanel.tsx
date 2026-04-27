@@ -172,6 +172,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     commitCount,
     lookupInterruptPending,
     requestLookupInterrupt,
+    reseedAutoFieldsFor,
   } = useTransaction();
   const { getLookupMap } = useLookup();
   const { activeGame } = useGameContext();
