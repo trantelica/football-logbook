@@ -993,8 +993,18 @@ export function DraftPanel() {
     <>
       {stageSelector}
 
-      {/* Phase 10: Dev-only smoke test harness */}
-      {isDevMode() && <Phase10SmokeTest />}
+      {/* Phase 10: Dev-only smoke test — collapsed by default so it doesn't
+          crowd the main coach workflow. */}
+      {isDevMode() && (
+        <details className="mb-2 rounded-md border border-dashed border-amber-400/40 bg-amber-50/20 dark:bg-amber-950/10">
+          <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 font-semibold">
+            Dev: Phase 10 smoke test
+          </summary>
+          <div className="p-2">
+            <Phase10SmokeTest />
+          </div>
+        </details>
+      )}
 
       {/* Transcript Panel — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
       {activePass >= 2 && selectedSlotNum !== null && (
@@ -1069,11 +1079,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
         </Collapsible>
       )}
 
-      {/* Dev-only AI Patch test buttons */}
+      {/* Dev-only AI Patch test buttons — collapsed by default so they don't crowd workflow. */}
       {isDevMode() && activePass >= 1 && selectedSlotNum !== null && (
-        <div className="mb-3 rounded-lg border border-dashed border-sky-400/50 p-3 space-y-2 bg-sky-50/30 dark:bg-sky-950/20">
-          <span className="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-semibold">Dev: AI Patch Testing</span>
-          <div className="flex flex-wrap gap-2">
+        <details className="mb-3 rounded-md border border-dashed border-sky-400/50 bg-sky-50/20 dark:bg-sky-950/10">
+          <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-sky-700 dark:text-sky-300 font-semibold">
+            Dev: AI patch testing
+          </summary>
+          <div className="p-2 space-y-2">
+            <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -1159,7 +1172,8 @@ PENALTY O-Holding EFF Y 2MIN N`}
               Dev: Apply AI Patch (collision)
             </Button>
           </div>
-        </div>
+          </div>
+        </details>
       )}
 
 
@@ -1283,7 +1297,11 @@ PENALTY O-Holding EFF Y 2MIN N`}
           <Pass1SectionPanel
             proposalSlot={
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {playSchema.map((f) => renderField(f.name, isProposal))}
+                {playSchema
+                  // Hide fields that don't enter until Pass 2/3 (positions, grades).
+                  // Pass 1 proposal must only show Pass-0 scaffolded + Pass-1 fields.
+                  .filter((f) => f.defaultPassEntry <= 1)
+                  .map((f) => renderField(f.name, isProposal))}
               </div>
             }
           />

@@ -225,4 +225,53 @@ describe("normalizeTranscriptForParse", () => {
     expect(out).toContain("PASSER 1");
     expect(out).toContain("GN/LS 12");
   });
+
+  // --- Result mapping (Incomplete / Complete) ---
+
+  it("maps 'incomplete pass' → RESULT Incomplete", () => {
+    expect(normalizeTranscriptForParse("incomplete pass")).toContain("RESULT Incomplete");
+  });
+
+  it("maps 'the pass was incomplete' → RESULT Incomplete", () => {
+    expect(normalizeTranscriptForParse("the pass was incomplete")).toContain("RESULT Incomplete");
+  });
+
+  it("maps bare 'incomplete' → RESULT Incomplete", () => {
+    expect(normalizeTranscriptForParse("incomplete")).toContain("RESULT Incomplete");
+  });
+
+  it("maps 'the pass was caught' → RESULT Complete", () => {
+    expect(normalizeTranscriptForParse("the pass was caught")).toContain("RESULT Complete");
+  });
+
+  it("maps 'complete pass' → RESULT Complete", () => {
+    expect(normalizeTranscriptForParse("complete pass")).toContain("RESULT Complete");
+  });
+
+  it("maps 'pass was complete' → RESULT Complete", () => {
+    expect(normalizeTranscriptForParse("pass was complete")).toContain("RESULT Complete");
+  });
+
+  it("does not double-emit RESULT for already-canonical input", () => {
+    const out = normalizeTranscriptForParse("RESULT Incomplete");
+    expect(out).toBe("RESULT Incomplete");
+  });
+
+  // --- Passer extraction (#0 was the quarterback / N was the quarterback) ---
+
+  it("extracts passer from '#0 was the quarterback'", () => {
+    expect(normalizeTranscriptForParse("#0 was the quarterback")).toContain("PASSER 0");
+  });
+
+  it("extracts passer from 'number 0 was the quarterback'", () => {
+    expect(normalizeTranscriptForParse("number 0 was the quarterback")).toContain("PASSER 0");
+  });
+
+  it("extracts passer from '12 is the quarterback'", () => {
+    expect(normalizeTranscriptForParse("12 is the quarterback")).toContain("PASSER 12");
+  });
+
+  it("extracts passer from 'the quarterback was 7'", () => {
+    expect(normalizeTranscriptForParse("the quarterback was 7")).toContain("PASSER 7");
+  });
 });

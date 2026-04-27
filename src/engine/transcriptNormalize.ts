@@ -210,6 +210,10 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "N is at quarterback" / "quarterback is N" / "N at quarterback"
   [/(?:#|number\s+)?(\d+)\s+(?:is\s+)?at\s+quarterback\b/gi, "PASSER $1"],
   [/\bquarterback\s+is\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+  // "N was the quarterback" / "N is the quarterback" / "#0 was the quarterback"
+  [/(?:#|number\s+)?(\d+)\s+(?:was|is)\s+the\s+quarterback\b/gi, "PASSER $1"],
+  // "the quarterback was N" / "the quarterback is N"
+  [/\bthe\s+quarterback\s+(?:was|is)\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
 
   // ── RECEIVER (solo) ──
   // "caught by 88", "caught by number 88", "caught by #88"
@@ -222,6 +226,28 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
   [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+
+  // ── RESULT (Play Results: explicit pass-outcome cues) ──
+  // Run AFTER the RECEIVER patterns above, which consume "pass to N" /
+  // "caught by N" / etc. The remaining context still contains an explicit
+  // outcome cue we can map. Each rule produces a clean "RESULT <Value>" token
+  // (single canonical word) so the deterministic parser matches RESULT_VALUES
+  // exactly without ambiguity.
+  //
+  // Incomplete cues — collapsed to canonical "RESULT Incomplete":
+  [/\b(?:the\s+)?(?:pass|ball)\s+(?:was\s+|fell\s+)?incomplete\b/gi, "RESULT Incomplete"],
+  [/\bincomplete\s+pass\b/gi, "RESULT Incomplete"],
+  [/\bincomplete\s+(?=RECEIVER\b)/gi, "RESULT Incomplete "],
+  // Bare "incomplete" only when not already part of a previously-emitted RESULT.
+  // Bare "incomplete" only when not already part of a previously-emitted
+  // "RESULT Incomplete" token (negative lookbehind).
+  [/(?<!RESULT\s)\bincomplete\b/gi, "RESULT Incomplete"],
+  //
+  // Complete cues — collapsed to canonical "RESULT Complete":
+  [/\b(?:the\s+)?(?:pass|ball)\s+was\s+caught\b/gi, "RESULT Complete"],
+  [/\b(?:the\s+)?pass\s+was\s+complete\b/gi, "RESULT Complete"],
+  [/\bcomplete\s+pass\b/gi, "RESULT Complete"],
+  [/\bcomplete\s+(?=RECEIVER\b)/gi, "RESULT Complete "],
 
   // ── Gain/loss natural-language (Play Results) ──
   // "we gained N yards" / "gained N yards" / "picked up N yards"

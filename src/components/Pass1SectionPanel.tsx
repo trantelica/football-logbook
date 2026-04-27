@@ -260,10 +260,24 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
    */
   const stopDictation = useCallback((): { updatedId: SectionId | null; updatedText: string | null } => {
     const id = recordingForRef.current;
+    // Snapshot live text + interim BEFORE we tear down the recognition session
+    // so an in-flight interim phrase isn't lost when switching sections (e.g.
+    // S → R). The hook's stopListening() flushes interim asynchronously, but
+    // we need the merged value synchronously to seed the next section.
+    const liveSnapshot = recording.text;
+    const interimSnapshot = recording.interim;
     if (recording.listening) recording.stopListening();
     let updatedText: string | null = null;
     if (id) {
-      const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+      // Compose: persistedBase + finalizedLive + interim (if any).
+      const finalizedLive = liveSnapshot.trim();
+      const interimTail = interimSnapshot.trim();
+      const liveCombined = finalizedLive
+        ? interimTail
+          ? finalizedLive + "\n" + interimTail
+          : finalizedLive
+        : interimTail;
+      const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, liveCombined);
       updatedText = merged;
       setSectionState((s) => {
         const prev = s[id];
@@ -551,8 +565,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const aiProposal = aiResult.proposal ?? {};
         const ownedAiProposal: Record<string, unknown> = {};
         const droppedGovernedFields: string[] = [];
+        // Fields that the deterministic parser just applied in this run.
+        // AI must NOT overwrite them — provenance for those values must remain
+        // "deterministic_parse" (Parse badge), not "ai_proposed" (AI badge).
+        const justParsedFields = new Set<string>(Object.keys(fillablePatch));
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
+          if (justParsedFields.has(k)) continue;
 
           // Unwrap governed proposal { value, matchType } once for inspection.
           let inner =
@@ -826,13 +845,24 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     const recId = recordingForRef.current;
     const liveBase = baseTextBeforeDictationRef.current;
     const liveText = recording.text;
+    // Capture in-flight interim too — without it, the last spoken phrase that
+    // hasn't yet been finalized by the SpeechRecognition engine is lost when F
+    // immediately stops dictation.
+    const liveInterim = recording.interim;
     const snapshot: Record<SectionId, { text: string; dirty: boolean }> = {
       situation: { ...sectionState.situation },
       playDetails: { ...sectionState.playDetails },
       playResults: { ...sectionState.playResults },
     };
     if (recId) {
-      const merged = joinBaseAndLive(liveBase, liveText);
+      const finalizedLive = liveText.trim();
+      const interimTail = liveInterim.trim();
+      const liveCombined = finalizedLive
+        ? interimTail
+          ? finalizedLive + "\n" + interimTail
+          : finalizedLive
+        : interimTail;
+      const merged = joinBaseAndLive(liveBase, liveCombined);
       const prev = snapshot[recId];
       snapshot[recId] = {
         text: merged,
@@ -863,7 +893,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     reviewProposal();
     toast.success("Ready for review.");
     return true;
-  }, [isProposal, stopDictation, sectionState, recording.text, runUpdateProposal, reviewProposal, checkAllSectionsGovernance]);
+  }, [isProposal, stopDictation, sectionState, recording.text, recording.interim, runUpdateProposal, reviewProposal, checkAllSectionsGovernance]);
 
   // ── Commit handlers ──
   // On a clean path (no clarification, no overwrite, no governance/review modal),
