@@ -230,21 +230,22 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // ── RESULT (Play Results: explicit pass-outcome cues) ──
   // Run AFTER the RECEIVER patterns above, which consume "pass to N" /
   // "caught by N" / etc. The remaining context still contains an explicit
-  // outcome cue we can map.
-  // Incomplete: matches:
-  //   - "incomplete pass"               (no receiver mentioned)
-  //   - "incomplete RECEIVER N"         (after pass-to-N consumed)
-  //   - "the pass was incomplete"       (no receiver)
-  //   - "ball was incomplete" / "pass fell incomplete"
-  //   - bare "incomplete" (when used as a standalone cue in Play Results)
+  // outcome cue we can map. Each rule produces a clean "RESULT <Value>" token
+  // (single canonical word) so the deterministic parser matches RESULT_VALUES
+  // exactly without ambiguity.
+  //
+  // Incomplete cues — collapsed to canonical "RESULT Incomplete":
   [/\b(?:the\s+)?(?:pass|ball)\s+(?:was\s+|fell\s+)?incomplete\b/gi, "RESULT Incomplete"],
-  [/\bincomplete\s+(?:pass|RECEIVER)\b/gi, "RESULT Incomplete"],
+  [/\bincomplete\s+pass\b/gi, "RESULT Incomplete"],
+  [/\bincomplete\s+(?=RECEIVER\b)/gi, "RESULT Incomplete "],
+  // Bare "incomplete" only when not already part of a previously-emitted RESULT.
   [/\bincomplete\b(?!\s+RESULT)/gi, "RESULT Incomplete"],
-  // Complete: "complete pass", "pass was complete", "pass was caught",
-  // "ball was caught", or "complete RECEIVER N".
+  //
+  // Complete cues — collapsed to canonical "RESULT Complete":
   [/\b(?:the\s+)?(?:pass|ball)\s+was\s+caught\b/gi, "RESULT Complete"],
   [/\b(?:the\s+)?pass\s+was\s+complete\b/gi, "RESULT Complete"],
-  [/\bcomplete\s+(?:pass|RECEIVER)\b/gi, "RESULT Complete"],
+  [/\bcomplete\s+pass\b/gi, "RESULT Complete"],
+  [/\bcomplete\s+(?=RECEIVER\b)/gi, "RESULT Complete "],
 
   // ── Gain/loss natural-language (Play Results) ──
   // "we gained N yards" / "gained N yards" / "picked up N yards"
