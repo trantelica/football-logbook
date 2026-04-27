@@ -551,8 +551,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const aiProposal = aiResult.proposal ?? {};
         const ownedAiProposal: Record<string, unknown> = {};
         const droppedGovernedFields: string[] = [];
+        // Fields that the deterministic parser just applied in this run.
+        // AI must NOT overwrite them — provenance for those values must remain
+        // "deterministic_parse" (Parse badge), not "ai_proposed" (AI badge).
+        const justParsedFields = new Set<string>(Object.keys(fillablePatch));
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
+          if (justParsedFields.has(k)) continue;
 
           // Unwrap governed proposal { value, matchType } once for inspection.
           let inner =
