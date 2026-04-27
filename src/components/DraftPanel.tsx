@@ -1079,11 +1079,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
         </Collapsible>
       )}
 
-      {/* Dev-only AI Patch test buttons */}
+      {/* Dev-only AI Patch test buttons — collapsed by default so they don't crowd workflow. */}
       {isDevMode() && activePass >= 1 && selectedSlotNum !== null && (
-        <div className="mb-3 rounded-lg border border-dashed border-sky-400/50 p-3 space-y-2 bg-sky-50/30 dark:bg-sky-950/20">
-          <span className="text-[10px] uppercase tracking-wider text-sky-600 dark:text-sky-400 font-semibold">Dev: AI Patch Testing</span>
-          <div className="flex flex-wrap gap-2">
+        <details className="mb-3 rounded-md border border-dashed border-sky-400/50 bg-sky-50/20 dark:bg-sky-950/10">
+          <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-sky-700 dark:text-sky-300 font-semibold">
+            Dev: AI patch testing
+          </summary>
+          <div className="p-2 space-y-2">
+            <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="outline"
