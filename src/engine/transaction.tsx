@@ -1610,6 +1610,124 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     [candidate, touchedFields, deterministicParseFields, predictedFields, carriedForwardFields, lookupDerivedFields, aiProposedFields, activePass, applySystemPatch]
   );
 
+  /**
+   * Clear AI/parse provenance for the given fields and re-seed Pass 1 auto-values
+   * (predicted yardLn/dn/dist; scaffolded qtr/odk/series/patTry from the slot).
+   *
+   * Used by Section "Clear" so wiping a section's dictated text does not silently
+   * destroy carry-forward / predicted / scaffolded values that the AI may have
+   * temporarily overwritten in this slot.
+   */
+  const reseedAutoFieldsFor = useCallback(
+    async (fieldNames: string[]): Promise<void> => {
+      if (fieldNames.length === 0) return;
+
+      const PREDICTABLE = new Set(["yardLn", "dn", "dist"]);
+      const SCAFFOLDED = new Set(["qtr", "odk", "series", "patTry"]);
+
+      // Strip provenance + evidence for the listed fields up-front
+      setDeterministicParseFields((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const f of fieldNames) if (next.delete(f)) changed = true;
+        return changed ? next : prev;
+      });
+      setAiProposedFields((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const f of fieldNames) if (next.delete(f)) changed = true;
+        return changed ? next : prev;
+      });
+      setParseEvidenceByField((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const f of fieldNames) if (f in next) { delete next[f]; changed = true; }
+        return changed ? next : prev;
+      });
+      setAiEvidenceByField((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const f of fieldNames) if (f in next) { delete next[f]; changed = true; }
+        return changed ? next : prev;
+      });
+
+      // Compute reseed values from the slot + previous play (Pass 1 only).
+      const slotNum = selectedSlotNum;
+      const slot = slotNum != null ? committedPlays.find((p) => p.playNum === slotNum) : null;
+      const prevPlay = slotNum != null ? await getPlay(gameId, slotNum - 1) : null;
+
+      let halfTimeBoundary = false;
+      if (slotNum != null) {
+        const initConfig = await getGameInit(gameId);
+        const q3Start = initConfig?.quarterStarts["3"];
+        if (q3Start !== undefined && q3Start !== null && slotNum === q3Start) {
+          halfTimeBoundary = true;
+        }
+      }
+
+      let prediction: ReturnType<typeof computePrediction> | null = null;
+      if (activePass < 2 && slot) {
+        try {
+          prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, halfTimeBoundary);
+        } catch {
+          prediction = null;
+        }
+      }
+
+      const restoredPredicted = new Set<string>();
+      setCandidate((prev) => {
+        const next = { ...prev } as Record<string, unknown>;
+        for (const f of fieldNames) {
+          if (PREDICTABLE.has(f) && prediction?.eligible) {
+            const predVal = (prediction as Record<string, unknown>)[f];
+            if (predVal !== null && predVal !== undefined) {
+              next[f] = predVal;
+              restoredPredicted.add(f);
+              continue;
+            }
+          }
+          if (SCAFFOLDED.has(f) && slot) {
+            const seedVal = (slot as unknown as Record<string, unknown>)[f];
+            if (seedVal !== null && seedVal !== undefined && seedVal !== "") {
+              next[f] = seedVal;
+              continue;
+            }
+          }
+          next[f] = null;
+        }
+        return next as CandidateData;
+      });
+
+      // Mark restored predictable fields as predicted again (not touched).
+      if (restoredPredicted.size > 0) {
+        setPredictedFields((prev) => {
+          const next = new Set(prev);
+          for (const f of restoredPredicted) next.add(f);
+          return next;
+        });
+      }
+
+      // Ensure none of these fields are mistakenly marked as touched.
+      setTouchedFields((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const f of fieldNames) if (next.delete(f)) changed = true;
+        return changed ? next : prev;
+      });
+
+      // Drop lookup-derived flags too (governed parents in this section are gone).
+      setLookupDerivedFields((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const f of fieldNames) if (next.delete(f)) changed = true;
+        return changed ? next : prev;
+      });
+
+      setState("candidate");
+    },
+    [selectedSlotNum, committedPlays, gameId, fieldSize, activePass]
+  );
+
   return (
     <TransactionContext.Provider
       value={{
