@@ -239,7 +239,9 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   [/\bincomplete\s+pass\b/gi, "RESULT Incomplete"],
   [/\bincomplete\s+(?=RECEIVER\b)/gi, "RESULT Incomplete "],
   // Bare "incomplete" only when not already part of a previously-emitted RESULT.
-  [/\bincomplete\b(?!\s+RESULT)/gi, "RESULT Incomplete"],
+  // Bare "incomplete" only when not already part of a previously-emitted
+  // "RESULT Incomplete" token (negative lookbehind).
+  [/(?<!RESULT\s)\bincomplete\b/gi, "RESULT Incomplete"],
   //
   // Complete cues — collapsed to canonical "RESULT Complete":
   [/\b(?:the\s+)?(?:pass|ball)\s+was\s+caught\b/gi, "RESULT Complete"],
