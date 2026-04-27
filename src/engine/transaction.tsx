@@ -15,6 +15,7 @@ import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit, getSeasonConfig } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
+import { normalizeGovernedCandidate } from "./governedValueNormalize";
 import { useRoster } from "./rosterContext";
 import { useSeason } from "./seasonContext";
 import { playSchema, getFieldDef, PENALTY_YARDS_MAP } from "./schema";
@@ -209,7 +210,7 @@ const SCAFFOLDED_FIELDS = new Set(["odk", "series", "qtr"]);
 
 export function TransactionProvider({ children }: { children: React.ReactNode }) {
   const { activeGame, setHasDraft, isSlotMode: gameIsSlotMode } = useGameContext();
-  const { getLookupMap, lookupTables } = useLookup();
+  const { getLookupMap, lookupTables, getEntryAttributes } = useLookup();
   const { roster } = useRoster();
   const { configMode } = useSeason();
   const gameId = activeGame?.gameId ?? "";
