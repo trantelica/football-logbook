@@ -845,13 +845,24 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     const recId = recordingForRef.current;
     const liveBase = baseTextBeforeDictationRef.current;
     const liveText = recording.text;
+    // Capture in-flight interim too — without it, the last spoken phrase that
+    // hasn't yet been finalized by the SpeechRecognition engine is lost when F
+    // immediately stops dictation.
+    const liveInterim = recording.interim;
     const snapshot: Record<SectionId, { text: string; dirty: boolean }> = {
       situation: { ...sectionState.situation },
       playDetails: { ...sectionState.playDetails },
       playResults: { ...sectionState.playResults },
     };
     if (recId) {
-      const merged = joinBaseAndLive(liveBase, liveText);
+      const finalizedLive = liveText.trim();
+      const interimTail = liveInterim.trim();
+      const liveCombined = finalizedLive
+        ? interimTail
+          ? finalizedLive + "\n" + interimTail
+          : finalizedLive
+        : interimTail;
+      const merged = joinBaseAndLive(liveBase, liveCombined);
       const prev = snapshot[recId];
       snapshot[recId] = {
         text: merged,
