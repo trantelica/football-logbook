@@ -15,6 +15,7 @@ import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit, getSeasonConfig } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
+import { normalizeGovernedCandidate } from "./governedValueNormalize";
 import { useRoster } from "./rosterContext";
 import { useSeason } from "./seasonContext";
 import { playSchema, getFieldDef, PENALTY_YARDS_MAP } from "./schema";
@@ -209,7 +210,7 @@ const SCAFFOLDED_FIELDS = new Set(["odk", "series", "qtr"]);
 
 export function TransactionProvider({ children }: { children: React.ReactNode }) {
   const { activeGame, setHasDraft, isSlotMode: gameIsSlotMode } = useGameContext();
-  const { getLookupMap, lookupTables } = useLookup();
+  const { getLookupMap, lookupTables, getEntryAttributes } = useLookup();
   const { roster } = useRoster();
   const { configMode } = useSeason();
   const gameId = activeGame?.gameId ?? "";
@@ -520,8 +521,20 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
 
       if (Object.keys(fieldsToApply).length > 0) {
-        // Canonicalize values against lookup map for proper casing
+        // Governed-lookup pre-normalization: title-case + number-words → digits
+        // BEFORE attempting canonical match. This ensures "three jet sweep" →
+        // "3 Jet Sweep" both for canonical lookup AND for the governance modal.
+        const GOVERNED_LOOKUP = new Set(["offForm", "offPlay", "motion"]);
         const lookupMapForCasing = getLookupMap();
+        for (const [fieldName, value] of Object.entries(fieldsToApply)) {
+          if (!GOVERNED_LOOKUP.has(fieldName)) continue;
+          if (value === null || value === undefined || value === "") continue;
+          const normalized = normalizeGovernedCandidate(value);
+          if (normalized && normalized !== String(value)) {
+            fieldsToApply[fieldName] = normalized;
+          }
+        }
+        // Canonicalize values against lookup map for proper casing
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
           if (!lookupMapForCasing.has(fieldName)) continue;
           const knownValues = lookupMapForCasing.get(fieldName) ?? [];
@@ -535,7 +548,45 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             fieldsToApply[fieldName] = canonicalMatch;
           }
         }
+        // Derived field refresh: when a governed parent (offForm/offPlay/motion)
+        // is set to a known canonical value, look up its entryAttributes and
+        // populate dependent fields (offStrength/personnel; playType/playDir;
+        // motionDir). Mark dependents as lookup_derived so provenance is clear.
+        const derivedToMark = new Set<string>();
+        const DEPENDENT_MAP: Record<string, string[]> = {
+          offForm: ["offStrength", "personnel"],
+          offPlay: ["playType", "playDir"],
+          motion: ["motionDir"],
+        };
+        for (const [fieldName, value] of Object.entries(fieldsToApply)) {
+          const deps = DEPENDENT_MAP[fieldName];
+          if (!deps) continue;
+          const knownValues = lookupMapForCasing.get(fieldName) ?? [];
+          const valStr = String(value ?? "").trim();
+          if (!valStr) continue;
+          const isCanonical = knownValues.some(
+            (v) => v.toLowerCase().replace(/\s+/g, " ") === valStr.toLowerCase().replace(/\s+/g, " "),
+          );
+          if (!isCanonical) continue;
+          const attrs = getEntryAttributes(fieldName, valStr);
+          if (!attrs) continue;
+          for (const dep of deps) {
+            const depVal = attrs[dep];
+            if (depVal === undefined || depVal === null || depVal === "") continue;
+            const existing = (candidate as Record<string, unknown>)[dep];
+            if (existing !== null && existing !== undefined && existing !== "") continue;
+            fieldsToApply[dep] = depVal;
+            derivedToMark.add(dep);
+          }
+        }
         setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
+        if (derivedToMark.size > 0) {
+          setLookupDerivedFields((prev) => {
+            const next = new Set(prev);
+            for (const f of derivedToMark) next.add(f);
+            return next;
+          });
+        }
 
         // Route to correct provenance set based on source
         if (source === "deterministic_parse") {
@@ -603,7 +654,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       return collisions;
     },
-    [candidate, touchedFields, aiProposedFields, getLookupMap, activePass]
+    [candidate, touchedFields, aiProposedFields, getLookupMap, getEntryAttributes, activePass]
   );
 
   const clearDraft = useCallback(() => {

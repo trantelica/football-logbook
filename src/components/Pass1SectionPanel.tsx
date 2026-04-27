@@ -62,6 +62,7 @@ import { useGameContext } from "@/engine/gameContext";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { parseRawInput } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
+import { normalizeGovernedCandidate } from "@/engine/governedValueNormalize";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { playSchema } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
@@ -367,7 +368,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
         const v = c[f];
         if (v === null || v === undefined || v === "") continue;
-        const valStr = String(v).trim();
+        const valStr = normalizeGovernedCandidate(v) || String(v).trim();
         if (!valStr) continue;
         const known = lookupMap.get(f) ?? [];
         const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
@@ -428,15 +429,19 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           if (!ownedSet.has(k)) continue;
           // Drop literal absent placeholders before they can collide or govern.
           if (isAbsentPlaceholder(v)) continue;
-          // Governed lookup fields: the deterministic parser's multi-word
-          // consumption can grab transcript fragments (e.g. "and run 26 punch"
-          // following a stray FORM anchor). Reject anything that doesn't look
-          // like a real candidate token.
-          if (GOVERNED_LOOKUP_FIELDS.has(k) && !looksLikeGovernedCandidate(v)) {
-            droppedDeterministicFields.push(k);
-            continue;
+          // Governed lookup fields: normalize coach-readable form before
+          // governance/canonical matching ("three jet sweep" → "3 Jet Sweep").
+          let val: unknown = v;
+          if (GOVERNED_LOOKUP_FIELDS.has(k)) {
+            const normalized = normalizeGovernedCandidate(v);
+            if (normalized) val = normalized;
+            // Reject anything that doesn't look like a real candidate token.
+            if (!looksLikeGovernedCandidate(val)) {
+              droppedDeterministicFields.push(k);
+              continue;
+            }
           }
-          scopedParsePatch[k] = v;
+          scopedParsePatch[k] = val;
         }
         if (droppedDeterministicFields.length > 0) {
           // Quietly drop — these would have triggered bogus collision review
@@ -550,30 +555,34 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           if (!ownedSet.has(k)) continue;
 
           // Unwrap governed proposal { value, matchType } once for inspection.
-          const inner =
+          let inner =
             v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
               ? (v as { value: unknown }).value
               : v;
 
           // Drop literal absent placeholders ("None", "N/A", "no motion", …)
-          // BEFORE governance / collision logic for ANY field. Absent data must
-          // be null/empty, never a placeholder string that masquerades as a
-          // governed lookup value.
           if (isAbsentPlaceholder(inner)) continue;
 
-          // For governed lookup fields (offForm/offPlay/motion), require the
-          // proposed value to look like a real field candidate. Drop raw
-          // transcript-shaped blobs BEFORE governance has a chance to fire on them.
+          // For governed lookup fields (offForm/offPlay/motion), normalize the
+          // candidate value (title-case + number-words → digits) BEFORE
+          // governance/collision logic so the modal shows "3 Jet Sweep" not
+          // "three jet sweep".
           if (GOVERNED_LOOKUP_FIELDS.has(k)) {
+            const normalizedInner = normalizeGovernedCandidate(inner);
+            if (normalizedInner) inner = normalizedInner;
             if (!looksLikeGovernedCandidate(inner)) {
               droppedGovernedFields.push(k);
               continue;
             }
+            // Re-wrap with normalized value if it was a governed proposal shape
+            if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
+              ownedAiProposal[k] = { ...(v as object), value: inner };
+            } else {
+              ownedAiProposal[k] = inner;
+            }
             // Field-candidate-based update: if the existing candidate value is
             // already a known canonical lookup entry AND the AI is proposing
-            // the same value (case/space-insensitive), treat as a no-op rather
-            // than re-running collision/governance against an already-valid
-            // governed value.
+            // the same value (case/space-insensitive), treat as a no-op.
             const existing = (candidate as Record<string, unknown>)[k];
             if (existing !== null && existing !== undefined && existing !== "") {
               const known = lookupMapEarly.get(k) ?? [];
@@ -582,8 +591,12 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
               const isExistingValid = known.some(
                 (e) => e.toLowerCase().replace(/\s+/g, " ") === existingCanonical,
               );
-              if (isExistingValid && existingCanonical === innerCanonical) continue;
+              if (isExistingValid && existingCanonical === innerCanonical) {
+                delete ownedAiProposal[k];
+                continue;
+              }
             }
+            continue;
           }
           ownedAiProposal[k] = v;
         }
@@ -623,7 +636,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
           const v = projected[f];
           if (v === null || v === undefined || v === "") continue;
-          const valStr = String(v).trim();
+          // Normalize governed value before governance modal so coach sees
+          // "3 Jet Sweep" rather than "three jet sweep".
+          const valStr = normalizeGovernedCandidate(v) || String(v).trim();
           if (!valStr) continue;
           const known = lookupMapForGov.get(f) ?? [];
           const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
