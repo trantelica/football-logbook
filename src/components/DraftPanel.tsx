@@ -993,8 +993,15 @@ export function DraftPanel() {
     <>
       {stageSelector}
 
-      {/* Phase 10: Dev-only smoke test harness */}
-      {isDevMode() && <Phase10SmokeTest />}
+      {/* Phase 10: Dev-only smoke test + AI patch testing — collapsed by default
+          so they don't crowd the main coach workflow. */}
+      {isDevMode() && (
+        <details className="mb-2 rounded-md border border-dashed border-amber-400/40 bg-amber-50/20 dark:bg-amber-950/10">
+          <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 font-semibold">
+            Dev tools (smoke test &amp; AI patch testing)
+          </summary>
+          <div className="p-2 space-y-2">
+            <Phase10SmokeTest />
 
       {/* Transcript Panel — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
       {activePass >= 2 && selectedSlotNum !== null && (
