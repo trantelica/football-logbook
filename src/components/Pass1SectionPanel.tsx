@@ -260,10 +260,24 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
    */
   const stopDictation = useCallback((): { updatedId: SectionId | null; updatedText: string | null } => {
     const id = recordingForRef.current;
+    // Snapshot live text + interim BEFORE we tear down the recognition session
+    // so an in-flight interim phrase isn't lost when switching sections (e.g.
+    // S → R). The hook's stopListening() flushes interim asynchronously, but
+    // we need the merged value synchronously to seed the next section.
+    const liveSnapshot = recording.text;
+    const interimSnapshot = recording.interim;
     if (recording.listening) recording.stopListening();
     let updatedText: string | null = null;
     if (id) {
-      const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
+      // Compose: persistedBase + finalizedLive + interim (if any).
+      const finalizedLive = liveSnapshot.trim();
+      const interimTail = interimSnapshot.trim();
+      const liveCombined = finalizedLive
+        ? interimTail
+          ? finalizedLive + "\n" + interimTail
+          : finalizedLive
+        : interimTail;
+      const merged = joinBaseAndLive(baseTextBeforeDictationRef.current, liveCombined);
       updatedText = merged;
       setSectionState((s) => {
         const prev = s[id];
