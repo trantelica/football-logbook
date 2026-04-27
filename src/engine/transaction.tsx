@@ -1803,6 +1803,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         markLookupDerived,
         lookupDerivedFields,
         requestAiEnrichment,
+        reseedAutoFieldsFor,
       }}
     >
       {children}
