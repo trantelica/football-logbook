@@ -1679,7 +1679,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         const next = { ...prev } as Record<string, unknown>;
         for (const f of fieldNames) {
           if (PREDICTABLE.has(f) && prediction?.eligible) {
-            const predVal = (prediction as Record<string, unknown>)[f];
+            const predVal = (prediction as unknown as Record<string, unknown>)[f];
             if (predVal !== null && predVal !== undefined) {
               next[f] = predVal;
               restoredPredicted.add(f);
