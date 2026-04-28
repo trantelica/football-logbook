@@ -658,7 +658,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           // governance/collision logic so the modal shows "3 Jet Sweep" not
           // "three jet sweep".
           if (GOVERNED_LOOKUP_FIELDS.has(k)) {
-            const normalizedInner = normalizeGovernedCandidate(inner);
+            const normalizedInner = normalizeGovernedCandidateForField(inner, k);
             if (normalizedInner) inner = normalizedInner;
             if (!looksLikeGovernedCandidate(inner)) {
               droppedGovernedFields.push(k);
