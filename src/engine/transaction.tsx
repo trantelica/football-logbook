@@ -15,7 +15,7 @@ import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit, getSeasonConfig } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
-import { normalizeGovernedCandidate } from "./governedValueNormalize";
+import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "./governedValueNormalize";
 import { useRoster } from "./rosterContext";
 import { useSeason } from "./seasonContext";
 import { playSchema, getFieldDef, PENALTY_YARDS_MAP } from "./schema";
