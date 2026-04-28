@@ -218,6 +218,8 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // ── RECEIVER (solo) ──
   // "caught by 88", "caught by number 88", "caught by #88"
   [/\bcaught\s+by\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // "received by 4", "received by number 4"
+  [/\breceived\s+by\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   // "88 caught it", "88 catches it"
   [/(?:#|number\s+)?(\d+)\s+(?:caught|catches)\s+(?:it|the\s+ball|the\s+pass)\b/gi, "RECEIVER $1"],
   // "target was 88" / "targeted 88"
@@ -226,6 +228,18 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
   [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // "complete to N" / "complete to number 4" — emit BOTH the RESULT and
+  // the RECEIVER so a single phrase carries both pieces of information.
+  // Narrow: only fires on explicit "complete to <jersey>" cue, never on a
+  // bare jersey mention.
+  [/\bcomplete\s+to\s+(?:#|number\s+)?(\d+)/gi, "RESULT Complete RECEIVER $1"],
+  // "incomplete to N" — same shape for the negative case.
+  [/\bincomplete\s+to\s+(?:#|number\s+)?(\d+)/gi, "RESULT Incomplete RECEIVER $1"],
+
+  // ── PASSER (additional pass-by phrasing) ──
+  // "the pass by N" / "pass by number 0" / "pass by #0"
+  [/\b(?:the\s+)?pass\s+by\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+  // "thrown by N" already handled above under PASSER (solo).
 
   // ── RESULT (Play Results: explicit pass-outcome cues) ──
   // Run AFTER the RECEIVER patterns above, which consume "pass to N" /
