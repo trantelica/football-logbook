@@ -192,7 +192,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     requestLookupInterrupt,
     reseedAutoFieldsFor,
   } = useTransaction();
-  const { getLookupMap } = useLookup();
+  const { getLookupMap, lookupTables } = useLookup();
   const { activeGame } = useGameContext();
 
   const isProposal = state === "proposal";
