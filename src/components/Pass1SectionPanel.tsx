@@ -110,6 +110,23 @@ const FIELD_LABELS: Record<string, string> = (() => {
 const GOVERNED_LOOKUP_FIELDS = new Set(["offForm", "offPlay", "motion"]);
 
 /**
+ * Derived fields are populated ONLY by deterministic lookup-derivation
+ * (offForm → offStrength/personnel; offPlay → playType/playDir; motion → motionDir)
+ * or by deterministic calculation (eff). They must NEVER be AI-targeted, must
+ * NEVER trigger lookup governance, and must NEVER show a "New Value Suggested"
+ * modal — even if AI hallucinates a value for them. This is a hard guardrail
+ * applied above the AI-eligibility filter as belt-and-suspenders.
+ */
+const DERIVED_FIELDS_NEVER_AI = new Set([
+  "offStrength",
+  "personnel",
+  "playType",
+  "playDir",
+  "motionDir",
+  "eff",
+]);
+
+/**
  * Literal absent-data placeholders that the AI sometimes returns instead of
  * omitting a field. These must NEVER reach governance / candidate state.
  * Absent data must be expressed as null/empty, not as a string token.
