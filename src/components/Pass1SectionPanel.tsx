@@ -458,6 +458,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const droppedDeterministicFields: string[] = [];
         for (const [k, v] of Object.entries(parseResult.patch)) {
           if (!ownedSet.has(k)) continue;
+          // Hard guardrail: never apply parse-derived values to derived fields.
+          if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
           // Drop literal absent placeholders before they can collide or govern.
           if (isAbsentPlaceholder(v)) continue;
           // Governed lookup fields: normalize coach-readable form before
