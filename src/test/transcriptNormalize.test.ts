@@ -275,3 +275,33 @@ describe("normalizeTranscriptForParse", () => {
     expect(normalizeTranscriptForParse("the quarterback was 7")).toContain("PASSER 7");
   });
 });
+
+describe("normalizeTranscriptForParse — receiver/passer phrasing additions", () => {
+  it("maps 'complete to number 4' to RESULT Complete + RECEIVER 4", () => {
+    const out = normalizeTranscriptForParse("complete to number 4");
+    expect(out).toContain("RESULT Complete");
+    expect(out).toContain("RECEIVER 4");
+  });
+
+  it("maps 'complete to #4' to RECEIVER 4", () => {
+    expect(normalizeTranscriptForParse("complete to #4")).toContain("RECEIVER 4");
+  });
+
+  it("maps 'received by number 4' to RECEIVER 4", () => {
+    expect(normalizeTranscriptForParse("received by number 4")).toContain("RECEIVER 4");
+  });
+
+  it("maps 'pass by number 0' to PASSER 0", () => {
+    expect(normalizeTranscriptForParse("the pass by number 0")).toContain("PASSER 0");
+  });
+
+  it("full sentence: 'The pass by number zero was complete to number four for a 12 yard gain'", () => {
+    const out = normalizeTranscriptForParse(
+      "The pass by number zero was complete to number four for a 12 yard gain",
+    );
+    expect(out).toContain("PASSER 0");
+    expect(out).toContain("RECEIVER 4");
+    expect(out).toContain("RESULT Complete");
+    expect(out).toContain("GN/LS 12");
+  });
+});
