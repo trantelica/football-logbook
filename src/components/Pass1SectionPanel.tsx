@@ -728,7 +728,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           if (v === null || v === undefined || v === "") continue;
           // Normalize governed value before governance modal so coach sees
           // "3 Jet Sweep" rather than "three jet sweep".
-          const valStr = normalizeGovernedCandidate(v) || String(v).trim();
+          const valStr = normalizeGovernedCandidateForField(v, f) || String(v).trim();
           if (!valStr) continue;
           const known = lookupMapForGov.get(f) ?? [];
           const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
