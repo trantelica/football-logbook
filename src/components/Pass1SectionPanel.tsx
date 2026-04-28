@@ -515,7 +515,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           // governance/canonical matching ("three jet sweep" → "3 Jet Sweep").
           let val: unknown = v;
           if (GOVERNED_LOOKUP_FIELDS.has(k)) {
-            const normalized = normalizeGovernedCandidate(v);
+            const normalized = normalizeGovernedCandidateForField(v, k);
             if (normalized) val = normalized;
             // Reject anything that doesn't look like a real candidate token.
             if (!looksLikeGovernedCandidate(val)) {
