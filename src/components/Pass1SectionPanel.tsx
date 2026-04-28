@@ -62,7 +62,7 @@ import { useGameContext } from "@/engine/gameContext";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { parseRawInput } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
-import { normalizeGovernedCandidate } from "@/engine/governedValueNormalize";
+import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "@/engine/governedValueNormalize";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { playSchema } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
@@ -190,6 +190,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     commitCount,
     lookupInterruptPending,
     requestLookupInterrupt,
+    lookupAppendInProgress,
     reseedAutoFieldsFor,
   } = useTransaction();
   const { getLookupMap, lookupTables } = useLookup();
@@ -399,7 +400,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
         const v = c[f];
         if (v === null || v === undefined || v === "") continue;
-        const valStr = normalizeGovernedCandidate(v) || String(v).trim();
+        const valStr = normalizeGovernedCandidateForField(v, f) || String(v).trim();
         if (!valStr) continue;
         const known = lookupMap.get(f) ?? [];
         const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
@@ -456,6 +457,17 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     // Don't scan while a modal is still open.
     if (lookupInterruptPending) return;
 
+    // Critical: lookup append/confirm workflow guard.
+    // After the coach clicks "Add to playbook" we transition
+    //   interrupt-modal-open  →  interrupt cleared  →  LookupConfirmDialog open
+    //   →  addValue() (async, mutates lookupTables)  →  ConfirmDialog closes.
+    // Both the falling edge of `lookupInterruptPending` AND the lookupTables
+    // mutation happen MID-WORKFLOW, before the coach has finished resolving
+    // the field. Without this gate, the cascade fires immediately and either
+    // re-raises the same field or jumps to the next governed field while the
+    // dependent-attribute form is still open, producing a modal loop.
+    if (lookupAppendInProgress) return;
+
     const fellFromOpenToClosed = !!prevInterrupt && !lookupInterruptPending;
     const tablesChanged = prevTables !== lookupTables;
 
@@ -470,7 +482,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       checkAllSectionsGovernance();
     }, 0);
     return () => clearTimeout(t);
-  }, [lookupInterruptPending, lookupTables, candidate, checkAllSectionsGovernance]);
+  }, [lookupInterruptPending, lookupTables, candidate, checkAllSectionsGovernance, lookupAppendInProgress]);
 
   /** Result returned by runUpdateProposal so callers (F) can react. */
   type UpdateResult =
@@ -514,7 +526,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           // governance/canonical matching ("three jet sweep" → "3 Jet Sweep").
           let val: unknown = v;
           if (GOVERNED_LOOKUP_FIELDS.has(k)) {
-            const normalized = normalizeGovernedCandidate(v);
+            const normalized = normalizeGovernedCandidateForField(v, k);
             if (normalized) val = normalized;
             // Reject anything that doesn't look like a real candidate token.
             if (!looksLikeGovernedCandidate(val)) {
@@ -657,7 +669,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           // governance/collision logic so the modal shows "3 Jet Sweep" not
           // "three jet sweep".
           if (GOVERNED_LOOKUP_FIELDS.has(k)) {
-            const normalizedInner = normalizeGovernedCandidate(inner);
+            const normalizedInner = normalizeGovernedCandidateForField(inner, k);
             if (normalizedInner) inner = normalizedInner;
             if (!looksLikeGovernedCandidate(inner)) {
               droppedGovernedFields.push(k);
@@ -727,7 +739,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           if (v === null || v === undefined || v === "") continue;
           // Normalize governed value before governance modal so coach sees
           // "3 Jet Sweep" rather than "three jet sweep".
-          const valStr = normalizeGovernedCandidate(v) || String(v).trim();
+          const valStr = normalizeGovernedCandidateForField(v, f) || String(v).trim();
           if (!valStr) continue;
           const known = lookupMapForGov.get(f) ?? [];
           const canonical = valStr.toLowerCase().replace(/\s+/g, " ");

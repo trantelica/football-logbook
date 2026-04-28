@@ -7,16 +7,26 @@
  *   - lowercase number words → digits ("three" → "3", "twenty six" → "26")
  *   - Title-Case each token (uppercase single-letter tokens kept upper: "Z")
  *   - collapse whitespace
+ *   - (field-aware variant) strip generic cue words that came from dictation
+ *     ("formation"/"form", "play"/"run"/"call"/"called", "motion") so the
+ *     modal proposes "Orange" not "Orange Formation".
  *
  * IMPORTANT: this never mutates the coach-visible raw transcript. It is only
  * applied to candidate values used for lookup governance / proposal display.
  *
- * Examples:
+ * Examples (generic):
  *   "green"            → "Green"
  *   "three jet sweep"  → "3 Jet Sweep"
  *   "two across"       → "2 Across"
  *   "twenty six punch" → "26 Punch"
  *   "z across"         → "Z Across"
+ *
+ * Examples (field-aware, see normalizeGovernedCandidateForField):
+ *   offForm: "Orange formation"     → "Orange"
+ *   offPlay: "play 33 dive"         → "33 Dive"
+ *   offPlay: "33 dive play"         → "33 Dive"
+ *   offPlay: "we run the play 33 dive" → "33 Dive"
+ *   motion:  "four pirate motion"   → "4 Pirate"
  */
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -67,4 +77,60 @@ export function normalizeGovernedCandidate(input: unknown): string {
     out.push(titleCaseToken(tok));
   }
   return out.join(" ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Field-scoped cue words that get stripped from the candidate value before
+ * generic normalization. These are dictation artifacts coaches naturally say
+ * around the canonical name, e.g. "Orange formation", "play 33 dive",
+ * "four pirate motion". They must never become part of the canonical lookup
+ * value.
+ *
+ * Cue words are matched case-insensitively as whole tokens only.
+ */
+const CUE_WORDS_BY_FIELD: Record<string, ReadonlySet<string>> = {
+  offForm: new Set(["formation", "form"]),
+  offPlay: new Set(["play", "run", "call", "called", "ran"]),
+  motion: new Set(["motion"]),
+};
+
+/** Generic cue-word filler that may appear adjacent to the canonical token. */
+const GENERIC_CUE_FILLER = new Set([
+  "the", "a", "an", "we", "we're", "were", "im", "i'm",
+  "have", "has", "had", "is", "are", "was", "with", "in", "on", "at",
+]);
+
+/**
+ * Field-aware variant of normalizeGovernedCandidate. Strips cue words specific
+ * to the governed field (e.g. "formation" for offForm, "play"/"run"/"called"
+ * for offPlay, "motion" for motion) AND a small set of generic filler words
+ * that often surround them in dictation, then applies generic normalization
+ * (number-words → digits, title casing, whitespace collapse).
+ *
+ * The strip is whole-token only — substrings inside legitimate canonical
+ * tokens (e.g. "Form-X") are not touched.
+ */
+export function normalizeGovernedCandidateForField(input: unknown, fieldName: string): string {
+  if (input === null || input === undefined) return "";
+  const raw = String(input).trim();
+  if (!raw) return "";
+  const cues = CUE_WORDS_BY_FIELD[fieldName];
+  if (!cues) {
+    // Non-governed (or unconfigured) field: fall through to generic normalize.
+    return normalizeGovernedCandidate(raw);
+  }
+  const tokens = raw.split(/\s+/);
+  const kept: string[] = [];
+  for (const tok of tokens) {
+    const lower = tok.toLowerCase().replace(/[.,;:!?]+$/g, "");
+    if (!lower) continue;
+    if (cues.has(lower)) continue;
+    if (GENERIC_CUE_FILLER.has(lower)) continue;
+    kept.push(tok);
+  }
+  // If stripping removed everything, fall back to the original generic
+  // normalization rather than emitting an empty value (which would suppress
+  // governance entirely).
+  if (kept.length === 0) return normalizeGovernedCandidate(raw);
+  return normalizeGovernedCandidate(kept.join(" "));
 }

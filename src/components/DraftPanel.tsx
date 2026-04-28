@@ -111,6 +111,7 @@ export function DraftPanel() {
     applySystemPatch,
     lookupInterruptPending,
     clearLookupInterrupt,
+    setLookupAppendInProgress,
     proposalMeta,
     markLookupDerived,
     lookupDerivedFields,
@@ -1393,10 +1394,15 @@ PENALTY O-Holding EFF Y 2MIN N`}
               updateField(confirmDialog.fieldName, "");
             }
             setConfirmDialog(null);
+            // Append workflow has fully completed — release the cascade gate.
+            // Defer one tick so lookupTables identity update from addValue() is
+            // observed by Pass1SectionPanel BEFORE the cascade scan re-enables.
+            setTimeout(() => setLookupAppendInProgress(false), 0);
           }}
           onCancel={() => {
             updateField(confirmDialog.fieldName, "");
             setConfirmDialog(null);
+            setLookupAppendInProgress(false);
           }}
         />
       )}
@@ -1516,6 +1522,11 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 className="justify-start gap-2"
                 onClick={() => {
                   const li = lookupInterruptPending;
+                  // Mark the append workflow active BEFORE clearing the
+                  // interrupt — the falling-edge of lookupInterruptPending
+                  // would otherwise let the Pass 1 cascade scan fire while
+                  // the LookupConfirmDialog is opening.
+                  setLookupAppendInProgress(true);
                   clearLookupInterrupt();
                   setConfirmDialog({
                     fieldName: li.fieldName,

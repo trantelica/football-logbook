@@ -15,7 +15,7 @@ import { validateInline, validateCommitGate } from "./validation";
 import { commitPlay as dbCommitPlay, getPlay, getPlaysByGame, getAllSlotMetaForGame, saveSlotMeta, getGameInit, getSeasonConfig } from "./db";
 import { useGameContext } from "./gameContext";
 import { useLookup } from "./lookupContext";
-import { normalizeGovernedCandidate } from "./governedValueNormalize";
+import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "./governedValueNormalize";
 import { useRoster } from "./rosterContext";
 import { useSeason } from "./seasonContext";
 import { playSchema, getFieldDef, PENALTY_YARDS_MAP } from "./schema";
@@ -99,6 +99,9 @@ interface TransactionContextValue {
   clearLookupInterrupt: () => void;
   /** Imperative trigger: open governance for a field/value (idempotent if same field already pending). */
   requestLookupInterrupt: (fieldName: string, value: string, source?: "ai" | "manual") => void;
+  /** True while a lookup append/confirm workflow is mid-flight (gates cascade). */
+  lookupAppendInProgress: boolean;
+  setLookupAppendInProgress: (v: boolean) => void;
   
   // Phase 4: Workflow stage & ODK filter
   activePass: number;
@@ -358,6 +361,17 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     [],
   );
 
+  /**
+   * Set true while a lookup append/confirm workflow is mid-flight (i.e. the
+   * coach clicked "Add to playbook" and the dependent-attributes
+   * LookupConfirmDialog is open, or addValue is in flight). The Pass 1
+   * sequential-cascade scan must skip while this is true so it does not
+   * re-raise governance for the same/next field before the current append
+   * has actually committed to the lookup table. Cleared when the append
+   * finishes (success or cancel).
+   */
+  const [lookupAppendInProgress, setLookupAppendInProgress] = useState(false);
+
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
     const validationFields = new Set([...touchedFields, ...deterministicParseFields, ...aiProposedFields]);
@@ -529,7 +543,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
           if (!GOVERNED_LOOKUP.has(fieldName)) continue;
           if (value === null || value === undefined || value === "") continue;
-          const normalized = normalizeGovernedCandidate(value);
+          // Field-aware: strip cue words ("formation", "play", "motion", …)
+          // before generic title-case + number-word normalization.
+          const normalized = normalizeGovernedCandidateForField(value, fieldName);
           if (normalized && normalized !== String(value)) {
             fieldsToApply[fieldName] = normalized;
           }
@@ -1813,6 +1829,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         lookupInterruptPending,
         clearLookupInterrupt,
         requestLookupInterrupt,
+        lookupAppendInProgress,
+        setLookupAppendInProgress,
         activePass,
         setActivePass,
         odkFilter,
