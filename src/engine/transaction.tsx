@@ -99,6 +99,9 @@ interface TransactionContextValue {
   clearLookupInterrupt: () => void;
   /** Imperative trigger: open governance for a field/value (idempotent if same field already pending). */
   requestLookupInterrupt: (fieldName: string, value: string, source?: "ai" | "manual") => void;
+  /** True while a lookup append/confirm workflow is mid-flight (gates cascade). */
+  lookupAppendInProgress: boolean;
+  setLookupAppendInProgress: (v: boolean) => void;
   
   // Phase 4: Workflow stage & ODK filter
   activePass: number;
