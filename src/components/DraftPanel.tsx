@@ -1522,6 +1522,11 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 className="justify-start gap-2"
                 onClick={() => {
                   const li = lookupInterruptPending;
+                  // Mark the append workflow active BEFORE clearing the
+                  // interrupt — the falling-edge of lookupInterruptPending
+                  // would otherwise let the Pass 1 cascade scan fire while
+                  // the LookupConfirmDialog is opening.
+                  setLookupAppendInProgress(true);
                   clearLookupInterrupt();
                   setConfirmDialog({
                     fieldName: li.fieldName,
