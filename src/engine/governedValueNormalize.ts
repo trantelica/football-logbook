@@ -97,7 +97,7 @@ const CUE_WORDS_BY_FIELD: Record<string, ReadonlySet<string>> = {
 /** Generic cue-word filler that may appear adjacent to the canonical token. */
 const GENERIC_CUE_FILLER = new Set([
   "the", "a", "an", "we", "we're", "were", "im", "i'm",
-  "have", "has", "had", "is", "was", "with", "in",
+  "have", "has", "had", "is", "are", "was", "with", "in", "on", "at",
 ]);
 
 /**
