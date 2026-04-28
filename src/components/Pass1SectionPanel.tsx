@@ -110,6 +110,23 @@ const FIELD_LABELS: Record<string, string> = (() => {
 const GOVERNED_LOOKUP_FIELDS = new Set(["offForm", "offPlay", "motion"]);
 
 /**
+ * Derived fields are populated ONLY by deterministic lookup-derivation
+ * (offForm → offStrength/personnel; offPlay → playType/playDir; motion → motionDir)
+ * or by deterministic calculation (eff). They must NEVER be AI-targeted, must
+ * NEVER trigger lookup governance, and must NEVER show a "New Value Suggested"
+ * modal — even if AI hallucinates a value for them. This is a hard guardrail
+ * applied above the AI-eligibility filter as belt-and-suspenders.
+ */
+const DERIVED_FIELDS_NEVER_AI = new Set([
+  "offStrength",
+  "personnel",
+  "playType",
+  "playDir",
+  "motionDir",
+  "eff",
+]);
+
+/**
  * Literal absent-data placeholders that the AI sometimes returns instead of
  * omitting a field. These must NEVER reach governance / candidate state.
  * Absent data must be expressed as null/empty, not as a string token.
@@ -407,6 +424,32 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     return false;
   }, [checkSectionGovernance, lookupInterruptPending]);
 
+  /**
+   * Sequential governance cascade: when one lookup interrupt is resolved
+   * (modal closes — `lookupInterruptPending` transitions from non-null → null),
+   * automatically scan for the next unknown governed value (offForm → offPlay
+   * → motion) and raise its modal. The coach should not have to manually click
+   * into each remaining field after resolving the first one.
+   *
+   * Re-runs whenever lookupTables change (a new value was just added) or when
+   * the candidate gains/loses a governed value. Guarded by a ref so we don't
+   * re-trigger while a modal is currently open.
+   */
+  const prevInterruptRef = useRef<typeof lookupInterruptPending>(null);
+  useEffect(() => {
+    const prev = prevInterruptRef.current;
+    prevInterruptRef.current = lookupInterruptPending;
+    // Only cascade on the falling edge (just resolved).
+    if (prev && !lookupInterruptPending) {
+      // Defer one tick so any in-flight setState (canonicalization, lookup
+      // table mutation) has settled before we scan again.
+      const t = setTimeout(() => {
+        if (!isProposal) checkAllSectionsGovernance();
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [lookupInterruptPending, checkAllSectionsGovernance, isProposal]);
+
   /** Result returned by runUpdateProposal so callers (F) can react. */
   type UpdateResult =
     | { kind: "applied"; count: number }
@@ -441,6 +484,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const droppedDeterministicFields: string[] = [];
         for (const [k, v] of Object.entries(parseResult.patch)) {
           if (!ownedSet.has(k)) continue;
+          // Hard guardrail: never apply parse-derived values to derived fields.
+          if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
           // Drop literal absent placeholders before they can collide or govern.
           if (isAbsentPlaceholder(v)) continue;
           // Governed lookup fields: normalize coach-readable form before
@@ -571,6 +616,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const justParsedFields = new Set<string>(Object.keys(fillablePatch));
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
+          // Hard guardrail: AI must never target derived fields, even via the
+          // section-owned set. Skip silently before any governance / collision.
+          if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
           if (justParsedFields.has(k)) continue;
 
           // Unwrap governed proposal { value, matchType } once for inspection.
