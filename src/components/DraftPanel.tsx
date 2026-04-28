@@ -111,6 +111,7 @@ export function DraftPanel() {
     applySystemPatch,
     lookupInterruptPending,
     clearLookupInterrupt,
+    setLookupAppendInProgress,
     proposalMeta,
     markLookupDerived,
     lookupDerivedFields,
