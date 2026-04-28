@@ -190,6 +190,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     commitCount,
     lookupInterruptPending,
     requestLookupInterrupt,
+    lookupAppendInProgress,
     reseedAutoFieldsFor,
   } = useTransaction();
   const { getLookupMap, lookupTables } = useLookup();
