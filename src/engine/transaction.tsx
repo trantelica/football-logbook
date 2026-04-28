@@ -529,7 +529,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
           if (!GOVERNED_LOOKUP.has(fieldName)) continue;
           if (value === null || value === undefined || value === "") continue;
-          const normalized = normalizeGovernedCandidate(value);
+          // Field-aware: strip cue words ("formation", "play", "motion", …)
+          // before generic title-case + number-word normalization.
+          const normalized = normalizeGovernedCandidateForField(value, fieldName);
           if (normalized && normalized !== String(value)) {
             fieldsToApply[fieldName] = normalized;
           }
