@@ -457,6 +457,17 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     // Don't scan while a modal is still open.
     if (lookupInterruptPending) return;
 
+    // Critical: lookup append/confirm workflow guard.
+    // After the coach clicks "Add to playbook" we transition
+    //   interrupt-modal-open  →  interrupt cleared  →  LookupConfirmDialog open
+    //   →  addValue() (async, mutates lookupTables)  →  ConfirmDialog closes.
+    // Both the falling edge of `lookupInterruptPending` AND the lookupTables
+    // mutation happen MID-WORKFLOW, before the coach has finished resolving
+    // the field. Without this gate, the cascade fires immediately and either
+    // re-raises the same field or jumps to the next governed field while the
+    // dependent-attribute form is still open, producing a modal loop.
+    if (lookupAppendInProgress) return;
+
     const fellFromOpenToClosed = !!prevInterrupt && !lookupInterruptPending;
     const tablesChanged = prevTables !== lookupTables;
 
@@ -471,7 +482,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       checkAllSectionsGovernance();
     }, 0);
     return () => clearTimeout(t);
-  }, [lookupInterruptPending, lookupTables, candidate, checkAllSectionsGovernance]);
+  }, [lookupInterruptPending, lookupTables, candidate, checkAllSectionsGovernance, lookupAppendInProgress]);
 
   /** Result returned by runUpdateProposal so callers (F) can react. */
   type UpdateResult =
