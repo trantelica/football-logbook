@@ -431,24 +431,46 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
    * → motion) and raise its modal. The coach should not have to manually click
    * into each remaining field after resolving the first one.
    *
-   * Re-runs whenever lookupTables change (a new value was just added) or when
-   * the candidate gains/loses a governed value. Guarded by a ref so we don't
-   * re-trigger while a modal is currently open.
+   * Triggering signals (any of them defers a scan):
+   *   - `lookupInterruptPending` falling edge (modal just closed)
+   *   - `lookupTables` identity change (a new value was just appended via
+   *     "Add to playbook"; the previous unknown is now known and the next
+   *     one in candidate state should surface)
+   *   - `candidate` change while no interrupt is pending (a manual correction
+   *     or clear may have introduced/removed a governed value)
+   *
+   * The scan itself is gated by `lookupInterruptPending` (skip while a modal
+   * is already open) and by a follow-up `LookupConfirmDialog` chain in
+   * DraftPanel (which does its own work before lookupTables update). Using
+   * `lookupTables` as the primary trigger avoids a race where the falling
+   * edge fires before "Add to playbook" actually mutates the table.
    */
   const prevInterruptRef = useRef<typeof lookupInterruptPending>(null);
+  const prevLookupTablesRef = useRef(lookupTables);
   useEffect(() => {
-    const prev = prevInterruptRef.current;
+    const prevInterrupt = prevInterruptRef.current;
+    const prevTables = prevLookupTablesRef.current;
     prevInterruptRef.current = lookupInterruptPending;
-    // Only cascade on the falling edge (just resolved).
-    if (prev && !lookupInterruptPending) {
-      // Defer one tick so any in-flight setState (canonicalization, lookup
-      // table mutation) has settled before we scan again.
-      const t = setTimeout(() => {
-        if (!isProposal) checkAllSectionsGovernance();
-      }, 0);
-      return () => clearTimeout(t);
-    }
-  }, [lookupInterruptPending, checkAllSectionsGovernance, isProposal]);
+    prevLookupTablesRef.current = lookupTables;
+
+    // Don't scan while a modal is still open.
+    if (lookupInterruptPending) return;
+
+    const fellFromOpenToClosed = !!prevInterrupt && !lookupInterruptPending;
+    const tablesChanged = prevTables !== lookupTables;
+
+    if (!fellFromOpenToClosed && !tablesChanged) return;
+
+    // Defer one tick so any in-flight setState (canonicalization, lookup
+    // table mutation, candidate field clears) has settled before we scan.
+    const t = setTimeout(() => {
+      // Re-check guard inside the timeout — another modal may have opened
+      // between schedule and fire (e.g. the LookupConfirmDialog "Add to
+      // playbook" path runs synchronously and re-raises an interrupt).
+      checkAllSectionsGovernance();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [lookupInterruptPending, lookupTables, candidate, checkAllSectionsGovernance]);
 
   /** Result returned by runUpdateProposal so callers (F) can react. */
   type UpdateResult =
