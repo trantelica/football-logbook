@@ -1829,6 +1829,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         lookupInterruptPending,
         clearLookupInterrupt,
         requestLookupInterrupt,
+        lookupAppendInProgress,
+        setLookupAppendInProgress,
         activePass,
         setActivePass,
         odkFilter,
