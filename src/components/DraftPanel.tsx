@@ -1394,10 +1394,15 @@ PENALTY O-Holding EFF Y 2MIN N`}
               updateField(confirmDialog.fieldName, "");
             }
             setConfirmDialog(null);
+            // Append workflow has fully completed — release the cascade gate.
+            // Defer one tick so lookupTables identity update from addValue() is
+            // observed by Pass1SectionPanel BEFORE the cascade scan re-enables.
+            setTimeout(() => setLookupAppendInProgress(false), 0);
           }}
           onCancel={() => {
             updateField(confirmDialog.fieldName, "");
             setConfirmDialog(null);
+            setLookupAppendInProgress(false);
           }}
         />
       )}
