@@ -168,8 +168,13 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     if (recognition) {
+      // Detach ALL handlers BEFORE abort so any in-flight result/end/error
+      // callback that fires during teardown can't append stale text into the
+      // hook's state (which would then leak into the next dictation target).
       recognition.onend = null;
-      recognition.abort();
+      recognition.onresult = null;
+      recognition.onerror = null;
+      try { recognition.abort(); } catch { /* ignore */ }
     }
     setListening(false);
     // Flush remaining interim to text
