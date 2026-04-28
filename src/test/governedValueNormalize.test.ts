@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { normalizeGovernedCandidate } from "../engine/governedValueNormalize";
+import {
+  normalizeGovernedCandidate,
+  normalizeGovernedCandidateForField,
+} from "../engine/governedValueNormalize";
 
 describe("normalizeGovernedCandidate", () => {
   it("title-cases simple lowercase token", () => {
