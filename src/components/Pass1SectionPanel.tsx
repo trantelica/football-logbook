@@ -590,6 +590,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const justParsedFields = new Set<string>(Object.keys(fillablePatch));
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
+          // Hard guardrail: AI must never target derived fields, even via the
+          // section-owned set. Skip silently before any governance / collision.
+          if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
           if (justParsedFields.has(k)) continue;
 
           // Unwrap governed proposal { value, matchType } once for inspection.
