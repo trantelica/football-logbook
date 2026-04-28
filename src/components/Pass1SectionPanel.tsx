@@ -400,7 +400,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
         const v = c[f];
         if (v === null || v === undefined || v === "") continue;
-        const valStr = normalizeGovernedCandidate(v) || String(v).trim();
+        const valStr = normalizeGovernedCandidateForField(v, f) || String(v).trim();
         if (!valStr) continue;
         const known = lookupMap.get(f) ?? [];
         const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
