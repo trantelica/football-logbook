@@ -1548,7 +1548,6 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 className="justify-start gap-2"
                 onClick={() => {
                   clearLookupInterrupt();
-                  setTimeout(() => advanceLookupGovernanceQueue(), 0);
                 }}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
