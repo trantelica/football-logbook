@@ -279,13 +279,26 @@ export function DraftPanel() {
     }
   };
 
-  /** Handle lookup field selection with dependent auto-population */
-  const handleLookupSelect = (fieldName: string, value: string) => {
+  /**
+   * Handle lookup field selection with dependent auto-population.
+   *
+   * `attrsOverride` lets callers (e.g. the LookupConfirmDialog append flow)
+   * pass freshly-collected attributes through directly, bypassing the
+   * lookup-context snapshot. This is required when the value was just added
+   * via `addValue()` in the same render — the context's `getEntryAttributes`
+   * closure is still bound to the pre-add snapshot and would return undefined
+   * for the brand-new entry, leaving derived fields like `motionDir` blank.
+   */
+  const handleLookupSelect = (
+    fieldName: string,
+    value: string,
+    attrsOverride?: Record<string, string>,
+  ) => {
     updateField(fieldName, value);
     // Auto-populate dependent fields from entryAttributes and track as lookup_derived
     const deps = DEPENDENT_FIELD_MAP[fieldName];
     if (deps && value) {
-      const attrs = getEntryAttributes(fieldName, value);
+      const attrs = attrsOverride ?? getEntryAttributes(fieldName, value);
       if (attrs) {
         const derivedFields: string[] = [];
         for (const dep of deps) {
@@ -1389,7 +1402,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
             const { fieldName, value } = confirmDialog;
             try {
               await addValue(fieldName, value, attributes);
-              handleLookupSelect(fieldName, value);
+              // Hydrate dependents directly from the dialog-provided attributes.
+              // We can't rely on getEntryAttributes() here because the lookup
+              // context's table snapshot is still the pre-addValue closure for
+              // this render; reload() updates state but won't be visible until
+              // the next render. Passing attributes through guarantees the
+              // dependent fields (offStrength/personnel; playType/playDir;
+              // motionDir) populate immediately and are marked lookup_derived.
+              handleLookupSelect(fieldName, value, attributes);
             } catch (err: unknown) {
               toast.error(err instanceof Error ? err.message : "Failed to add value");
               updateField(confirmDialog.fieldName, "");
