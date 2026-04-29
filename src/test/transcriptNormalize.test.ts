@@ -369,4 +369,69 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
     expect(out).toContain("MOTION 3 Across");
     expect(out).not.toMatch(/\bPLAY\b/);
   });
+
+  // ── Penalty natural-language normalization ──
+  describe("penalty natural-language normalization", () => {
+    it("'holding on the offense' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("holding on the offense");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'pass interference on the defense' → PENALTY D-Pass Interference", () => {
+      const out = normalizeTranscriptForParse("pass interference on the defense");
+      expect(out).toContain("PENALTY D-Pass Interference");
+    });
+
+    it("'false start on offense' → PENALTY O-False Start", () => {
+      const out = normalizeTranscriptForParse("false start on offense");
+      expect(out).toContain("PENALTY O-False Start");
+    });
+
+    it("'holding penalty on the offense' (suffix + side) → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("holding penalty on the offense");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'penalty holding on the offense' (anchor + side) → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("penalty holding on the offense");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'penalty on the offense for holding' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("penalty on the offense for holding");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'offensive holding' (side prefix) → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("offensive holding");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'defensive pass interference' → PENALTY D-Pass Interference", () => {
+      const out = normalizeTranscriptForParse("defensive pass interference");
+      expect(out).toContain("PENALTY D-Pass Interference");
+    });
+
+    it("'we had a holding penalty' (no side) → PENALTY Holding (no prefix; governance handles)", () => {
+      const out = normalizeTranscriptForParse("we had a holding penalty");
+      expect(out).toContain("PENALTY Holding");
+      expect(out).not.toContain("PENALTY O-");
+    });
+
+    it("'flag on the offense for holding' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("flag on the offense for holding");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("compound: '5 yard gain holding penalty on offense' yields both fields cleanly", () => {
+      const out = normalizeTranscriptForParse("5 yard gain holding penalty on offense");
+      expect(out).toContain("GN/LS 5");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("does not hijack PLAY anchor with bare 'flag on the play'", () => {
+      const out = normalizeTranscriptForParse("flag on the play");
+      expect(out).toContain("PLAY");
+    });
+  });
 });
