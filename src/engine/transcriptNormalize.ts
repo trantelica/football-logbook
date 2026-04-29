@@ -257,14 +257,13 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
     },
   ],
 
-  // ── "flag on the offense/defense for <infraction>" ──
+  // ── "flag on the offense/defense for <infraction>" — narrowed: only when
+  // both side AND infraction are present, to avoid eating "flag on the play"
+  // (where "play" must remain available for the PLAY anchor).
   [
-    /\bflag(?:\s+on\s+the\s+(offense|defense))?(?:\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block))?\b/gi,
-    (_m, sideRaw: string | undefined, infraction: string | undefined) => {
-      if (!infraction) return " PENALTY";
-      const side = sideRaw
-        ? (/defense/i.test(sideRaw) ? "D-" : "O-")
-        : "";
+    /\bflag\s+on\s+the\s+(offense|defense)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, sideRaw: string, infraction: string) => {
+      const side = /defense/i.test(sideRaw) ? "D-" : "O-";
       const titled = String(infraction)
         .toLowerCase()
         .split(/\s+/)
