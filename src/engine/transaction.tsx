@@ -325,6 +325,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
+    resetLookupGovernanceQueue();
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
@@ -338,7 +339,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setCommittedPlays([]);
       setSlotMetaMap(new Map());
     }
-  }, [gameId, gameIsSlotMode]);
+  }, [gameId, gameIsSlotMode, resetLookupGovernanceQueue]);
 
   // Track draft status — dirty when touched, parsed, or aiProposed
   useEffect(() => {
@@ -708,8 +709,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
+    resetLookupGovernanceQueue();
     setCommitCount((c) => c + 1);
-  }, [gameId, isSlotMode]);
+  }, [gameId, isSlotMode, resetLookupGovernanceQueue]);
 
   const clearDraftPreservingSelection = useCallback(() => {
     if (!(isSlotMode && selectedSlotNum !== null)) {
@@ -739,8 +741,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
+    resetLookupGovernanceQueue();
     setCommitCount((c) => c + 1);
-  }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
+  }, [clearDraft, gameId, isSlotMode, selectedSlotNum, resetLookupGovernanceQueue]);
 
   const reviewProposal = useCallback(() => {
     if (configMode) {
@@ -1403,8 +1406,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
+    resetLookupGovernanceQueue();
     setState(gameId ? "idle" : "idle");
-  }, [gameId]);
+  }, [gameId, resetLookupGovernanceQueue]);
 
   const dismissScaffoldWarning = useCallback(() => {
     setScaffoldedWarning(null);
@@ -1483,8 +1487,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCandidate(emptyCandidate(gameId));
     setPatContext(false);
     setPatLockedTry(null);
+    resetLookupGovernanceQueue();
     setState(gameId ? "idle" : "idle");
-  }, [gameId]);
+  }, [gameId, resetLookupGovernanceQueue]);
 
   // Phase 5: Possession check confirmation — remain in Draft, one-time dismiss
   const confirmPossessionOffense = useCallback(() => {
