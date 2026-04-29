@@ -325,7 +325,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
-    resetLookupGovernanceQueue();
     if (gameId) {
       getPlaysByGame(gameId).then((plays) =>
         setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
@@ -339,7 +338,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setCommittedPlays([]);
       setSlotMetaMap(new Map());
     }
-  }, [gameId, gameIsSlotMode, resetLookupGovernanceQueue]);
+  }, [gameId, gameIsSlotMode]);
 
   // Track draft status — dirty when touched, parsed, or aiProposed
   useEffect(() => {
@@ -402,6 +401,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return { queue: nextQueue, pending: nextQueue[0] ?? null };
     });
   }, []);
+
+  useEffect(() => {
+    resetLookupGovernanceQueue();
+  }, [gameId, gameIsSlotMode, resetLookupGovernanceQueue]);
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
