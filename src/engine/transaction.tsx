@@ -676,26 +676,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         setState("candidate");
         setCommitErrors({});
 
-        // 10-1D: Immediate lookup interrupt for governed lookup fields with unknown values
-        const lookupMap = getLookupMap();
-        for (const [fieldName, value] of Object.entries(fieldsToApply)) {
-          if (!lookupMap.has(fieldName)) continue;
-          const knownValues = lookupMap.get(fieldName) ?? [];
-          const valStr = String(value).trim();
-          if (valStr === "") continue;
-          const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
-          const found = knownValues.some((v) => v.toLowerCase().replace(/\s+/g, " ") === canonical);
-          if (!found) {
-            const fd = getFieldDef(fieldName);
-            setLookupInterruptPending({
-              fieldName,
-              fieldLabel: fd?.label ?? fieldName,
-              value: valStr,
-              source: source === "ai_proposed" ? "ai" : "manual",
-            });
-            break;
-          }
-        }
+        rebuildLookupGovernanceQueue(updatedCandidate);
       }
 
       return collisions;
@@ -1859,6 +1840,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         lookupInterruptPending,
         clearLookupInterrupt,
         requestLookupInterrupt,
+        rebuildLookupGovernanceQueue,
+        advanceLookupGovernanceQueue,
         lookupAppendInProgress,
         setLookupAppendInProgress,
         activePass,
