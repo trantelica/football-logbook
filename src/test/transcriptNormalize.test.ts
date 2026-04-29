@@ -432,6 +432,7 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
     it("does not hijack PLAY anchor with bare 'flag on the play'", () => {
       const out = normalizeTranscriptForParse("flag on the play");
       expect(out).toContain("PLAY");
+    });
 
     it("'the defense was called for offsides on the play' → PENALTY D-Offside", () => {
       const out = normalizeTranscriptForParse("the defense was called for offsides on the play");
