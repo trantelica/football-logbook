@@ -154,7 +154,127 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\bball\s+carrier\b/gi, "RUSHER"],
   [/\btarget\b/gi, "RECEIVER"],
 
-  // Penalty phrases
+  // Penalty phrases — natural language to canonical "PENALTY <Value>".
+  // These run BEFORE the bare "flagged"/PENALTY anchor handling so they
+  // emit clean canonical tokens (with side prefix when inferable).
+  //
+  // Known infractions (subset of PENALTY_VALUES, without side prefix).
+  // Listed longest-first so multi-word names match before shorter overlaps.
+  // The replacement re-emits the canonical "Title Case" name; the side
+  // prefix (O-/D-/S-) is added by the side-aware rules where present, or
+  // left to lookup governance to canonicalize when only the bare name is
+  // captured.
+  //
+  // ── Side-aware infraction phrasings ──
+  // "holding on the offense" / "false start on offense" / "pass interference
+  // on the defense" / "encroachment by the defense" → "PENALTY O-Holding" etc.
+  // We capture (infraction)(side) and emit the canonical "<Side>-<Infraction>"
+  // string. The (?:penalty\s+)? optional prefix lets "penalty holding on the
+  // offense" also match here (rather than falling through to the bare PENALTY
+  // anchor which would greedily eat the trailing "on the offense" clause).
+  [
+    /\b(?:penalty\s+)?(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\s+(?:on|by|against)\s+(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\b/gi,
+    (_m, infraction: string, sideRaw: string) => {
+      const side = /defense/i.test(sideRaw) ? "D"
+        : /offense/i.test(sideRaw) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .split(" ")
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      // Capitalize first word always
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // ── Side-prefix phrasings: "offensive holding", "defensive pass interference" ──
+  [
+    /\b(offensive|defensive)\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, sideWord: string, infraction: string) => {
+      const side = /defensive/i.test(sideWord) ? "D" : "O";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // ── "<infraction> penalty on <side>" — side trails after "penalty" word ──
+  // e.g. "holding penalty on the offense", "5 yard gain holding penalty on offense"
+  [
+    /\b(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\s+penalty\s+(?:on|by|against)\s+(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\b/gi,
+    (_m, infraction: string, sideRaw: string) => {
+      const side = /defense/i.test(sideRaw) ? "D"
+        : /offense/i.test(sideRaw) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // ── "penalty on <side> for <infraction>" — anchor-led with side and infraction ──
+  // e.g. "penalty on the offense for holding"
+  [
+    /\bpenalty\s+(?:on|by|against)\s+(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, sideRaw: string, infraction: string) => {
+      const side = /defense/i.test(sideRaw) ? "D"
+        : /offense/i.test(sideRaw) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // ── Suffix "penalty" phrasing without side info ──
+  // "holding penalty" / "false start penalty" → "PENALTY Holding" (no prefix;
+  // lookup governance will surface a modal to canonicalize).
+  [
+    /\b(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\s+penalty\b/gi,
+    (_m, infraction: string) => {
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${canonical}`;
+    },
+  ],
+
+  // ── "flag on the offense/defense for <infraction>" — narrowed: only when
+  // both side AND infraction are present, to avoid eating "flag on the play"
+  // (where "play" must remain available for the PLAY anchor).
+  [
+    /\bflag\s+on\s+the\s+(offense|defense)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, sideRaw: string, infraction: string) => {
+      const side = /defense/i.test(sideRaw) ? "D-" : "O-";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}${canonical}`;
+    },
+  ],
+
+  // Bare "flagged" cue (legacy)
   [/\bflagged\b/gi, "PENALTY"],
 
   // Hash phrases: "left hash", "right hash", "middle hash"
