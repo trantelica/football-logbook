@@ -111,6 +111,7 @@ export function DraftPanel() {
     applySystemPatch,
     lookupInterruptPending,
     clearLookupInterrupt,
+    advanceLookupGovernanceQueue,
     setLookupAppendInProgress,
     proposalMeta,
     markLookupDerived,
@@ -1394,15 +1395,18 @@ PENALTY O-Holding EFF Y 2MIN N`}
               updateField(confirmDialog.fieldName, "");
             }
             setConfirmDialog(null);
-            // Append workflow has fully completed — release the cascade gate.
-            // Defer one tick so lookupTables identity update from addValue() is
-            // observed by Pass1SectionPanel BEFORE the cascade scan re-enables.
-            setTimeout(() => setLookupAppendInProgress(false), 0);
+            setTimeout(() => {
+              setLookupAppendInProgress(false);
+              advanceLookupGovernanceQueue();
+            }, 0);
           }}
           onCancel={() => {
             updateField(confirmDialog.fieldName, "");
             setConfirmDialog(null);
-            setLookupAppendInProgress(false);
+            setTimeout(() => {
+              setLookupAppendInProgress(false);
+              advanceLookupGovernanceQueue();
+            }, 0);
           }}
         />
       )}
@@ -1544,6 +1548,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
                 className="justify-start gap-2"
                 onClick={() => {
                   clearLookupInterrupt();
+                  setTimeout(() => advanceLookupGovernanceQueue(), 0);
                 }}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
