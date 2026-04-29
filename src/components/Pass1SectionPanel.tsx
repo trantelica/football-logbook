@@ -594,6 +594,18 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
               droppedGovernedFields.push(k);
               continue;
             }
+            // Contamination guard: drop AI governed proposals whose entire
+            // normalized value is composed of tokens already accounted for by
+            // a deterministic governed extraction in this same run. Prevents
+            // motion-phrase residue (e.g. "Across") leaking into offPlay.
+            const aiTokens = String(inner).trim().toLowerCase().split(/\s+/).filter(Boolean);
+            if (
+              aiTokens.length > 0 &&
+              aiTokens.every((t) => deterministicGovernedFragments.has(t))
+            ) {
+              droppedGovernedFields.push(k);
+              continue;
+            }
             // Re-wrap with normalized value if it was a governed proposal shape
             if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
               ownedAiProposal[k] = { ...(v as object), value: inner };
