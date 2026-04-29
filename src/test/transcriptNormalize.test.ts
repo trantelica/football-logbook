@@ -309,3 +309,52 @@ describe("normalizeTranscriptForParse — receiver/passer phrasing additions", (
     expect(out).toContain("GN/LS 12");
   });
 });
+
+describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
+  it("extracts MOTION from 'we use four pirate motion'", () => {
+    expect(normalizeTranscriptForParse("we use four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+  it("extracts MOTION from 'then we use four pirate motion'", () => {
+    expect(normalizeTranscriptForParse("then we use four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+  it("extracts MOTION from 'and then we use four pirate motion'", () => {
+    expect(normalizeTranscriptForParse("and then we use four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+  it("extracts MOTION from 'we have four pirate motion' (no 'a')", () => {
+    expect(normalizeTranscriptForParse("we have four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+  it("extracts MOTION from 'with four pirate motion'", () => {
+    expect(normalizeTranscriptForParse("with four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+  it("extracts MOTION from 'in four pirate motion'", () => {
+    expect(normalizeTranscriptForParse("in four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+  it("extracts MOTION from 'using four pirate motion'", () => {
+    expect(normalizeTranscriptForParse("using four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+  it("never produces a token-abutted MOTION (e.g. 'useMOTION')", () => {
+    const out = normalizeTranscriptForParse("we use four pirate motion");
+    expect(out).not.toMatch(/[A-Za-z]MOTION/);
+  });
+
+  it("conjunction-heavy: extracts FORM, PLAY, MOTION from a single utterance", () => {
+    const out = normalizeTranscriptForParse(
+      "We're an orange formation and we run the play 33 dive and then we use four pirate motion",
+    );
+    expect(out).toContain("FORM");
+    expect(out).toContain("PLAY");
+    expect(out).toContain("MOTION 4 Pirate");
+  });
+
+  it("conjunction-heavy 'and then': extracts MOTION 4 Pirate without losing PLAY", () => {
+    const out = normalizeTranscriptForParse(
+      "orange formation and we run the play 33 dive and then we use four pirate motion",
+    );
+    expect(out).toContain("PLAY");
+    expect(out).toContain("MOTION 4 Pirate");
+  });
+
+  it("preserves prior 'jet motion' single-token coverage", () => {
+    expect(normalizeTranscriptForParse("with a jet motion")).toContain("MOTION Jet");
+  });
+});
