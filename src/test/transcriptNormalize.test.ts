@@ -433,5 +433,34 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       const out = normalizeTranscriptForParse("flag on the play");
       expect(out).toContain("PLAY");
     });
+
+    it("'the defense was called for offsides on the play' → PENALTY D-Offside", () => {
+      const out = normalizeTranscriptForParse("the defense was called for offsides on the play");
+      expect(out).toContain("PENALTY D-Offside");
+      // Trailing PLAY anchor must remain available — "on the play" is not eaten.
+      expect(out).toContain("PLAY");
+    });
+
+    it("'offense called for holding' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("offense called for holding");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'called for false start on the offense' → PENALTY O-False Start", () => {
+      const out = normalizeTranscriptForParse("called for false start on the offense");
+      expect(out).toContain("PENALTY O-False Start");
+    });
+
+    it("bare 'called for holding' (no side) → PENALTY Holding", () => {
+      const out = normalizeTranscriptForParse("called for holding");
+      expect(out).toContain("PENALTY Holding");
+      expect(out).not.toContain("PENALTY O-");
+      expect(out).not.toContain("PENALTY D-");
+    });
+
+    it("'offsides' singularizes to canonical 'Offside'", () => {
+      const out = normalizeTranscriptForParse("defensive offsides");
+      expect(out).toContain("PENALTY D-Offside");
+    });
   });
 });

@@ -154,6 +154,64 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\bball\s+carrier\b/gi, "RUSHER"],
   [/\btarget\b/gi, "RECEIVER"],
 
+  // Normalize "offsides" → "offside" so canonical infraction matching below
+  // works against the schema's singular "Offside" value. Coaches commonly
+  // pluralize. Done as a narrow word-boundary substitution (no broader effect).
+  [/\boffsides\b/gi, "offside"],
+
+  // ── "called for <infraction>" phrasings ──
+  // Coach narration commonly uses "the defense was called for offside on the
+  // play" / "offense called for holding". Map these to canonical
+  // "PENALTY <Side>-<Infraction>" before the generic penalty rules so the
+  // trailing "on the play" doesn't get eaten and the side is preserved.
+  [
+    /\b(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\s+(?:was\s+|were\s+|got\s+)?called\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, sideRaw: string, infraction: string) => {
+      const side = /defense/i.test(sideRaw) ? "D"
+        : /offense/i.test(sideRaw) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // "called for <infraction> on the (offense|defense)" — side trails after.
+  [
+    /\bcalled\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\s+(?:on|by|against)\s+(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\b/gi,
+    (_m, infraction: string, sideRaw: string) => {
+      const side = /defense/i.test(sideRaw) ? "D"
+        : /offense/i.test(sideRaw) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // Bare "called for <infraction>" without side info → "PENALTY <Infraction>"
+  // (lookup governance will surface a modal to canonicalize side).
+  [
+    /\bcalled\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, infraction: string) => {
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${canonical}`;
+    },
+  ],
+
   // Penalty phrases — natural language to canonical "PENALTY <Value>".
   // These run BEFORE the bare "flagged"/PENALTY anchor handling so they
   // emit clean canonical tokens (with side prefix when inferable).
