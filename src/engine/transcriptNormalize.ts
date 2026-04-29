@@ -205,6 +205,42 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
     },
   ],
 
+  // ── "<infraction> penalty on <side>" — side trails after "penalty" word ──
+  // e.g. "holding penalty on the offense", "5 yard gain holding penalty on offense"
+  [
+    /\b(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\s+penalty\s+(?:on|by|against)\s+(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\b/gi,
+    (_m, infraction: string, sideRaw: string) => {
+      const side = /defense/i.test(sideRaw) ? "D"
+        : /offense/i.test(sideRaw) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // ── "penalty on <side> for <infraction>" — anchor-led with side and infraction ──
+  // e.g. "penalty on the offense for holding"
+  [
+    /\bpenalty\s+(?:on|by|against)\s+(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, sideRaw: string, infraction: string) => {
+      const side = /defense/i.test(sideRaw) ? "D"
+        : /offense/i.test(sideRaw) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
   // ── Suffix "penalty" phrasing without side info ──
   // "holding penalty" / "false start penalty" → "PENALTY Holding" (no prefix;
   // lookup governance will surface a modal to canonicalize).
