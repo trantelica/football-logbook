@@ -279,13 +279,26 @@ export function DraftPanel() {
     }
   };
 
-  /** Handle lookup field selection with dependent auto-population */
-  const handleLookupSelect = (fieldName: string, value: string) => {
+  /**
+   * Handle lookup field selection with dependent auto-population.
+   *
+   * `attrsOverride` lets callers (e.g. the LookupConfirmDialog append flow)
+   * pass freshly-collected attributes through directly, bypassing the
+   * lookup-context snapshot. This is required when the value was just added
+   * via `addValue()` in the same render — the context's `getEntryAttributes`
+   * closure is still bound to the pre-add snapshot and would return undefined
+   * for the brand-new entry, leaving derived fields like `motionDir` blank.
+   */
+  const handleLookupSelect = (
+    fieldName: string,
+    value: string,
+    attrsOverride?: Record<string, string>,
+  ) => {
     updateField(fieldName, value);
     // Auto-populate dependent fields from entryAttributes and track as lookup_derived
     const deps = DEPENDENT_FIELD_MAP[fieldName];
     if (deps && value) {
-      const attrs = getEntryAttributes(fieldName, value);
+      const attrs = attrsOverride ?? getEntryAttributes(fieldName, value);
       if (attrs) {
         const derivedFields: string[] = [];
         for (const dep of deps) {
