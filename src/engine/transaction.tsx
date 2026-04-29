@@ -31,6 +31,7 @@ import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
 import { getUnresolvedFields, filterAiProposal } from "./aiEnrichment";
+import { buildLookupGovernanceQueue, type LookupGovernanceItem } from "./lookupGovernanceQueue";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Match type for governed lookup AI proposals */
 export type GovernedMatchType = "exact" | "fuzzy" | "candidate_new";
@@ -99,6 +100,10 @@ interface TransactionContextValue {
   clearLookupInterrupt: () => void;
   /** Imperative trigger: open governance for a field/value (idempotent if same field already pending). */
   requestLookupInterrupt: (fieldName: string, value: string, source?: "ai" | "manual") => void;
+  /** Rebuild the explicit governed-value queue from the provided candidate snapshot or current candidate. */
+  rebuildLookupGovernanceQueue: (candidateOverride?: Record<string, unknown>) => boolean;
+  /** Remove the current governed item and immediately open the next queued item, if any. */
+  advanceLookupGovernanceQueue: () => void;
   /** True while a lookup append/confirm workflow is mid-flight (gates cascade). */
   lookupAppendInProgress: boolean;
   setLookupAppendInProgress: (v: boolean) => void;
@@ -342,24 +347,49 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   }, [touchedFields, deterministicParseFields, aiProposedFields, setHasDraft]);
 
   // Phase 10D: Lookup interrupt state
-  const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string; source?: "ai" | "manual" } | null>(null);
-  const clearLookupInterrupt = useCallback(() => setLookupInterruptPending(null), []);
+  const [lookupGovernanceState, setLookupGovernanceState] = useState<{
+    queue: LookupGovernanceItem[];
+    pending: LookupGovernanceItem | null;
+  }>({ queue: [], pending: null });
+  const lookupInterruptPending = lookupGovernanceState.pending;
+  const clearLookupInterrupt = useCallback(() => {
+    setLookupGovernanceState((prev) => (prev.pending ? { ...prev, pending: null } : prev));
+  }, []);
+  const resetLookupGovernanceQueue = useCallback(() => {
+    setLookupGovernanceState({ queue: [], pending: null });
+    setLookupAppendInProgress(false);
+  }, []);
   const requestLookupInterrupt = useCallback(
     (fieldName: string, value: string, source: "ai" | "manual" = "manual") => {
       const fd = getFieldDef(fieldName);
-      setLookupInterruptPending((prev) => {
-        // Don't clobber an already-open interrupt for the same field.
-        if (prev && prev.fieldName === fieldName && prev.value === value) return prev;
-        return {
+      const item: LookupGovernanceItem = {
           fieldName,
           fieldLabel: fd?.label ?? fieldName,
           value,
           source,
-        };
-      });
+      };
+      setLookupGovernanceState({ queue: [item], pending: item });
     },
     [],
   );
+  const rebuildLookupGovernanceQueue = useCallback(
+    (candidateOverride?: Record<string, unknown>) => {
+      if (lookupGovernanceState.pending || lookupAppendInProgress) {
+        return !!lookupGovernanceState.pending || lookupGovernanceState.queue.length > 0;
+      }
+      const snapshot = candidateOverride ?? (candidate as Record<string, unknown>);
+      const nextQueue = buildLookupGovernanceQueue(snapshot, getLookupMap(), aiProposedFields);
+      setLookupGovernanceState({ queue: nextQueue, pending: nextQueue[0] ?? null });
+      return nextQueue.length > 0;
+    },
+    [lookupGovernanceState, lookupAppendInProgress, candidate, getLookupMap, aiProposedFields],
+  );
+  const advanceLookupGovernanceQueue = useCallback(() => {
+    setLookupGovernanceState((prev) => {
+      const nextQueue = prev.queue.slice(1);
+      return { queue: nextQueue, pending: nextQueue[0] ?? null };
+    });
+  }, []);
 
   /**
    * Set true while a lookup append/confirm workflow is mid-flight (i.e. the
