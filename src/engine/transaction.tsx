@@ -629,7 +629,41 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             derivedToMark.add(dep);
           }
         }
+        // Penalty → PEN YARDS deterministic default. When a canonical penalty
+        // is being applied (parser/system patch), seed penYards from
+        // PENALTY_YARDS_MAP if the field is empty and the coach has not
+        // touched it. Mark as predicted so provenance is visible and a coach
+        // override always wins (touchedFields removes from predicted).
+        const penaltyIncoming = fieldsToApply["penalty"];
+        if (
+          penaltyIncoming !== undefined &&
+          penaltyIncoming !== null &&
+          penaltyIncoming !== "" &&
+          !touchedFields.has("penYards")
+        ) {
+          const penKey = String(penaltyIncoming);
+          const defYards = PENALTY_YARDS_MAP[penKey];
+          const existingPY = (candidate as Record<string, unknown>)["penYards"];
+          const incomingPY = fieldsToApply["penYards"];
+          const noIncomingPY =
+            incomingPY === undefined || incomingPY === null || incomingPY === "";
+          const noExistingPY =
+            existingPY === null || existingPY === undefined || existingPY === "";
+          if (defYards !== undefined && noIncomingPY && noExistingPY) {
+            fieldsToApply["penYards"] = defYards;
+            derivedToMark.add("__penYardsPredicted__"); // sentinel; handled below
+          }
+        }
         setCandidate((prev) => ({ ...prev, ...fieldsToApply }));
+        // Strip sentinel and route penYards predicted-marking explicitly.
+        const penYardsPredicted = derivedToMark.delete("__penYardsPredicted__");
+        if (penYardsPredicted) {
+          setPredictedFields((prev) => {
+            const next = new Set(prev);
+            next.add("penYards");
+            return next;
+          });
+        }
         if (derivedToMark.size > 0) {
           setLookupDerivedFields((prev) => {
             const next = new Set(prev);
