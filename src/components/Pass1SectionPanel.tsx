@@ -189,11 +189,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     deselectSlot,
     commitCount,
     lookupInterruptPending,
-    requestLookupInterrupt,
     lookupAppendInProgress,
     reseedAutoFieldsFor,
+    rebuildLookupGovernanceQueue,
   } = useTransaction();
-  const { getLookupMap, lookupTables } = useLookup();
+  const { getLookupMap } = useLookup();
   const { activeGame } = useGameContext();
 
   const isProposal = state === "proposal";
@@ -377,112 +377,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     [candidate],
   );
 
-  /**
-   * Scan a section's owned governed lookup fields against the current lookup
-   * tables. If the candidate holds a non-empty value that is NOT a member of
-   * that field's known approved values, raise the lookup governance interrupt.
-   *
-   * Returns true if a governance interrupt is now pending (either freshly
-   * raised here, or already pending from a prior step). Callers use this to
-   * block Finish / Commit until the coach resolves governance.
-   *
-   * Inline error text is intentionally not the only handling path — this
-   * imperative trigger guarantees the modal opens at the moments where
-   * governance becomes actionable (after Update, before Finish, before Commit).
-   */
-  const checkSectionGovernance = useCallback(
-    (id: SectionId): boolean => {
-      if (lookupInterruptPending) return true;
-      const sec = SECTIONS.find((s) => s.id === id)!;
-      const c = candidate as Record<string, unknown>;
-      const lookupMap = getLookupMap();
-      for (const f of sec.ownedFields) {
-        if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
-        const v = c[f];
-        if (v === null || v === undefined || v === "") continue;
-        const valStr = normalizeGovernedCandidateForField(v, f) || String(v).trim();
-        if (!valStr) continue;
-        const known = lookupMap.get(f) ?? [];
-        const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
-        const found = known.some((k) => k.toLowerCase().replace(/\s+/g, " ") === canonical);
-        if (!found) {
-          const src: "ai" | "manual" = aiProposedFields.has(f) ? "ai" : "manual";
-          requestLookupInterrupt(f, valStr, src);
-          return true;
-        }
-      }
-      return false;
+  const checkAllSectionsGovernance = useCallback(
+    (candidateOverride?: Record<string, unknown>): boolean => {
+      if (lookupInterruptPending || lookupAppendInProgress) return true;
+      return rebuildLookupGovernanceQueue(candidateOverride);
     },
-    [candidate, getLookupMap, lookupInterruptPending, requestLookupInterrupt, aiProposedFields],
+    [lookupInterruptPending, lookupAppendInProgress, rebuildLookupGovernanceQueue],
   );
-
-  /** Scan ALL sections in display order; raise the first unresolved governed value. */
-  const checkAllSectionsGovernance = useCallback((): boolean => {
-    if (lookupInterruptPending) return true;
-    for (const s of SECTIONS) {
-      if (checkSectionGovernance(s.id)) return true;
-    }
-    return false;
-  }, [checkSectionGovernance, lookupInterruptPending]);
-
-  /**
-   * Sequential governance cascade: when one lookup interrupt is resolved
-   * (modal closes — `lookupInterruptPending` transitions from non-null → null),
-   * automatically scan for the next unknown governed value (offForm → offPlay
-   * → motion) and raise its modal. The coach should not have to manually click
-   * into each remaining field after resolving the first one.
-   *
-   * Triggering signals (any of them defers a scan):
-   *   - `lookupInterruptPending` falling edge (modal just closed)
-   *   - `lookupTables` identity change (a new value was just appended via
-   *     "Add to playbook"; the previous unknown is now known and the next
-   *     one in candidate state should surface)
-   *   - `candidate` change while no interrupt is pending (a manual correction
-   *     or clear may have introduced/removed a governed value)
-   *
-   * The scan itself is gated by `lookupInterruptPending` (skip while a modal
-   * is already open) and by a follow-up `LookupConfirmDialog` chain in
-   * DraftPanel (which does its own work before lookupTables update). Using
-   * `lookupTables` as the primary trigger avoids a race where the falling
-   * edge fires before "Add to playbook" actually mutates the table.
-   */
-  const prevInterruptRef = useRef<typeof lookupInterruptPending>(null);
-  const prevLookupTablesRef = useRef(lookupTables);
-  useEffect(() => {
-    const prevInterrupt = prevInterruptRef.current;
-    const prevTables = prevLookupTablesRef.current;
-    prevInterruptRef.current = lookupInterruptPending;
-    prevLookupTablesRef.current = lookupTables;
-
-    // Don't scan while a modal is still open.
-    if (lookupInterruptPending) return;
-
-    // Critical: lookup append/confirm workflow guard.
-    // After the coach clicks "Add to playbook" we transition
-    //   interrupt-modal-open  →  interrupt cleared  →  LookupConfirmDialog open
-    //   →  addValue() (async, mutates lookupTables)  →  ConfirmDialog closes.
-    // Both the falling edge of `lookupInterruptPending` AND the lookupTables
-    // mutation happen MID-WORKFLOW, before the coach has finished resolving
-    // the field. Without this gate, the cascade fires immediately and either
-    // re-raises the same field or jumps to the next governed field while the
-    // dependent-attribute form is still open, producing a modal loop.
-    if (lookupAppendInProgress) return;
-
-    const fellFromOpenToClosed = !!prevInterrupt && !lookupInterruptPending;
-    const tablesChanged = prevTables !== lookupTables;
-
-    if (!fellFromOpenToClosed && !tablesChanged) return;
-
-    // Defer one tick so any in-flight setState (canonicalization, lookup
-    // table mutation, candidate field clears) has settled before we scan.
-    const t = setTimeout(() => {
-      // Re-check guard inside the timeout — another modal may have opened
-      // between schedule and fire (e.g. the LookupConfirmDialog "Add to
-      // playbook" path runs synchronously and re-raises an interrupt).
-      checkAllSectionsGovernance();
-    }, 0);
-    return () => clearTimeout(t);
-  }, [lookupInterruptPending, lookupTables, candidate, checkAllSectionsGovernance, lookupAppendInProgress]);
 
   /** Result returned by runUpdateProposal so callers (F) can react. */
   type UpdateResult =
@@ -729,29 +630,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           }
         }
 
-        // Governance check: any owned governed lookup field with an unknown
-        // value must trigger the lookup governance modal — inline error alone
-        // is not sufficient.
-        const lookupMapForGov = getLookupMap();
-        for (const f of section.ownedFields) {
-          if (!GOVERNED_LOOKUP_FIELDS.has(f)) continue;
-          const v = projected[f];
-          if (v === null || v === undefined || v === "") continue;
-          // Normalize governed value before governance modal so coach sees
-          // "3 Jet Sweep" rather than "three jet sweep".
-          const valStr = normalizeGovernedCandidateForField(v, f) || String(v).trim();
-          if (!valStr) continue;
-          const known = lookupMapForGov.get(f) ?? [];
-          const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
-          const found = known.some((k) => k.toLowerCase().replace(/\s+/g, " ") === canonical);
-          if (!found) {
-            const src: "ai" | "manual" = (Object.prototype.hasOwnProperty.call(ownedAiProposal, f))
-              ? "ai"
-              : "manual";
-            requestLookupInterrupt(f, valStr, src);
-            break;
-          }
-        }
+        checkAllSectionsGovernance(projected);
 
         // Per spec: clear dirty/unsynced only after the proposal has actually
         // been updated for this section.
@@ -851,7 +730,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       requestAiEnrichment,
       getLookupMap,
       CLARIFICATION_FIELDS_BY_SECTION,
-      requestLookupInterrupt,
+      checkAllSectionsGovernance,
     ],
   );
 

@@ -31,6 +31,7 @@ import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
 import { getUnresolvedFields, filterAiProposal } from "./aiEnrichment";
+import { buildLookupGovernanceQueue, type LookupGovernanceItem } from "./lookupGovernanceQueue";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Match type for governed lookup AI proposals */
 export type GovernedMatchType = "exact" | "fuzzy" | "candidate_new";
@@ -99,6 +100,10 @@ interface TransactionContextValue {
   clearLookupInterrupt: () => void;
   /** Imperative trigger: open governance for a field/value (idempotent if same field already pending). */
   requestLookupInterrupt: (fieldName: string, value: string, source?: "ai" | "manual") => void;
+  /** Rebuild the explicit governed-value queue from the provided candidate snapshot or current candidate. */
+  rebuildLookupGovernanceQueue: (candidateOverride?: Record<string, unknown>) => boolean;
+  /** Remove the current governed item and immediately open the next queued item, if any. */
+  advanceLookupGovernanceQueue: () => void;
   /** True while a lookup append/confirm workflow is mid-flight (gates cascade). */
   lookupAppendInProgress: boolean;
   setLookupAppendInProgress: (v: boolean) => void;
@@ -341,26 +346,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setHasDraft(isDirty);
   }, [touchedFields, deterministicParseFields, aiProposedFields, setHasDraft]);
 
-  // Phase 10D: Lookup interrupt state
-  const [lookupInterruptPending, setLookupInterruptPending] = useState<{ fieldName: string; fieldLabel: string; value: string; source?: "ai" | "manual" } | null>(null);
-  const clearLookupInterrupt = useCallback(() => setLookupInterruptPending(null), []);
-  const requestLookupInterrupt = useCallback(
-    (fieldName: string, value: string, source: "ai" | "manual" = "manual") => {
-      const fd = getFieldDef(fieldName);
-      setLookupInterruptPending((prev) => {
-        // Don't clobber an already-open interrupt for the same field.
-        if (prev && prev.fieldName === fieldName && prev.value === value) return prev;
-        return {
-          fieldName,
-          fieldLabel: fd?.label ?? fieldName,
-          value,
-          source,
-        };
-      });
-    },
-    [],
-  );
-
   /**
    * Set true while a lookup append/confirm workflow is mid-flight (i.e. the
    * coach clicked "Add to playbook" and the dependent-attributes
@@ -371,6 +356,55 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
    * finishes (success or cancel).
    */
   const [lookupAppendInProgress, setLookupAppendInProgress] = useState(false);
+
+  // Phase 10D: Lookup interrupt state + explicit queue
+  const [lookupGovernanceState, setLookupGovernanceState] = useState<{
+    queue: LookupGovernanceItem[];
+    pending: LookupGovernanceItem | null;
+  }>({ queue: [], pending: null });
+  const lookupInterruptPending = lookupGovernanceState.pending;
+  const clearLookupInterrupt = useCallback(() => {
+    setLookupGovernanceState((prev) => (prev.pending ? { ...prev, pending: null } : prev));
+  }, []);
+  const resetLookupGovernanceQueue = useCallback(() => {
+    setLookupGovernanceState({ queue: [], pending: null });
+    setLookupAppendInProgress(false);
+  }, []);
+  const requestLookupInterrupt = useCallback(
+    (fieldName: string, value: string, source: "ai" | "manual" = "manual") => {
+      const fd = getFieldDef(fieldName);
+      const item: LookupGovernanceItem = {
+        fieldName,
+        fieldLabel: fd?.label ?? fieldName,
+        value,
+        source,
+      };
+      setLookupGovernanceState({ queue: [item], pending: item });
+    },
+    [],
+  );
+  const rebuildLookupGovernanceQueue = useCallback(
+    (candidateOverride?: Record<string, unknown>) => {
+      if (lookupGovernanceState.pending || lookupAppendInProgress) {
+        return !!lookupGovernanceState.pending || lookupGovernanceState.queue.length > 0;
+      }
+      const snapshot = candidateOverride ?? (candidate as Record<string, unknown>);
+      const nextQueue = buildLookupGovernanceQueue(snapshot, getLookupMap(), aiProposedFields);
+      setLookupGovernanceState({ queue: nextQueue, pending: nextQueue[0] ?? null });
+      return nextQueue.length > 0;
+    },
+    [lookupGovernanceState, lookupAppendInProgress, candidate, getLookupMap, aiProposedFields],
+  );
+  const advanceLookupGovernanceQueue = useCallback(() => {
+    setLookupGovernanceState((prev) => {
+      const nextQueue = prev.queue.slice(1);
+      return { queue: nextQueue, pending: nextQueue[0] ?? null };
+    });
+  }, []);
+
+  useEffect(() => {
+    resetLookupGovernanceQueue();
+  }, [gameId, gameIsSlotMode, resetLookupGovernanceQueue]);
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
@@ -646,26 +680,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         setState("candidate");
         setCommitErrors({});
 
-        // 10-1D: Immediate lookup interrupt for governed lookup fields with unknown values
-        const lookupMap = getLookupMap();
-        for (const [fieldName, value] of Object.entries(fieldsToApply)) {
-          if (!lookupMap.has(fieldName)) continue;
-          const knownValues = lookupMap.get(fieldName) ?? [];
-          const valStr = String(value).trim();
-          if (valStr === "") continue;
-          const canonical = valStr.toLowerCase().replace(/\s+/g, " ");
-          const found = knownValues.some((v) => v.toLowerCase().replace(/\s+/g, " ") === canonical);
-          if (!found) {
-            const fd = getFieldDef(fieldName);
-            setLookupInterruptPending({
-              fieldName,
-              fieldLabel: fd?.label ?? fieldName,
-              value: valStr,
-              source: source === "ai_proposed" ? "ai" : "manual",
-            });
-            break;
-          }
-        }
+        rebuildLookupGovernanceQueue(updatedCandidate);
       }
 
       return collisions;
@@ -697,8 +712,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
+    resetLookupGovernanceQueue();
     setCommitCount((c) => c + 1);
-  }, [gameId, isSlotMode]);
+  }, [gameId, isSlotMode, resetLookupGovernanceQueue]);
 
   const clearDraftPreservingSelection = useCallback(() => {
     if (!(isSlotMode && selectedSlotNum !== null)) {
@@ -728,8 +744,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
+    resetLookupGovernanceQueue();
     setCommitCount((c) => c + 1);
-  }, [clearDraft, gameId, isSlotMode, selectedSlotNum]);
+  }, [clearDraft, gameId, isSlotMode, selectedSlotNum, resetLookupGovernanceQueue]);
 
   const reviewProposal = useCallback(() => {
     if (configMode) {
@@ -1392,8 +1409,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiProposedFields(new Set());
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
+    resetLookupGovernanceQueue();
     setState(gameId ? "idle" : "idle");
-  }, [gameId]);
+  }, [gameId, resetLookupGovernanceQueue]);
 
   const dismissScaffoldWarning = useCallback(() => {
     setScaffoldedWarning(null);
@@ -1472,8 +1490,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setCandidate(emptyCandidate(gameId));
     setPatContext(false);
     setPatLockedTry(null);
+    resetLookupGovernanceQueue();
     setState(gameId ? "idle" : "idle");
-  }, [gameId]);
+  }, [gameId, resetLookupGovernanceQueue]);
 
   // Phase 5: Possession check confirmation — remain in Draft, one-time dismiss
   const confirmPossessionOffense = useCallback(() => {
@@ -1829,6 +1848,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         lookupInterruptPending,
         clearLookupInterrupt,
         requestLookupInterrupt,
+        rebuildLookupGovernanceQueue,
+        advanceLookupGovernanceQueue,
         lookupAppendInProgress,
         setLookupAppendInProgress,
         activePass,

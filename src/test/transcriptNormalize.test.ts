@@ -167,6 +167,10 @@ describe("normalizeTranscriptForParse", () => {
     expect(normalizeTranscriptForParse("with a jet motion")).toContain("MOTION Jet");
   });
 
+  it("normalizes 'we have a four pirate motion' into MOTION 4 Pirate", () => {
+    expect(normalizeTranscriptForParse("we have a four pirate motion")).toContain("MOTION 4 Pirate");
+  });
+
   // --- Ordinal-and-distance phrases (Situation) ---
 
   it("normalizes '4th and 10' → 'DN 4 DIST 10'", () => {
