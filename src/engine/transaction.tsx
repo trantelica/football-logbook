@@ -346,7 +346,18 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setHasDraft(isDirty);
   }, [touchedFields, deterministicParseFields, aiProposedFields, setHasDraft]);
 
-  // Phase 10D: Lookup interrupt state
+  /**
+   * Set true while a lookup append/confirm workflow is mid-flight (i.e. the
+   * coach clicked "Add to playbook" and the dependent-attributes
+   * LookupConfirmDialog is open, or addValue is in flight). The Pass 1
+   * sequential-cascade scan must skip while this is true so it does not
+   * re-raise governance for the same/next field before the current append
+   * has actually committed to the lookup table. Cleared when the append
+   * finishes (success or cancel).
+   */
+  const [lookupAppendInProgress, setLookupAppendInProgress] = useState(false);
+
+  // Phase 10D: Lookup interrupt state + explicit queue
   const [lookupGovernanceState, setLookupGovernanceState] = useState<{
     queue: LookupGovernanceItem[];
     pending: LookupGovernanceItem | null;
@@ -363,10 +374,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     (fieldName: string, value: string, source: "ai" | "manual" = "manual") => {
       const fd = getFieldDef(fieldName);
       const item: LookupGovernanceItem = {
-          fieldName,
-          fieldLabel: fd?.label ?? fieldName,
-          value,
-          source,
+        fieldName,
+        fieldLabel: fd?.label ?? fieldName,
+        value,
+        source,
       };
       setLookupGovernanceState({ queue: [item], pending: item });
     },
@@ -390,17 +401,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return { queue: nextQueue, pending: nextQueue[0] ?? null };
     });
   }, []);
-
-  /**
-   * Set true while a lookup append/confirm workflow is mid-flight (i.e. the
-   * coach clicked "Add to playbook" and the dependent-attributes
-   * LookupConfirmDialog is open, or addValue is in flight). The Pass 1
-   * sequential-cascade scan must skip while this is true so it does not
-   * re-raise governance for the same/next field before the current append
-   * has actually committed to the lookup table. Cleared when the append
-   * finishes (success or cancel).
-   */
-  const [lookupAppendInProgress, setLookupAppendInProgress] = useState(false);
 
   // Revalidate inline errors when lookupMap changes
   useEffect(() => {
