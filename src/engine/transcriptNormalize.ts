@@ -119,6 +119,13 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // doesn't get parsed as "<a> jet motion").
   [/\b(?:with(?:\s+a)?|in|on)?\s*(jet|fly|orbit|return)\s+motion\b/gi,
     (_m, dir: string) => `MOTION ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`],
+  // Generic two-token motion phrase: "4 pirate motion", "Z across motion".
+  // Kept narrow to a digit or single-letter actor token + one descriptor token.
+  [/\b(?:we\s+have(?:\s+a)?|with(?:\s+a)?|in|on)?\s*((?:\d+|[A-Z]))\s+([A-Za-z]+)\s+motion\b/gi,
+    (m, who: string, label: string) => {
+      if (/^(a|an)$/i.test(who)) return m;
+      return `MOTION ${who.toUpperCase()} ${label.charAt(0).toUpperCase() + label.slice(1).toLowerCase()}`;
+    }],
   // Two-token motion: "<token> <direction> motion".
   // `who` is restricted to a digit-string OR a single uppercase letter (case-sensitive
   // matcher in a case-insensitive regex still matches lowercase letters; we filter
