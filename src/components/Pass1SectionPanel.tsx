@@ -549,6 +549,24 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         // AI must NOT overwrite them — provenance for those values must remain
         // "deterministic_parse" (Parse badge), not "ai_proposed" (AI badge).
         const justParsedFields = new Set<string>(Object.keys(fillablePatch));
+
+        // Build a set of token-fragments already accounted for by deterministic
+        // governed extractions in this same run (from scopedParsePatch). This
+        // prevents AI from "leaking" sub-tokens into a sibling governed field.
+        // Example: parser extracts motion = "3 Across" from "3 Across motion".
+        // AI then proposes offPlay = "Across" from the same observation text.
+        // Since "Across" is a sub-token of an already-extracted governed value,
+        // drop the AI proposal for offPlay rather than triggering bogus
+        // governance against a phrase fragment.
+        const deterministicGovernedFragments = new Set<string>();
+        for (const [pk, pv] of Object.entries(scopedParsePatch)) {
+          if (!GOVERNED_LOOKUP_FIELDS.has(pk)) continue;
+          if (typeof pv !== "string") continue;
+          for (const tok of pv.split(/\s+/)) {
+            const norm = tok.trim().toLowerCase();
+            if (norm) deterministicGovernedFragments.add(norm);
+          }
+        }
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
           // Hard guardrail: AI must never target derived fields, even via the
@@ -573,6 +591,18 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             const normalizedInner = normalizeGovernedCandidateForField(inner, k);
             if (normalizedInner) inner = normalizedInner;
             if (!looksLikeGovernedCandidate(inner)) {
+              droppedGovernedFields.push(k);
+              continue;
+            }
+            // Contamination guard: drop AI governed proposals whose entire
+            // normalized value is composed of tokens already accounted for by
+            // a deterministic governed extraction in this same run. Prevents
+            // motion-phrase residue (e.g. "Across") leaking into offPlay.
+            const aiTokens = String(inner).trim().toLowerCase().split(/\s+/).filter(Boolean);
+            if (
+              aiTokens.length > 0 &&
+              aiTokens.every((t) => deterministicGovernedFragments.has(t))
+            ) {
               droppedGovernedFields.push(k);
               continue;
             }

@@ -357,4 +357,16 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
   it("preserves prior 'jet motion' single-token coverage", () => {
     expect(normalizeTranscriptForParse("with a jet motion")).toContain("MOTION Jet");
   });
+
+  it("bare '3 Across motion' produces only MOTION (no PLAY contamination)", () => {
+    const out = normalizeTranscriptForParse("3 Across motion");
+    expect(out).toContain("MOTION 3 Across");
+    expect(out).not.toMatch(/\bPLAY\b/);
+  });
+
+  it("bare '3 across motion' (lowercase) produces only MOTION", () => {
+    const out = normalizeTranscriptForParse("3 across motion");
+    expect(out).toContain("MOTION 3 Across");
+    expect(out).not.toMatch(/\bPLAY\b/);
+  });
 });
