@@ -1389,7 +1389,14 @@ PENALTY O-Holding EFF Y 2MIN N`}
             const { fieldName, value } = confirmDialog;
             try {
               await addValue(fieldName, value, attributes);
-              handleLookupSelect(fieldName, value);
+              // Hydrate dependents directly from the dialog-provided attributes.
+              // We can't rely on getEntryAttributes() here because the lookup
+              // context's table snapshot is still the pre-addValue closure for
+              // this render; reload() updates state but won't be visible until
+              // the next render. Passing attributes through guarantees the
+              // dependent fields (offStrength/personnel; playType/playDir;
+              // motionDir) populate immediately and are marked lookup_derived.
+              handleLookupSelect(fieldName, value, attributes);
             } catch (err: unknown) {
               toast.error(err instanceof Error ? err.message : "Failed to add value");
               updateField(confirmDialog.fieldName, "");
