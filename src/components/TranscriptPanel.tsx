@@ -671,9 +671,29 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
                 })}
             </ul>
             {lastSnapshot.personnel.offRosterJerseys.length > 0 && (
-              <p className="text-[10px] text-destructive/80">
-                Add the off-roster jersey(s) to the roster panel, then re-parse.
-              </p>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <p className="text-[10px] text-destructive/80">
+                  Off-roster jerseys block their assignments. Resolve to add them to the roster and re-apply.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[10px] gap-1 shrink-0"
+                  onClick={() => {
+                    if (!lastSnapshot?.personnel) return;
+                    const pending: OffRosterPending[] = lastSnapshot.personnel.report
+                      .filter((r) => r.status === "off_roster" && r.jersey != null)
+                      .map((r) => ({
+                        jersey: r.jersey as number,
+                        canonicalField: r.canonicalField,
+                        rawSentence: r.rawSentence,
+                      }));
+                    setRosterResolve({ pending, sourceText: lastSnapshot.sourceText });
+                  }}
+                >
+                  Resolve off-roster
+                </Button>
+              </div>
             )}
           </div>
         )}
