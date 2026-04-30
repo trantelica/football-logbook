@@ -1645,6 +1645,18 @@ function PredictionBanner({ coachMessages, technicalExplanations }: {
   );
 }
 
+// ── DevToolsPortal: renders children into the #dev-tools-slot div in Index.tsx
+// so dev-mode panels appear below Committed Plays without restructuring DraftPanel's state.
+function DevToolsPortal({ children }: { children: React.ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = document.getElementById("dev-tools-slot");
+    setTarget(el);
+  }, []);
+  if (!target) return null;
+  return createPortal(children, target);
+}
+
 
 
 interface LookupComboboxProps {
