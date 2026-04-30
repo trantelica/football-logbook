@@ -294,7 +294,12 @@ export function PersonnelPanel() {
                 return (
                   <div key={actor} className="space-y-0.5">
                     <ActorCombobox
-                      fieldLabel={ACTOR_LABELS[actor]}
+                      fieldLabel={
+                        <span className="flex items-center gap-1">
+                          <span>{ACTOR_LABELS[actor]}</span>
+                          {renderProvenance(actor)}
+                        </span>
+                      }
                       requiredAtCommit={false}
                       value={actorVal}
                       onChange={(v) => updateField(actor, v)}
