@@ -19,13 +19,22 @@ import { parseRawInput, type ParseResult } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { useTransaction, type SystemPatchCollision } from "@/engine/transaction";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
+import {
+  parsePersonnelNarration,
+  type PersonnelParseResult,
+} from "@/engine/personnelParser";
+import { useSeason } from "@/engine/seasonContext";
+import { getSeasonConfig } from "@/engine/db";
+import type { PositionAliasMap } from "@/engine/positionAliases";
 import { toast } from "sonner";
 
 interface ParseSnapshot {
   /** The exact text that was parsed */
   sourceText: string;
-  /** The parse result from the deterministic parser */
+  /** The merged parse result (anchor + personnel narration) */
   result: ParseResult;
+  /** Personnel parser report (Pass 2+) */
+  personnel?: PersonnelParseResult;
   /** ISO timestamp of when parse was triggered */
   parsedAt: string;
 }
@@ -33,9 +42,13 @@ interface ParseSnapshot {
 interface TranscriptPanelProps {
   /** Called after successful Apply to Draft with observation text and deterministic patch */
   onApply?: (observationText: string, deterministicPatch: Record<string, unknown>) => void;
+  /** Active pass (1, 2, 3) — gates personnel-narration parsing for Pass 2+. */
+  activePass?: number;
+  /** Current candidate snapshot — used to detect jersey moves in Pass 2 parsing. */
+  currentCandidate?: Record<string, unknown> | null;
 }
 
-export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
+export function TranscriptPanel({ onApply, activePass, currentCandidate }: TranscriptPanelProps = {}) {
   const {
     text,
     interim,
@@ -48,6 +61,19 @@ export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
   } = useTranscriptCapture();
 
   const { applySystemPatch, commitCount } = useTransaction();
+  const { activeSeason } = useSeason();
+
+  // Load season alias map for personnel-narration token resolution.
+  const [aliasMap, setAliasMap] = useState<PositionAliasMap>({});
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!activeSeason?.seasonId) { setAliasMap({}); return; }
+    getSeasonConfig(activeSeason.seasonId).then((cfg) => {
+      if (cancelled) return;
+      setAliasMap((cfg?.positionAliases ?? {}) as PositionAliasMap);
+    });
+    return () => { cancelled = true; };
+  }, [activeSeason?.seasonId]);
 
   const [showTyped, setShowTyped] = useState(false);
   const [typedLine, setTypedLine] = useState("");
@@ -119,15 +145,33 @@ export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
     if (!sourceText) return;
 
     const normalized = normalizeTranscriptForParse(sourceText);
-    const result = parseRawInput(normalized);
+    const anchorResult = parseRawInput(normalized);
+
+    // Pass 2+: also run deterministic personnel-narration parser. Personnel
+    // patch keys are always canonical pos* fields. Merge into anchor patch
+    // (personnel takes precedence on canonical pos* keys — it's the only
+    // producer of those keys).
+    let personnel: PersonnelParseResult | undefined;
+    let mergedPatch = anchorResult.patch;
+    if ((activePass ?? 1) >= 2) {
+      personnel = parsePersonnelNarration(
+        sourceText,
+        aliasMap,
+        currentCandidate ?? null,
+      );
+      if (Object.keys(personnel.patch).length > 0) {
+        mergedPatch = { ...anchorResult.patch, ...personnel.patch };
+      }
+    }
 
     setLastSnapshot({
       sourceText,
-      result,
+      result: { patch: mergedPatch, report: anchorResult.report },
+      personnel,
       parsedAt: new Date().toISOString(),
     });
     setApplied(false);
-  }, [text]);
+  }, [text, activePass, aliasMap, currentCandidate]);
 
   /**
    * Apply to Draft — transfers frozen parse snapshot into draft via applySystemPatch.
@@ -343,6 +387,14 @@ export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
           ✓ Parsed {Object.keys(lastSnapshot.result.patch).length} field(s)
           {lastSnapshot.result.report.filter((r) => r.status === "unrecognized").length > 0 &&
             ` · ${lastSnapshot.result.report.filter((r) => r.status === "unrecognized").length} unrecognized`}
+          {lastSnapshot.personnel && lastSnapshot.personnel.report.length > 0 && (
+            <>
+              {" · "}
+              {lastSnapshot.personnel.report.filter((r) => r.status === "matched").length} personnel matched
+              {lastSnapshot.personnel.report.filter((r) => r.status === "unrecognized").length > 0 &&
+                ` (${lastSnapshot.personnel.report.filter((r) => r.status === "unrecognized").length} unrecognized)`}
+            </>
+          )}
         </p>
       )}
 

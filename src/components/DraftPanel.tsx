@@ -1029,7 +1029,11 @@ export function DraftPanel() {
       {/* Transcript Panel — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
       {activePass >= 2 && selectedSlotNum !== null && (
         <div className="mb-3 space-y-2">
-          <TranscriptPanel onApply={handleTranscriptApply} />
+          <TranscriptPanel
+            onApply={handleTranscriptApply}
+            activePass={activePass}
+            currentCandidate={candidate as unknown as Record<string, unknown>}
+          />
           {!isProposal && (
             <div className="flex justify-end">
               <Button
