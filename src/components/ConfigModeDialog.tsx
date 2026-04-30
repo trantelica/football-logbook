@@ -12,12 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig, saveSeasonConfig, countSeasonCommittedPlays } from "@/engine/db";
 import { buildDefaultConfig, diffConfig, type SeasonConfig } from "@/engine/configStore";
 import { playSchema } from "@/engine/schema";
+import { PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
+import { validateAliasMap, type PositionAliasMap } from "@/engine/positionAliases";
 import { toast } from "sonner";
 
 interface ConfigModeDialogProps {
@@ -33,8 +36,11 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
   const [fieldSize, setFieldSize] = useState<"80" | "100">("80");
   const [patMode, setPatMode] = useState<"none" | "youth_1_2" | "hs_kick">("none");
   const [activeFields, setActiveFields] = useState<Record<string, boolean>>({});
+  const [positionAliases, setPositionAliases] = useState<Record<string, string>>({});
   const [locked, setLocked] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const aliasErrors = validateAliasMap(positionAliases as PositionAliasMap);
 
   const fieldKeys = playSchema.map((f) => f.name);
 
@@ -60,6 +66,7 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
       setFieldSize(String(config.fieldSize) as "80" | "100");
       setPatMode(config.patMode ?? "none");
       setActiveFields({ ...config.activeFields });
+      setPositionAliases({ ...(config.positionAliases ?? {}) });
       setLocked(playCount > 0);
     })();
 
@@ -74,13 +81,24 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
 
   const handleSave = async () => {
     if (!loadedConfig) return;
+    if (Object.keys(aliasErrors).length > 0) {
+      toast.error("Fix position alias errors before saving.");
+      return;
+    }
     setSaving(true);
     try {
+      // Strip empty aliases so storage stays clean
+      const cleanAliases: Record<string, string> = {};
+      for (const [k, v] of Object.entries(positionAliases)) {
+        const t = (v ?? "").trim();
+        if (t) cleanAliases[k] = t;
+      }
       const after: SeasonConfig = {
         ...loadedConfig,
         fieldSize: Number(fieldSize) as 80 | 100,
         patMode,
         activeFields: { ...activeFields },
+        positionAliases: cleanAliases,
       };
       await saveSeasonConfig(after, loadedConfig);
       toast.success("Season configuration saved.");
@@ -181,6 +199,44 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
                     />
                     <span>{def?.label ?? name}</span>
                   </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Pass 2 Position Aliases */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Pass 2 Position Aliases
+            </Label>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              Optional coach-friendly nicknames (e.g. 1 → QB, 2 → H, 3 → F).
+              Aliases are display/parsing helpers only — committed data and
+              exports always use canonical position names.
+            </p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {PERSONNEL_POSITIONS.map((pos) => {
+                const err = aliasErrors[pos];
+                return (
+                  <div key={pos} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono w-7 text-muted-foreground">
+                        {PERSONNEL_LABELS[pos]}
+                      </span>
+                      <Input
+                        value={positionAliases[pos] ?? ""}
+                        onChange={(e) =>
+                          setPositionAliases((prev) => ({ ...prev, [pos]: e.target.value }))
+                        }
+                        placeholder="—"
+                        className={`h-7 text-xs ${err ? "border-destructive" : ""}`}
+                        maxLength={12}
+                      />
+                    </div>
+                    {err && (
+                      <span className="text-[10px] text-destructive pl-9">{err}</span>
+                    )}
+                  </div>
                 );
               })}
             </div>

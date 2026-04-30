@@ -4,15 +4,23 @@
  * and actor integrity section with fix options.
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
+import { useSeason } from "@/engine/seasonContext";
+import { getSeasonConfig } from "@/engine/db";
 import { PERSONNEL_POSITIONS, PERSONNEL_LABELS, ACTOR_FIELDS } from "@/engine/personnel";
+import {
+  getAliasFor,
+  resolveToCanonicalPos,
+  type PositionAliasMap,
+} from "@/engine/positionAliases";
 import { ActorCombobox } from "./ActorCombobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, AlertTriangle, ArrowRight, Sparkles } from "lucide-react";
+import { Lock, AlertTriangle, ArrowRight, Sparkles, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
@@ -45,6 +53,22 @@ export function PersonnelPanel() {
     carriedForwardFromPlayNum,
   } = useTransaction();
   const { roster, addPlayer, getPlayer } = useRoster();
+  const { activeSeason } = useSeason();
+
+  // Load season position-alias map (translation/display only)
+  const [aliasMap, setAliasMap] = useState<PositionAliasMap>({});
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeSeason?.seasonId) {
+      setAliasMap({});
+      return;
+    }
+    getSeasonConfig(activeSeason.seasonId).then((cfg) => {
+      if (cancelled) return;
+      setAliasMap((cfg?.positionAliases ?? {}) as PositionAliasMap);
+    });
+    return () => { cancelled = true; };
+  }, [activeSeason?.seasonId]);
 
   const c = candidate as unknown as Record<string, unknown>;
   const errors = { ...inlineErrors, ...commitErrors };
@@ -134,12 +158,18 @@ export function PersonnelPanel() {
                 const isCarried = carriedForwardFields.has(pos);
                 const jerseyVal = c[pos] != null ? String(c[pos]) : "";
                 const playerName = jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
+                const alias = getAliasFor(pos, aliasMap);
                 return (
                   <div key={pos} className="space-y-0.5">
                     <ActorCombobox
                       fieldLabel={
                         <span className="flex items-center gap-1">
-                          {PERSONNEL_LABELS[pos]}
+                          <span>{PERSONNEL_LABELS[pos]}</span>
+                          {alias && (
+                            <span className="text-[9px] font-normal text-muted-foreground">
+                              ({alias})
+                            </span>
+                          )}
                           {isCarried && (
                             <Sparkles className="h-2.5 w-2.5 text-violet-500" />
                           )}
@@ -167,6 +197,12 @@ export function PersonnelPanel() {
                 );
               })}
             </div>
+
+            {/* Quick Assign by position token (canonical or alias) */}
+            <QuickAssignRow
+              aliasMap={aliasMap}
+              onAssign={(canonicalField, jersey) => updateField(canonicalField, jersey)}
+            />
           </div>
 
           {/* Actor Integrity Section */}
@@ -320,6 +356,82 @@ function ActorFixCard({
           Set
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * QuickAssignRow — small helper letting coaches assign by position TOKEN
+ * (canonical label like "1"/"RG" or any configured alias like "QB"/"F").
+ *
+ * Always writes to the canonical pos* field. Aliases are translation only.
+ */
+function QuickAssignRow({
+  aliasMap,
+  onAssign,
+}: {
+  aliasMap: PositionAliasMap;
+  onAssign: (canonicalField: string, jersey: string) => void;
+}) {
+  const [token, setToken] = useState("");
+  const [jersey, setJersey] = useState("");
+
+  const resolved = resolveToCanonicalPos(token, aliasMap);
+  const tokenInvalid = token.trim().length > 0 && !resolved;
+  const jerseyNum = Number(jersey);
+  const jerseyOk = jersey.trim() !== "" && Number.isInteger(jerseyNum) && jerseyNum >= 0;
+
+  const handleAdd = () => {
+    if (!resolved || !jerseyOk) return;
+    onAssign(resolved, String(jerseyNum));
+    toast.success(
+      `Assigned #${jerseyNum} to ${PERSONNEL_LABELS[resolved.replace(/^pos/, "pos") as keyof typeof PERSONNEL_LABELS] ?? resolved}`,
+    );
+    setToken("");
+    setJersey("");
+  };
+
+  return (
+    <div className="mt-3 rounded border border-dashed border-border/60 bg-muted/20 p-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+          Quick Assign
+        </span>
+        <Input
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="Position (e.g. 1, QB, RG)"
+          className={`h-7 text-xs w-44 ${tokenInvalid ? "border-destructive" : ""}`}
+        />
+        <Input
+          value={jersey}
+          onChange={(e) => setJersey(e.target.value.replace(/[^0-9]/g, ""))}
+          placeholder="Jersey #"
+          inputMode="numeric"
+          className="h-7 text-xs w-24"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          onClick={handleAdd}
+          disabled={!resolved || !jerseyOk}
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add
+        </Button>
+        {resolved && (
+          <span className="text-[10px] text-muted-foreground">
+            → {PERSONNEL_LABELS[resolved as keyof typeof PERSONNEL_LABELS] ?? resolved}
+          </span>
+        )}
+        {tokenInvalid && (
+          <span className="text-[10px] text-destructive">Unknown position token</span>
+        )}
+      </div>
+      <p className="text-[9px] text-muted-foreground mt-1">
+        Aliases resolve to canonical positions. Stored data stays canonical.
+      </p>
     </div>
   );
 }

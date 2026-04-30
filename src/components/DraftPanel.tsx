@@ -131,13 +131,24 @@ export function DraftPanel() {
   /** Last deterministic parse patch — sent to AI so it knows what's already resolved */
   const [lastDeterministicPatch, setLastDeterministicPatch] = useState<Record<string, unknown>>({});
 
-  // 9.2A: Load active fields from season config
+  // 9.2A: Load active fields + position aliases from season config
   const [activeFieldsMap, setActiveFieldsMap] = useState<Record<string, boolean> | null>(null);
+  const [positionAliasMap, setPositionAliasMap] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!activeSeason) { setActiveFieldsMap(null); return; }
+    if (!activeSeason) {
+      setActiveFieldsMap(null);
+      setPositionAliasMap({});
+      return;
+    }
     getSeasonConfig(activeSeason.seasonId)
-      .then((cfg) => setActiveFieldsMap(cfg?.activeFields ?? null))
-      .catch(() => setActiveFieldsMap(null));
+      .then((cfg) => {
+        setActiveFieldsMap(cfg?.activeFields ?? null);
+        setPositionAliasMap(cfg?.positionAliases ?? {});
+      })
+      .catch(() => {
+        setActiveFieldsMap(null);
+        setPositionAliasMap({});
+      });
   }, [activeSeason?.seasonId]);
 
   /** Check if a field is inactive per season config */
@@ -981,6 +992,7 @@ export function DraftPanel() {
           lookupValues: lookupMap,
           fieldSize: (activeGame?.fieldSize ?? 80) as 80 | 100,
           predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
+          positionAliases: positionAliasMap,
         },
       );
       if (result.error) {
