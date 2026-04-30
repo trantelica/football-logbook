@@ -23,7 +23,7 @@ import { resolveToCanonicalPos, type PositionAliasMap } from "./positionAliases"
 
 export interface PersonnelParseEntry {
   rawSentence: string;
-  status: "matched" | "unrecognized" | "ambiguous" | "off_roster" | "duplicate";
+  status: "matched" | "unrecognized" | "ambiguous" | "off_roster" | "duplicate" | "same_slot_conflict";
   jersey?: number;
   canonicalField?: string;
   /** Set when the jersey was relocated from another slot. */
@@ -39,6 +39,8 @@ export interface PersonnelParseResult {
   offRosterJerseys: number[];
   /** Intra-utterance duplicate jersey assignments (jersey targeted at >1 distinct slot). */
   duplicateJerseys: number[];
+  /** Canonical slots targeted by >1 distinct jersey in the same utterance. */
+  sameSlotConflicts: { canonicalField: string; jerseys: number[] }[];
 }
 
 /**
