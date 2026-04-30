@@ -19,13 +19,22 @@ import { parseRawInput, type ParseResult } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { useTransaction, type SystemPatchCollision } from "@/engine/transaction";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
+import {
+  parsePersonnelNarration,
+  type PersonnelParseResult,
+} from "@/engine/personnelParser";
+import { useSeason } from "@/engine/seasonContext";
+import { getSeasonConfig } from "@/engine/db";
+import type { PositionAliasMap } from "@/engine/positionAliases";
 import { toast } from "sonner";
 
 interface ParseSnapshot {
   /** The exact text that was parsed */
   sourceText: string;
-  /** The parse result from the deterministic parser */
+  /** The merged parse result (anchor + personnel narration) */
   result: ParseResult;
+  /** Personnel parser report (Pass 2+) */
+  personnel?: PersonnelParseResult;
   /** ISO timestamp of when parse was triggered */
   parsedAt: string;
 }
@@ -33,9 +42,13 @@ interface ParseSnapshot {
 interface TranscriptPanelProps {
   /** Called after successful Apply to Draft with observation text and deterministic patch */
   onApply?: (observationText: string, deterministicPatch: Record<string, unknown>) => void;
+  /** Active pass (1, 2, 3) — gates personnel-narration parsing for Pass 2+. */
+  activePass?: number;
+  /** Current candidate snapshot — used to detect jersey moves in Pass 2 parsing. */
+  currentCandidate?: Record<string, unknown> | null;
 }
 
-export function TranscriptPanel({ onApply }: TranscriptPanelProps = {}) {
+export function TranscriptPanel({ onApply, activePass, currentCandidate }: TranscriptPanelProps = {}) {
   const {
     text,
     interim,
