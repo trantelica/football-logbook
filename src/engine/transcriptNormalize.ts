@@ -159,6 +159,73 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // pluralize. Done as a narrow word-boundary substitution (no broader effect).
   [/\boffsides\b/gi, "offside"],
 
+  // Narrow alias: bare "interference" in a clear penalty context resolves
+  // to "pass interference" so canonical matching below produces the
+  // schema-correct "Pass Interference" infraction. Only fires when paired
+  // with side/perspective + a "called/flagged" cue or trailing penalty
+  // anchor — never on the standalone word.
+  [
+    /\binterference\s+(was|were)\s+called\b/gi,
+    (_m, verb: string) => `pass interference ${verb} called`,
+  ],
+  [
+    /\b(called|flagged|whistled)\s+for\s+interference\b/gi,
+    (_m, verb: string) => `${verb} for pass interference`,
+  ],
+  [
+    /\b(offensive|defensive)\s+interference\b/gi,
+    (_m, side: string) => `${side} pass interference`,
+  ],
+
+  // ── "<infraction> was/were called on (the) (offense|defense|us|them|...)" ──
+  // Order matters: this captures phrasings where the infraction LEADS the
+  // sentence and the side trails after "called on". Examples:
+  //   "interference was called on the defense"  (after alias above → "pass interference was called on the defense")
+  //   "holding was called on the offense"
+  //   "false start was called on us"
+  [
+    /\b(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\s+(?:was|were)\s+called\s+on\s+(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team|us|them|our\s+team|the\s+other\s+team|other\s+team|opposing\s+team|opponents)\b/gi,
+    (_m, infraction: string, target: string) => {
+      const side =
+        /defense|other\s+team|opposing\s+team|opponents|them/i.test(target) ? "D"
+        : /offense|our\s+team|us/i.test(target) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // ── "(we|they|us|them|the offense|the defense|...) was/were <infraction>" ──
+  // State-style phrasing where the verb is bare "was/were" rather than
+  // "called for". Narrow whitelist of infractions that are commonly spoken
+  // this way (most penalties don't naturally fit this shape).
+  // Examples:
+  //   "they were offsides"  (after singularization → "they were offside")
+  //   "we were offside"
+  //   "the defense was offside"
+  //   "we were holding"
+  [
+    /\b(?:the\s+)?(we|they|us|them|our\s+team|the\s+other\s+team|other\s+team|opposing\s+team|opponents|offense|defense)\s+(?:was|were)\s+(offside|encroachment|holding|false\s+start|delay\s+of\s+game)\b/gi,
+    (_m, subject: string, infraction: string) => {
+      const side =
+        /defense|other\s+team|opposing\s+team|opponents|\bthem\b|\bthey\b/i.test(subject) ? "D"
+        : /offense|our\s+team|\bus\b|\bwe\b/i.test(subject) ? "O"
+        : "S";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
   // ── Team-perspective penalty phrasings (Play Results) ──
   // Coach narration in Play Results frequently uses team-perspective pronouns
   // instead of explicit "offense"/"defense". We map:
@@ -582,6 +649,15 @@ export function normalizeTranscriptForParse(s: string): string {
 
   // Uppercase all anchors
   t = t.replace(ANCHOR_RE, (m) => m.toUpperCase());
+
+  // Provenance reconciliation: when deterministic normalization produced a
+  // PENALTY token but no RESULT token, prepend "RESULT Penalty" so the
+  // parser records `result` as deterministic (not AI-authored). Avoids the
+  // mixed-provenance case where penalty is Parse but result is AI for the
+  // same recognized phrase.
+  if (/\bPENALTY\b/.test(t) && !/\bRESULT\b/.test(t)) {
+    t = `RESULT Penalty ${t}`.trim();
+  }
 
   return t;
 }

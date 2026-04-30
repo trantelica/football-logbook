@@ -539,5 +539,71 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).toContain("PENALTY O-Holding");
       expect(out).toContain("PLAY");
     });
+
+    // ── Round 4: defensive/state-style phrasings + provenance reconciliation ──
+
+    it("'interference was called on the defense' → PENALTY D-Pass Interference", () => {
+      const out = normalizeTranscriptForParse("interference was called on the defense");
+      expect(out).toContain("PENALTY D-Pass Interference");
+    });
+
+    it("'pass interference was called on the defense' → PENALTY D-Pass Interference", () => {
+      const out = normalizeTranscriptForParse("pass interference was called on the defense");
+      expect(out).toContain("PENALTY D-Pass Interference");
+    });
+
+    it("'holding was called on the offense' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("holding was called on the offense");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'they were offsides' → PENALTY D-Offside", () => {
+      const out = normalizeTranscriptForParse("they were offsides");
+      expect(out).toContain("PENALTY D-Offside");
+    });
+
+    it("'we were offside' → PENALTY O-Offside", () => {
+      const out = normalizeTranscriptForParse("we were offside");
+      expect(out).toContain("PENALTY O-Offside");
+    });
+
+    it("'the defense was offside' → PENALTY D-Offside", () => {
+      const out = normalizeTranscriptForParse("the defense was offside");
+      expect(out).toContain("PENALTY D-Offside");
+    });
+
+    it("'defensive interference' alias → PENALTY D-Pass Interference", () => {
+      const out = normalizeTranscriptForParse("defensive interference");
+      expect(out).toContain("PENALTY D-Pass Interference");
+    });
+
+    it("'called for interference' alias → PENALTY (Pass Interference, no side)", () => {
+      const out = normalizeTranscriptForParse("called for interference");
+      expect(out).toContain("PENALTY Pass Interference");
+    });
+
+    it("emits RESULT Penalty whenever PENALTY is normalized (provenance reconciliation)", () => {
+      const out = normalizeTranscriptForParse("they were offsides");
+      expect(out).toContain("PENALTY D-Offside");
+      expect(out).toContain("RESULT Penalty");
+    });
+
+    it("does NOT prepend RESULT Penalty when transcript already specifies a different RESULT", () => {
+      const out = normalizeTranscriptForParse("RESULT Complete PENALTY O-Holding");
+      // RESULT should not be added a second time.
+      const matches = out.match(/\bRESULT\b/g);
+      expect(matches?.length).toBe(1);
+    });
+
+    it("does not affect transcripts without PENALTY tokens", () => {
+      const out = normalizeTranscriptForParse("3rd and 7");
+      expect(out).not.toContain("RESULT Penalty");
+    });
+
+    it("bare 'interference' alone (no penalty context) is not coerced", () => {
+      // Sanity: word "interference" outside penalty cues stays untouched.
+      const out = normalizeTranscriptForParse("there was interference");
+      expect(out).not.toContain("PENALTY");
+    });
   });
 });

@@ -417,6 +417,43 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookupTables]);
 
+  // Penalty → penYards deterministic coupling.
+  // Whenever candidate.penalty resolves to a canonical mapped value and
+  // penYards is empty (and the coach has not touched penYards), seed
+  // penYards from PENALTY_YARDS_MAP and mark provenance as `predicted`.
+  // This catches every path that sets penalty (parser, system patch, AI,
+  // direct selection) so the dependent default is reliable everywhere.
+  // Coach overrides win because touchedFields blocks the seed.
+  useEffect(() => {
+    const pen = candidate.penalty as string | null | undefined;
+    if (!pen) return;
+    if (touchedFields.has("penYards")) return;
+    const def = PENALTY_YARDS_MAP[pen];
+    if (def === undefined) return;
+    const cur = candidate.penYards;
+    if (cur !== null && cur !== undefined && cur !== "") return;
+    setCandidate((prev) => ({ ...prev, penYards: def }));
+    setPredictedFields((prev) => {
+      if (prev.has("penYards")) return prev;
+      const next = new Set(prev);
+      next.add("penYards");
+      return next;
+    });
+    // Strip any stale parse/AI provenance for penYards so the badge is consistent.
+    setDeterministicParseFields((prev) => {
+      if (!prev.has("penYards")) return prev;
+      const next = new Set(prev);
+      next.delete("penYards");
+      return next;
+    });
+    setAiProposedFields((prev) => {
+      if (!prev.has("penYards")) return prev;
+      const next = new Set(prev);
+      next.delete("penYards");
+      return next;
+    });
+  }, [candidate.penalty, candidate.penYards, touchedFields]);
+
   const updateField = useCallback(
     (fieldName: string, value: unknown) => {
       // Stage-based field locking: reject updates for fields outside active pass
@@ -1852,13 +1889,21 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       });
 
       // Mark restored predictable fields as predicted again (not touched).
-      if (restoredPredicted.size > 0) {
-        setPredictedFields((prev) => {
-          const next = new Set(prev);
-          for (const f of restoredPredicted) next.add(f);
-          return next;
-        });
-      }
+      // Also strip the predicted flag for any cleared (non-restored) fields so
+      // derived defaults like penYards (predicted from penalty) don't keep a
+      // stale provenance badge after a section Clear.
+      setPredictedFields((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const f of fieldNames) {
+          if (restoredPredicted.has(f)) {
+            if (!next.has(f)) { next.add(f); changed = true; }
+          } else if (next.delete(f)) {
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
 
       // Ensure none of these fields are mistakenly marked as touched.
       setTouchedFields((prev) => {
