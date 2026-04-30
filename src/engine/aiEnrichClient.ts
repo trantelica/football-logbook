@@ -128,6 +128,13 @@ export async function fetchAiProposal(
     fieldSize?: FieldSize;
     /** Predicted yardLn value (if prediction engine resolved it) */
     predictedYardLn?: number | null;
+    /**
+     * Optional Pass 2 position aliases (canonical pos* field → alias).
+     * Used to (a) inform the edge function of valid coach-friendly tokens
+     * and (b) translate any non-canonical position keys in the AI proposal
+     * back to canonical pos* field names before returning.
+     */
+    positionAliases?: PositionAliasMap | Record<string, string>;
   },
 ): Promise<{ proposal: Record<string, unknown>; error?: string }> {
   // Gate: no observation text = no AI call
@@ -177,6 +184,8 @@ export async function fetchAiProposal(
     predictedYardLn: opts?.predictedYardLn,
   });
 
+  const positionAliases = (opts?.positionAliases ?? {}) as PositionAliasMap;
+
   const { data, error } = await supabase.functions.invoke("ai-enrich", {
     body: {
       observationText,
@@ -185,6 +194,9 @@ export async function fetchAiProposal(
       unresolvedFields: aiEligibleUnresolved,
       fieldHints,
       locationMapping,
+      // Inform AI of coach-friendly position tokens; AI must still emit
+      // canonical pos* field keys, but may reference aliases in reasoning.
+      positionAliases,
     },
   });
 
@@ -197,5 +209,9 @@ export async function fetchAiProposal(
     return { proposal: {}, error: data.error };
   }
 
-  return { proposal: data?.proposal ?? {} };
+  // Defensive: translate any alias-keyed position fields back to canonical
+  // pos* keys so downstream proposal/commit only ever sees canonical names.
+  const rawProposal = (data?.proposal ?? {}) as Record<string, unknown>;
+  const { patch: normalized } = normalizePatchKeysToCanonical(rawProposal, positionAliases);
+  return { proposal: normalized };
 }
