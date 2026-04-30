@@ -26,7 +26,7 @@ import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 import { possessionGuardrail } from "./possession";
 import { toast } from "sonner";
-import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS } from "./personnel";
+import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS, findPriorPass2CompletePlay, countCommittedPersonnel } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
@@ -1456,31 +1456,37 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setPossessionCheckPending(false);
       setPossessionPrevPlayInfo(null);
 
-      // Optional +1 carry-forward exception: only if this is exactly lastPass2CommitPlayNum + 1
-      if (activePass === 2 && slot.odk === "O" && lastPass2CommitPlayNum !== null && playNum === lastPass2CommitPlayNum + 1) {
-        const sourcePlay = committedPlays.find((p) => p.playNum === lastPass2CommitPlayNum);
-        if (sourcePlay) {
-          const seededFields = new Set<string>();
-          const sp = sourcePlay as unknown as Record<string, unknown>;
-          for (const pos of PERSONNEL_POSITIONS) {
-            const currentVal = (newCandidate as Record<string, unknown>)[pos];
-            if (currentVal === null || currentVal === undefined || currentVal === "") {
-              const srcVal = sp[pos];
-              if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
-                (newCandidate as Record<string, unknown>)[pos] = srcVal;
-                seededFields.add(pos);
+      // Pass 2 seed-on-open:
+      // If this is an offensive slot with no committed personnel, seed proposal/candidate
+      // personnel from the most recent prior committed offensive play whose Pass 2
+      // is complete (all 11 positions). Seeds into empty fields only — never overwrites
+      // committed values. No cascade, no commit, no DB writes.
+      setCarriedForwardFields(new Set());
+      setCarriedForwardFromPlayNum(null);
+      if (activePass === 2 && slot.odk === "O") {
+        const slotMeta = slotMetaMap.get(playNum);
+        const committedPersonnelCount = countCommittedPersonnel(slotMeta);
+        if (committedPersonnelCount === 0) {
+          const sourcePlay = findPriorPass2CompletePlay(committedPlays, slotMetaMap, playNum);
+          if (sourcePlay) {
+            const seededFields = new Set<string>();
+            const sp = sourcePlay as unknown as Record<string, unknown>;
+            for (const pos of PERSONNEL_POSITIONS) {
+              const currentVal = (newCandidate as Record<string, unknown>)[pos];
+              if (currentVal === null || currentVal === undefined || currentVal === "") {
+                const srcVal = sp[pos];
+                if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
+                  (newCandidate as Record<string, unknown>)[pos] = srcVal;
+                  seededFields.add(pos);
+                }
               }
             }
-          }
-          if (seededFields.size > 0) {
-            setCarriedForwardFields(seededFields);
-            setCarriedForwardFromPlayNum(lastPass2CommitPlayNum);
+            if (seededFields.size > 0) {
+              setCarriedForwardFields(seededFields);
+              setCarriedForwardFromPlayNum(sourcePlay.playNum);
+            }
           }
         }
-      } else {
-        // No carry-forward on arbitrary selection
-        setCarriedForwardFields(new Set());
-        setCarriedForwardFromPlayNum(null);
       }
 
       setCandidate(newCandidate);
@@ -1690,52 +1696,61 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     if (currentIdx >= 0 && currentIdx < filteredList.length - 1) {
       const nextPlay = filteredList[currentIdx + 1];
 
-      // Pass 2 carry-forward: seed personnel into next slot if ODK=O
-      if (currentActivePass === 2 && nextPlay.odk === "O" && currentSlotNum !== null) {
-        // Get the just-committed play from fresh data
-        const justCommitted = sortedPlays.find((p) => p.playNum === currentSlotNum);
-        if (justCommitted) {
-          const nextSlot = sortedPlays.find((p) => p.playNum === nextPlay.playNum);
-          if (nextSlot) {
-            const seededCandidate: CandidateData = { ...nextSlot };
-            const seededFields = new Set<string>();
-            const src = justCommitted as unknown as Record<string, unknown>;
-            for (const pos of PERSONNEL_POSITIONS) {
-              const currentVal = (seededCandidate as unknown as Record<string, unknown>)[pos];
-              if (currentVal === null || currentVal === undefined || currentVal === "") {
-                const srcVal = src[pos];
-                if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
-                  (seededCandidate as unknown as Record<string, unknown>)[pos] = srcVal;
-                  seededFields.add(pos);
+      // Pass 2 carry-forward: seed personnel into next slot if ODK=O.
+      // Use the broader "most recent prior Pass 2-complete offensive play" rule
+      // so seeding stays consistent with manual slot-open behavior.
+      if (currentActivePass === 2 && nextPlay.odk === "O") {
+        const nextSlot = sortedPlays.find((p) => p.playNum === nextPlay.playNum);
+        if (nextSlot) {
+          // Fresh meta map (post-commit) so isPass2Complete sees just-committed fields.
+          const freshMetas = await getAllSlotMetaForGame(gameId);
+          const freshMetaMap = new Map(freshMetas.map((m) => [m.playNum, m]));
+          const nextMeta = freshMetaMap.get(nextPlay.playNum);
+          const nextCommittedPersonnel = countCommittedPersonnel(nextMeta);
+
+          if (nextCommittedPersonnel === 0) {
+            const sourcePlay = findPriorPass2CompletePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
+            if (sourcePlay) {
+              const seededCandidate: CandidateData = { ...nextSlot };
+              const seededFields = new Set<string>();
+              const src = sourcePlay as unknown as Record<string, unknown>;
+              for (const pos of PERSONNEL_POSITIONS) {
+                const currentVal = (seededCandidate as unknown as Record<string, unknown>)[pos];
+                if (currentVal === null || currentVal === undefined || currentVal === "") {
+                  const srcVal = src[pos];
+                  if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
+                    (seededCandidate as unknown as Record<string, unknown>)[pos] = srcVal;
+                    seededFields.add(pos);
+                  }
                 }
               }
-            }
 
-            // Set state directly instead of calling selectSlot to avoid clearing seeded values
-            setCandidate(seededCandidate);
-            setSelectedSlotNum(nextPlay.playNum);
-            setTouchedFields(new Set());
-            setPredictedFields(new Set());
-            setPredictionExplanations([]);
-            setPredictionCoachMessages([]);
-            setInlineErrors({});
-            setCommitErrors({});
-            setScaffoldedWarning(null);
-            setAdjustments([]);
-            setPatContext(false);
-            setPatTryPending(false);
-            setPatLockedTry(null);
-            setPossessionCheckPending(false);
-            setPossessionPrevPlayInfo(null);
-            setCarriedForwardFields(seededFields);
-            setCarriedForwardFromPlayNum(currentSlotNum);
-            setDeterministicParseFields(new Set());
-            setParseEvidenceByField({});
-            setAiProposedFields(new Set());
-            setAiEvidenceByField({});
-            setLookupDerivedFields(new Set());
-            setState("candidate");
-            return { committed: true, hasNext: true };
+              // Set state directly instead of calling selectSlot to avoid clearing seeded values
+              setCandidate(seededCandidate);
+              setSelectedSlotNum(nextPlay.playNum);
+              setTouchedFields(new Set());
+              setPredictedFields(new Set());
+              setPredictionExplanations([]);
+              setPredictionCoachMessages([]);
+              setInlineErrors({});
+              setCommitErrors({});
+              setScaffoldedWarning(null);
+              setAdjustments([]);
+              setPatContext(false);
+              setPatTryPending(false);
+              setPatLockedTry(null);
+              setPossessionCheckPending(false);
+              setPossessionPrevPlayInfo(null);
+              setCarriedForwardFields(seededFields);
+              setCarriedForwardFromPlayNum(sourcePlay.playNum);
+              setDeterministicParseFields(new Set());
+              setParseEvidenceByField({});
+              setAiProposedFields(new Set());
+              setAiEvidenceByField({});
+              setLookupDerivedFields(new Set());
+              setState("candidate");
+              return { committed: true, hasNext: true };
+            }
           }
         }
       }

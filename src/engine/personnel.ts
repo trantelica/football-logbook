@@ -190,3 +190,38 @@ export function computePassCompletion(
     pass2Complete: isPass2Complete(play, meta),
   };
 }
+
+/**
+ * Find the most recent prior committed offensive play (playNum < beforePlayNum)
+ * whose Pass 2 is complete (all 11 personnel positions committed and non-null).
+ * Returns null if none found.
+ *
+ * Pure / deterministic — used by selectSlot and commitAndNext to seed
+ * proposal-only personnel into a freshly-opened Pass 2 slot.
+ */
+export function findPriorPass2CompletePlay(
+  plays: PlayRecord[],
+  metas: Map<number, SlotMeta>,
+  beforePlayNum: number
+): PlayRecord | null {
+  const priorO = plays
+    .filter((p) => p.odk === "O" && p.playNum < beforePlayNum)
+    .sort((a, b) => b.playNum - a.playNum);
+  for (const p of priorO) {
+    const meta = metas.get(p.playNum);
+    if (isPass2Complete(p, meta)) return p;
+  }
+  return null;
+}
+
+/**
+ * Returns the count of personnel positions already committed for a slot.
+ * Used to gate Pass 2 seed-on-open: only seed when no personnel is committed.
+ */
+export function countCommittedPersonnel(meta: SlotMeta | undefined): number {
+  if (!meta) return 0;
+  const committed = new Set(meta.committedFields);
+  let n = 0;
+  for (const pos of PERSONNEL_POSITIONS) if (committed.has(pos)) n++;
+  return n;
+}
