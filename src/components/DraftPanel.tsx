@@ -1487,11 +1487,11 @@ PENALTY O-Holding EFF Y 2MIN N`}
         </Dialog>
       )}
 
-      {/* ── Dev panels (bottom of page) ──
+      {/* ── Dev panels (rendered below Committed Plays via portal) ──
           Moved out of the main coach workflow so they don't crowd the
           primary controls. Both panels are dev-mode only and collapsed by
           default. */}
-      {isDevMode() && (
+      {isDevMode() && <DevToolsPortal>
         <div className="mt-6 space-y-2 border-t border-dashed border-border/50 pt-4">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
             Developer tools
@@ -1600,7 +1600,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
             </details>
           )}
         </div>
-      )}
+      </DevToolsPortal>}
     </>
   );
 }
