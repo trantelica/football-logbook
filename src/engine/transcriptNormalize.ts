@@ -159,13 +159,80 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // pluralize. Done as a narrow word-boundary substitution (no broader effect).
   [/\boffsides\b/gi, "offside"],
 
+  // ── Team-perspective penalty phrasings (Play Results) ──
+  // Coach narration in Play Results frequently uses team-perspective pronouns
+  // instead of explicit "offense"/"defense". We map:
+  //   "we" / "us" / "our team"            → offensive side  (O-)
+  //   "them" / "the other team" /
+  //   "the opposing team" / "opponents"   → defensive side  (D-)
+  //
+  // These rules are deliberately narrow: they ONLY fire when paired with an
+  // explicit "called for" / "flagged for" / "called <infraction> on <pronoun>"
+  // construct and a recognizable infraction. They do NOT fire on bare "we"
+  // or "them" anywhere else in the transcript.
+  //
+  // Run BEFORE the explicit-side ("offense"/"defense") rules so we get clean
+  // inferred-side tokens before any fallback matches.
+
+  // "we were/got called/flagged for <infraction>"  → PENALTY O-<Infraction>
+  // "they were/got called/flagged for <infraction>"→ PENALTY D-<Infraction>
+  [
+    /\b(we|they|us|them)\s+(?:were\s+|was\s+|got\s+|just\s+)?(?:called|flagged|whistled)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, pronoun: string, infraction: string) => {
+      const side = /^(we|us)$/i.test(pronoun) ? "O" : "D";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // "(they) called <infraction> on us/them/the other team/our team"
+  // — pronoun follows the infraction. Side is determined by the trailing
+  //   pronoun, NOT the leading subject (it's almost always "they").
+  [
+    /\b(?:they\s+)?called\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\s+on\s+(?:the\s+)?(us|them|our\s+team|the\s+other\s+team|other\s+team|opponents|opposing\s+team)\b/gi,
+    (_m, infraction: string, target: string) => {
+      // "us" / "our team" → penalty against offense (we are offense)
+      // "them" / "other team" / "opposing team" / "opponents" → defense
+      const side = /\b(us|our)\b/i.test(target) ? "O" : "D";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
+  // "flag on us/them" + "for <infraction>"
+  [
+    /\bflag\s+on\s+(?:the\s+)?(us|them|our\s+team|the\s+other\s+team|other\s+team|opponents|opposing\s+team)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    (_m, target: string, infraction: string) => {
+      const side = /\b(us|our)\b/i.test(target) ? "O" : "D";
+      const titled = String(infraction)
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => (w.length <= 2 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(" ");
+      const canonical = titled.charAt(0).toUpperCase() + titled.slice(1);
+      return ` PENALTY ${side}-${canonical}`;
+    },
+  ],
+
   // ── "called for <infraction>" phrasings ──
   // Coach narration commonly uses "the defense was called for offside on the
   // play" / "offense called for holding". Map these to canonical
   // "PENALTY <Side>-<Infraction>" before the generic penalty rules so the
   // trailing "on the play" doesn't get eaten and the side is preserved.
+  // Extended subject set to include team-perspective phrasings ("the other
+  // team", "the opposing team", "our team").
   [
-    /\b(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team)\s+(?:was\s+|were\s+|got\s+)?called\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
+    /\b(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team|other\s+team|opposing\s+team|our\s+team)\s+(?:was\s+|were\s+|got\s+)?(?:called|flagged|whistled)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
     (_m, sideRaw: string, infraction: string) => {
       const side = /defense/i.test(sideRaw) ? "D"
         : /offense/i.test(sideRaw) ? "O"
