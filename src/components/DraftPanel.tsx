@@ -1485,6 +1485,121 @@ PENALTY O-Holding EFF Y 2MIN N`}
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Dev panels (bottom of page) ──
+          Moved out of the main coach workflow so they don't crowd the
+          primary controls. Both panels are dev-mode only and collapsed by
+          default. */}
+      {isDevMode() && (
+        <div className="mt-6 space-y-2 border-t border-dashed border-border/50 pt-4">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
+            Developer tools
+          </div>
+          <details className="rounded-md border border-dashed border-amber-400/40 bg-amber-50/20 dark:bg-amber-950/10">
+            <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 font-semibold">
+              Dev: Phase 10 smoke test
+            </summary>
+            <div className="p-2">
+              <Phase10SmokeTest />
+            </div>
+          </details>
+          {activePass >= 1 && selectedSlotNum !== null && (
+            <details className="rounded-md border border-dashed border-sky-400/50 bg-sky-50/20 dark:bg-sky-950/10">
+              <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-sky-700 dark:text-sky-300 font-semibold">
+                Dev: AI patch testing
+              </summary>
+              <div className="p-2 space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+                    disabled={isProposal}
+                    onClick={() => {
+                      const collisions = applySystemPatch(
+                        { dn: "1", dist: "10", yardLn: "-10", rusher: "10" },
+                        {
+                          evidence: {
+                            dn: { snippet: "first down" },
+                            dist: { snippet: "and 10" },
+                            yardLn: { snippet: "on our 10" },
+                            rusher: { snippet: "ball carrier 10" },
+                          },
+                        }
+                      );
+                      if (collisions.length > 0) {
+                        setAiCollisionState({
+                          collisions: collisions.map((c) => ({
+                            fieldName: c.fieldName,
+                            currentValue: c.currentValue,
+                            proposedValue: c.proposedValue,
+                          })),
+                          nonCollisionCount: 4 - collisions.length,
+                          evidence: {
+                            dn: { snippet: "first down" },
+                            dist: { snippet: "and 10" },
+                            yardLn: { snippet: "on our 10" },
+                            rusher: { snippet: "ball carrier 10" },
+                          },
+                        });
+                      } else {
+                        toast.success("AI patch applied (4 fields, no collisions)");
+                      }
+                    }}
+                  >
+                    <Bot className="h-3 w-3" />
+                    Dev: Apply AI Patch (safe)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+                    disabled={isProposal}
+                    onClick={() => {
+                      applySystemPatch(
+                        { offForm: "Purple" },
+                        { evidence: { offForm: { snippet: "formation Purple" } } }
+                      );
+                      toast.info("AI patch sent — should trigger lookup interrupt");
+                    }}
+                  >
+                    <Bot className="h-3 w-3" />
+                    Dev: Apply AI Patch (unknown lookup)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+                    disabled={isProposal}
+                    onClick={() => {
+                      const collisions = applySystemPatch(
+                        { dist: "7" },
+                        { evidence: { dist: { snippet: "7 yards" } } }
+                      );
+                      if (collisions.length > 0) {
+                        setAiCollisionState({
+                          collisions: collisions.map((c) => ({
+                            fieldName: c.fieldName,
+                            currentValue: c.currentValue,
+                            proposedValue: c.proposedValue,
+                          })),
+                          nonCollisionCount: 0,
+                          evidence: { dist: { snippet: "7 yards" } },
+                        });
+                      } else {
+                        toast.success("AI patch applied (dist=7, no collision)");
+                      }
+                    }}
+                  >
+                    <Bot className="h-3 w-3" />
+                    Dev: Apply AI Patch (collision)
+                  </Button>
+                </div>
+              </div>
+            </details>
+          )}
+        </div>
+      )}
     </>
   );
 }
