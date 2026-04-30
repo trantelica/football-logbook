@@ -745,6 +745,19 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
           onCancel={handleCollisionCancel}
         />
       )}
+
+      {/* Roster resolution dialog — preserves intended slot context for
+          off-roster jerseys surfaced by Pass 2 narration. */}
+      {rosterResolve && (
+        <RosterResolveDialog
+          open
+          pending={rosterResolve.pending}
+          aliasMap={aliasMap}
+          addPlayer={addPlayer}
+          onResolved={handleRosterResolved}
+          onCancel={handleRosterResolveCancel}
+        />
+      )}
     </div>
   );
 }
