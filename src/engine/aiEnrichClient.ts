@@ -16,6 +16,10 @@ import { playSchema } from "./schema";
 import { getUnresolvedFields } from "./aiEnrichment";
 import { AI_ELIGIBLE_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
 import { getBaselinePhraseology } from "./phraseologyBaseline";
+import {
+  normalizePatchKeysToCanonical,
+  type PositionAliasMap,
+} from "./positionAliases";
 import type { CandidateData } from "./types";
 import type { FieldSize } from "./prediction";
 
