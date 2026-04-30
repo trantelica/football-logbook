@@ -181,3 +181,37 @@ describe("parsePersonnelNarration", () => {
     expect(r.patch).toEqual({ pos3: 2, pos1: 5 });
   });
 });
+
+describe("parsePersonnelNarration — move/switch verbs", () => {
+  it("'move 6 to RG' relocates jersey 6 from prior slot to posRG", () => {
+    const current = { posLG: 6 };
+    const r = parsePersonnelNarration("move 6 to RG", aliases, current);
+    expect(r.patch).toEqual({ posLG: null, posRG: 6 });
+    expect(r.report.find((e) => e.status === "matched")?.movedFrom).toBe("posLG");
+  });
+
+  it("'switch #6 to right guard' relocates with alias-resolved target", () => {
+    const current = { posC: 6 };
+    const r = parsePersonnelNarration("switch #6 to right guard", aliases, current);
+    expect(r.patch).toEqual({ posC: null, posRG: 6 });
+  });
+
+  it("'6 moves to RG' (subject-verb form) relocates", () => {
+    const current = { posLT: 6 };
+    const r = parsePersonnelNarration("6 moves to RG", aliases, current);
+    expect(r.patch).toEqual({ posLT: null, posRG: 6 });
+  });
+
+  it("move phrase with no prior assignment behaves as plain assignment", () => {
+    const r = parsePersonnelNarration("move 6 to RG", aliases, {});
+    expect(r.patch).toEqual({ posRG: 6 });
+  });
+
+  it("preserves same-slot conflict when move target collides with another jersey", () => {
+    const r = parsePersonnelNarration("move 6 to RG, 7 is at RG", aliases, {});
+    expect(r.patch).toEqual({});
+    expect(r.sameSlotConflicts).toHaveLength(1);
+    expect(r.sameSlotConflicts[0].canonicalField).toBe("posRG");
+    expect(r.sameSlotConflicts[0].jerseys.sort()).toEqual([6, 7]);
+  });
+});

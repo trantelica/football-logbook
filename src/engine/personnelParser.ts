@@ -121,12 +121,16 @@ function extractClauseMatch(clause: string): { jerseyToken: string; positionPhra
   const trimmed = clause.trim();
   if (!trimmed) return null;
 
-  // Form 1: "number <token> ..."
-  let m = trimmed.match(/^number\s+(#?\w+)\s+(?:is\s+playing|is\s+at|is\s+in|plays|playing|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  // Form 0: imperative move/switch — "move 6 to RG", "switch #6 to right guard"
+  let m = trimmed.match(/^(?:move|switch|put|send)\s+(?:number\s+)?(#?\w+)\s+(?:to|into|over\s+to|in\s+at|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
-  // Form 2: "#22 ..." or "22 ..." — includes compact "<jersey> is at <pos>"
-  m = trimmed.match(/^(#?\d+)\s+(?:is\s+playing|is\s+at|is\s+in|plays|playing|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  // Form 1: "number <token> ..."
+  m = trimmed.match(/^number\s+(#?\w+)\s+(?:moves\s+to|switches\s+to|is\s+playing|is\s+at|is\s+in|plays|playing|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
+
+  // Form 2: "#22 ..." or "22 ..." — includes compact "<jersey> is at <pos>" and "<jersey> moves to <pos>"
+  m = trimmed.match(/^(#?\d+)\s+(?:moves\s+to|switches\s+to|is\s+playing|is\s+at|is\s+in|plays|playing|moves|switches|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
   return null;
