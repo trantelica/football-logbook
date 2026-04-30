@@ -51,8 +51,25 @@ export function PersonnelPanel() {
     inlineErrors,
     carriedForwardFields,
     carriedForwardFromPlayNum,
+    updateFields,
   } = useTransaction();
   const { roster, addPlayer, getPlayer } = useRoster();
+  const { activeSeason } = useSeason();
+
+  // Load season position-alias map (translation/display only)
+  const [aliasMap, setAliasMap] = useState<PositionAliasMap>({});
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeSeason?.seasonId) {
+      setAliasMap({});
+      return;
+    }
+    getSeasonConfig(activeSeason.seasonId).then((cfg) => {
+      if (cancelled) return;
+      setAliasMap((cfg?.positionAliases ?? {}) as PositionAliasMap);
+    });
+    return () => { cancelled = true; };
+  }, [activeSeason?.seasonId]);
 
   const c = candidate as unknown as Record<string, unknown>;
   const errors = { ...inlineErrors, ...commitErrors };
