@@ -419,10 +419,52 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
               {lastSnapshot.personnel.report.filter((r) => r.status === "matched").length} personnel matched
               {lastSnapshot.personnel.report.filter((r) => r.status === "unrecognized").length > 0 &&
                 ` (${lastSnapshot.personnel.report.filter((r) => r.status === "unrecognized").length} unrecognized)`}
+              {lastSnapshot.personnel.offRosterJerseys.length > 0 &&
+                ` · ${lastSnapshot.personnel.offRosterJerseys.length} off-roster blocked`}
+              {lastSnapshot.personnel.duplicateJerseys.length > 0 &&
+                ` · ${lastSnapshot.personnel.duplicateJerseys.length} duplicate blocked`}
             </>
           )}
         </p>
       )}
+
+      {/* Personnel issues panel — visible whenever roster or duplicate problems were detected. */}
+      {hasParsed && lastSnapshot.personnel &&
+        (lastSnapshot.personnel.offRosterJerseys.length > 0 ||
+          lastSnapshot.personnel.duplicateJerseys.length > 0) && (
+          <div className="rounded border border-destructive/40 bg-destructive/10 p-2 space-y-1">
+            <div className="flex items-center gap-1 text-[10px] font-semibold text-destructive">
+              <AlertTriangle className="h-3 w-3" />
+              Personnel assignments blocked — resolve before applying
+            </div>
+            <ul className="text-[10px] text-destructive/90 space-y-0.5 pl-4 list-disc">
+              {lastSnapshot.personnel.report
+                .filter((r) => r.status === "off_roster" || r.status === "duplicate")
+                .map((r, i) => {
+                  const slotLabel = r.canonicalField
+                    ? (PERSONNEL_LABELS[r.canonicalField] ?? r.canonicalField)
+                    : "?";
+                  const alias = r.canonicalField ? getAliasFor(r.canonicalField, aliasMap) : null;
+                  const slotDisplay = alias ? `${slotLabel} (${alias})` : slotLabel;
+                  return (
+                    <li key={i}>
+                      <span className="font-mono">"{r.rawSentence}"</span> — {r.reason}
+                      {r.canonicalField && (
+                        <>
+                          {" "}→ would target <span className="font-mono">{slotDisplay}</span>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+            </ul>
+            {lastSnapshot.personnel.offRosterJerseys.length > 0 && (
+              <p className="text-[10px] text-destructive/80">
+                Add the off-roster jersey(s) to the roster panel, then re-parse.
+              </p>
+            )}
+          </div>
+        )}
 
       {applied && (
         <p className="text-[10px] text-muted-foreground">
