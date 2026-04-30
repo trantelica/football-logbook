@@ -226,7 +226,26 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       toast.info("No personnel assignments recognized in narration.");
       return;
     }
-    const collisions = applySystemPatch(mergedPatch, { fillOnly: true });
+    // Build per-field evidence from the personnel parse report so each
+    // narration-updated pos* slot carries its source clause as transcript
+    // evidence (visible via the Parse provenance badge tooltip).
+    const evidence: Record<string, { snippet: string }> = {};
+    if (parsed.personnel) {
+      for (const entry of parsed.personnel.report) {
+        if (entry.status !== "matched" || !entry.canonicalField) continue;
+        evidence[entry.canonicalField] = { snippet: entry.rawSentence };
+        if (entry.movedFrom) {
+          evidence[entry.movedFrom] = {
+            snippet: `moved #${entry.jersey} → ${entry.canonicalField}`,
+          };
+        }
+      }
+    }
+    const collisions = applySystemPatch(mergedPatch, {
+      fillOnly: true,
+      evidence,
+      source: "deterministic_parse",
+    });
     if (collisions.length > 0) {
       const nonCollisionCount = Object.keys(mergedPatch).length - collisions.length;
       setCollisionState({
