@@ -12,6 +12,13 @@ export interface SeasonConfig {
   fieldSize: 80 | 100;
   patMode: "none" | "youth_1_2" | "hs_kick";
   activeFields: Record<string, boolean>;
+  /**
+   * Optional Pass 2 position aliases (translation/display only).
+   * Keys are canonical pos* field names (posLT..pos4); values are the
+   * coach-friendly alias (e.g. pos1 -> "QB"). Stored data, commits,
+   * and exports always use the canonical keys — never the alias text.
+   */
+  positionAliases?: Record<string, string>;
 }
 
 export interface ConfigAuditRecord {
@@ -70,6 +77,25 @@ export function diffConfig(before: SeasonConfig, after: SeasonConfig): ConfigCha
     const aVal = after.activeFields[k] ?? false;
     if (bVal !== aVal) {
       changes.push({ key: `activeFields.${k}`, before: bVal, after: aVal });
+    }
+  }
+
+  // Nested positionAliases
+  const beforeAliases = before.positionAliases ?? {};
+  const afterAliases = after.positionAliases ?? {};
+  const aliasKeys = new Set([
+    ...Object.keys(beforeAliases),
+    ...Object.keys(afterAliases),
+  ]);
+  for (const k of aliasKeys) {
+    const bVal = (beforeAliases[k] ?? "").trim();
+    const aVal = (afterAliases[k] ?? "").trim();
+    if (bVal !== aVal) {
+      changes.push({
+        key: `positionAliases.${k}`,
+        before: bVal || null,
+        after: aVal || null,
+      });
     }
   }
 
