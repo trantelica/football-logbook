@@ -61,6 +61,19 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
   } = useTranscriptCapture();
 
   const { applySystemPatch, commitCount } = useTransaction();
+  const { activeSeason } = useSeason();
+
+  // Load season alias map for personnel-narration token resolution.
+  const [aliasMap, setAliasMap] = useState<PositionAliasMap>({});
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!activeSeason?.seasonId) { setAliasMap({}); return; }
+    getSeasonConfig(activeSeason.seasonId).then((cfg) => {
+      if (cancelled) return;
+      setAliasMap((cfg?.positionAliases ?? {}) as PositionAliasMap);
+    });
+    return () => { cancelled = true; };
+  }, [activeSeason?.seasonId]);
 
   const [showTyped, setShowTyped] = useState(false);
   const [typedLine, setTypedLine] = useState("");
