@@ -22,12 +22,14 @@ import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
 import { parseGradeNarration } from "@/engine/gradeNarrationParser";
+import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Lock, AlertTriangle, Wand2, Trash2 } from "lucide-react";
+import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 /** Map grade field → corresponding personnel position field */
 const GRADE_TO_POS: Record<string, string> = {
@@ -84,7 +86,22 @@ export function BlockingPanel() {
   const gradesDisabled = noCommittedRow || notOffense || isProposal;
 
   // ── Pass 3 grade narration entry ────────────────────────────────────────
-  const [narrationText, setNarrationText] = useState("");
+  // Dictation is provided by the shared transcript-capture hook (Web Speech
+  // API). The hook owns the working text buffer; we mirror it into
+  // `narrationText` for parsing/UI consistency. No transaction-state side
+  // effects from the hook itself.
+  const {
+    text: dictatedText,
+    interim,
+    listening,
+    supported: dictationSupported,
+    setText: setDictatedText,
+    toggleListening,
+    clear: clearDictation,
+  } = useTranscriptCapture();
+
+  const narrationText = dictatedText;
+  const setNarrationText = setDictatedText;
   const [lastReport, setLastReport] = useState<ReturnType<typeof parseGradeNarration>["report"] | null>(null);
 
   const handleApplyNarration = useCallback(() => {
@@ -116,9 +133,9 @@ export function BlockingPanel() {
   }, [narrationText, gradesDisabled, updateField]);
 
   const handleClearNarration = useCallback(() => {
-    setNarrationText("");
+    clearDictation();
     setLastReport(null);
-  }, []);
+  }, [clearDictation]);
 
   return (
     <div className="space-y-4">
@@ -154,35 +171,77 @@ export function BlockingPanel() {
             </span>
           </div>
           <Textarea
-            className="text-xs font-mono min-h-[50px] resize-y bg-background/50"
-            placeholder={'Enter grades. Examples:\n  • "LT 2, C -1, RG +3"\n  • "left tackle 2"\n  • "X 0, Y 1"'}
-            value={narrationText}
-            onChange={(e) => setNarrationText(e.target.value)}
-            disabled={gradesDisabled}
+            className={cn(
+              "text-xs font-mono min-h-[50px] resize-y bg-background/50",
+              listening && "border-destructive/30",
+            )}
+            placeholder={
+              listening
+                ? "Listening — speech will appear here…"
+                : 'Enter grades. Examples:\n  • "LT 2, C -1, RG +3"\n  • "left tackle 2"\n  • "X 0, Y 1"'
+            }
+            value={narrationText + (interim ? (narrationText ? "\n" : "") + interim : "")}
+            onChange={(e) => {
+              if (!listening) setNarrationText(e.target.value);
+            }}
+            readOnly={listening}
+            disabled={gradesDisabled && !listening}
           />
-          <div className="flex items-center justify-end gap-1">
-            {narrationText && (
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-2">
+              {dictationSupported && (
+                <Button
+                  size="sm"
+                  variant={listening ? "destructive" : "outline"}
+                  className="h-7 text-xs gap-1"
+                  onClick={toggleListening}
+                  disabled={gradesDisabled && !listening}
+                  title={listening ? "Stop dictation" : "Dictate grade narration"}
+                >
+                  {listening ? (
+                    <>
+                      <MicOff className="h-3 w-3" />
+                      Stop
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-3 w-3" />
+                      Dictate
+                    </>
+                  )}
+                </Button>
+              )}
+              {listening && (
+                <span className="flex items-center gap-1 text-[10px] text-destructive font-medium">
+                  <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+                  Listening…
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {narrationText && !listening && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[10px] gap-1 text-muted-foreground"
+                  onClick={handleClearNarration}
+                >
+                  <Trash2 className="h-2.5 w-2.5" />
+                  Clear
+                </Button>
+              )}
               <Button
                 size="sm"
-                variant="ghost"
-                className="h-6 text-[10px] gap-1 text-muted-foreground"
-                onClick={handleClearNarration}
+                variant="default"
+                className="h-7 text-xs gap-1"
+                onClick={handleApplyNarration}
+                disabled={gradesDisabled || !narrationText.trim() || listening}
+                title="Parse grade narration and update proposal. No commit."
               >
-                <Trash2 className="h-2.5 w-2.5" />
-                Clear
+                <Wand2 className="h-3 w-3" />
+                Update Proposal
               </Button>
-            )}
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 text-xs gap-1"
-              onClick={handleApplyNarration}
-              disabled={gradesDisabled || !narrationText.trim()}
-              title="Parse grade narration and update proposal. No commit."
-            >
-              <Wand2 className="h-3 w-3" />
-              Update Proposal
-            </Button>
+            </div>
           </div>
           {lastReport && lastReport.length > 0 && (
             <div className="space-y-1">
