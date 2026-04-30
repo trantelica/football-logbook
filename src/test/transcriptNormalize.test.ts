@@ -462,5 +462,82 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       const out = normalizeTranscriptForParse("defensive offsides");
       expect(out).toContain("PENALTY D-Offside");
     });
+
+    // ── Team-perspective phrasings ──
+    it("'we were called for delay of game' → PENALTY O-Delay of Game", () => {
+      const out = normalizeTranscriptForParse("we were called for delay of game");
+      expect(out).toContain("PENALTY O-Delay of Game");
+    });
+
+    it("'we were flagged for holding' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("we were flagged for holding");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'we got called for false start' → PENALTY O-False Start", () => {
+      const out = normalizeTranscriptForParse("we got called for false start");
+      expect(out).toContain("PENALTY O-False Start");
+    });
+
+    it("'they were called for offside' → PENALTY D-Offside", () => {
+      const out = normalizeTranscriptForParse("they were called for offside");
+      expect(out).toContain("PENALTY D-Offside");
+    });
+
+    it("'they called holding on us' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("they called holding on us");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'called holding on us' (no leading 'they') → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("called holding on us");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'they called offside on them' → PENALTY D-Offside", () => {
+      const out = normalizeTranscriptForParse("they called offside on them");
+      expect(out).toContain("PENALTY D-Offside");
+    });
+
+    it("'called holding on the other team' → PENALTY D-Holding", () => {
+      const out = normalizeTranscriptForParse("called holding on the other team");
+      expect(out).toContain("PENALTY D-Holding");
+    });
+
+    it("'called holding on our team' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("called holding on our team");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'the other team was called for holding' → PENALTY D-Holding", () => {
+      const out = normalizeTranscriptForParse("the other team was called for holding");
+      expect(out).toContain("PENALTY D-Holding");
+    });
+
+    it("'our team was flagged for holding' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("our team was flagged for holding");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'flag on us for holding' → PENALTY O-Holding", () => {
+      const out = normalizeTranscriptForParse("flag on us for holding");
+      expect(out).toContain("PENALTY O-Holding");
+    });
+
+    it("'flag on them for offside' → PENALTY D-Offside", () => {
+      const out = normalizeTranscriptForParse("flag on them for offside");
+      expect(out).toContain("PENALTY D-Offside");
+    });
+
+    it("does NOT trigger penalty on bare 'we' or 'them' without infraction", () => {
+      const out = normalizeTranscriptForParse("we ran the ball and they stopped them");
+      expect(out).not.toContain("PENALTY");
+    });
+
+    it("preserves 'on the play' anchor in team-perspective phrasing", () => {
+      const out = normalizeTranscriptForParse("they called holding on us on the play");
+      expect(out).toContain("PENALTY O-Holding");
+      expect(out).toContain("PLAY");
+    });
   });
 });
