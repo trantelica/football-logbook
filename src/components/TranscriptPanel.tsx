@@ -67,7 +67,7 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
 
   const { applySystemPatch, commitCount } = useTransaction();
   const { activeSeason } = useSeason();
-  const { roster } = useRoster();
+  const { roster, addPlayer } = useRoster();
 
   // Set of roster jersey numbers, used by personnel parser to gate
   // off-roster assignments out of the patch.
@@ -75,6 +75,15 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     () => new Set<number>(roster.map((r) => r.jerseyNumber)),
     [roster],
   );
+
+  // Roster resolution dialog state for off-roster jerseys surfaced by
+  // the most recent personnel parse. Preserves intended canonical slot +
+  // raw narration clause so we can re-apply on resolution.
+  const [rosterResolve, setRosterResolve] = useState<{
+    pending: OffRosterPending[];
+    /** the source text we should re-parse against after resolution */
+    sourceText: string;
+  } | null>(null);
 
   // Load season alias map for personnel-narration token resolution.
   const [aliasMap, setAliasMap] = useState<PositionAliasMap>({});
