@@ -32,6 +32,8 @@ const Index = () => {
                     <LookupPanel />
                     <RosterPanel />
                     <CommittedPlaysPanel />
+                    {/* Dev tools (portaled from DraftPanel) render here, below Committed Plays */}
+                    <div id="dev-tools-slot" />
                   </main>
 
                   <OverwriteReview />

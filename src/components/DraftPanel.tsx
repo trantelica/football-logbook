@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Dialog,
   DialogContent,
@@ -1486,11 +1487,11 @@ PENALTY O-Holding EFF Y 2MIN N`}
         </Dialog>
       )}
 
-      {/* ── Dev panels (bottom of page) ──
+      {/* ── Dev panels (rendered below Committed Plays via portal) ──
           Moved out of the main coach workflow so they don't crowd the
           primary controls. Both panels are dev-mode only and collapsed by
           default. */}
-      {isDevMode() && (
+      {isDevMode() && <DevToolsPortal>
         <div className="mt-6 space-y-2 border-t border-dashed border-border/50 pt-4">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
             Developer tools
@@ -1599,7 +1600,7 @@ PENALTY O-Holding EFF Y 2MIN N`}
             </details>
           )}
         </div>
-      )}
+      </DevToolsPortal>}
     </>
   );
 }
@@ -1642,6 +1643,18 @@ function PredictionBanner({ coachMessages, technicalExplanations }: {
       )}
     </div>
   );
+}
+
+// ── DevToolsPortal: renders children into the #dev-tools-slot div in Index.tsx
+// so dev-mode panels appear below Committed Plays without restructuring DraftPanel's state.
+function DevToolsPortal({ children }: { children: React.ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = document.getElementById("dev-tools-slot");
+    setTarget(el);
+  }, []);
+  if (!target) return null;
+  return createPortal(children, target);
 }
 
 
