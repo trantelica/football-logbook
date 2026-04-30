@@ -110,6 +110,75 @@ export function PersonnelPanel() {
     return player?.playerName ?? null;
   };
 
+  // Per-slot committed-field set (for "Committed" badge consistency with DraftPanel)
+  const slotCommittedFields = isSlotMode && selectedSlotNum !== null
+    ? new Set(slotMetaMap.get(selectedSlotNum)?.committedFields ?? [])
+    : new Set<string>();
+  const isFieldCommitted = (fieldName: string) => slotCommittedFields.has(fieldName);
+
+  /** Compact provenance badge cluster — mirrors DraftPanel taxonomy. */
+  const renderProvenance = (fieldName: string) => {
+    const isParsed = deterministicParseFields.has(fieldName);
+    const isPred = predictedFields.has(fieldName);
+    const isCF = carriedForwardFields.has(fieldName);
+    const isAi = aiProposedFields.has(fieldName);
+    const committed = isFieldCommitted(fieldName) && !isParsed && !isPred && !isAi;
+    const evidence = parseEvidenceByField[fieldName]?.snippet;
+    if (!isParsed && !isPred && !isCF && !isAi && !committed) return null;
+    return (
+      <TooltipProvider>
+        <span className="inline-flex items-center gap-0.5">
+          {committed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">Committed</p></TooltipContent>
+            </Tooltip>
+          )}
+          {isParsed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                  <Terminal className="h-2.5 w-2.5" />Parse
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">From Pass 2 narration. Proposal only — not yet committed.</p>
+                {evidence && <p className="text-[10px] mt-1 opacity-80 font-mono">"{evidence}"</p>}
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {isPred && !isParsed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                  <Sparkles className="h-2.5 w-2.5" />Pred
+                </span>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">Auto-predicted. Editable.</p></TooltipContent>
+            </Tooltip>
+          )}
+          {isCF && !isParsed && !isPred && !isAi && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+                  <ArrowRightLeft className="h-2.5 w-2.5" />CF
+                </span>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">Carried forward from play {carriedForwardFromPlayNum ?? "?"}. Editable.</p></TooltipContent>
+            </Tooltip>
+          )}
+          {isAi && (
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+              AI
+            </span>
+          )}
+        </span>
+      </TooltipProvider>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Carry-forward banner */}
