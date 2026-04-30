@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 /** Map grade field → corresponding personnel position field */
 const GRADE_TO_POS: Record<string, string> = {
