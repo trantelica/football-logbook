@@ -1456,31 +1456,37 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setPossessionCheckPending(false);
       setPossessionPrevPlayInfo(null);
 
-      // Optional +1 carry-forward exception: only if this is exactly lastPass2CommitPlayNum + 1
-      if (activePass === 2 && slot.odk === "O" && lastPass2CommitPlayNum !== null && playNum === lastPass2CommitPlayNum + 1) {
-        const sourcePlay = committedPlays.find((p) => p.playNum === lastPass2CommitPlayNum);
-        if (sourcePlay) {
-          const seededFields = new Set<string>();
-          const sp = sourcePlay as unknown as Record<string, unknown>;
-          for (const pos of PERSONNEL_POSITIONS) {
-            const currentVal = (newCandidate as Record<string, unknown>)[pos];
-            if (currentVal === null || currentVal === undefined || currentVal === "") {
-              const srcVal = sp[pos];
-              if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
-                (newCandidate as Record<string, unknown>)[pos] = srcVal;
-                seededFields.add(pos);
+      // Pass 2 seed-on-open:
+      // If this is an offensive slot with no committed personnel, seed proposal/candidate
+      // personnel from the most recent prior committed offensive play whose Pass 2
+      // is complete (all 11 positions). Seeds into empty fields only — never overwrites
+      // committed values. No cascade, no commit, no DB writes.
+      setCarriedForwardFields(new Set());
+      setCarriedForwardFromPlayNum(null);
+      if (activePass === 2 && slot.odk === "O") {
+        const slotMeta = slotMetaMap.get(playNum);
+        const committedPersonnelCount = countCommittedPersonnel(slotMeta);
+        if (committedPersonnelCount === 0) {
+          const sourcePlay = findPriorPass2CompletePlay(committedPlays, slotMetaMap, playNum);
+          if (sourcePlay) {
+            const seededFields = new Set<string>();
+            const sp = sourcePlay as unknown as Record<string, unknown>;
+            for (const pos of PERSONNEL_POSITIONS) {
+              const currentVal = (newCandidate as Record<string, unknown>)[pos];
+              if (currentVal === null || currentVal === undefined || currentVal === "") {
+                const srcVal = sp[pos];
+                if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
+                  (newCandidate as Record<string, unknown>)[pos] = srcVal;
+                  seededFields.add(pos);
+                }
               }
             }
-          }
-          if (seededFields.size > 0) {
-            setCarriedForwardFields(seededFields);
-            setCarriedForwardFromPlayNum(lastPass2CommitPlayNum);
+            if (seededFields.size > 0) {
+              setCarriedForwardFields(seededFields);
+              setCarriedForwardFromPlayNum(sourcePlay.playNum);
+            }
           }
         }
-      } else {
-        // No carry-forward on arbitrary selection
-        setCarriedForwardFields(new Set());
-        setCarriedForwardFromPlayNum(null);
       }
 
       setCandidate(newCandidate);
