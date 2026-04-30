@@ -137,18 +137,23 @@ export function parsePersonnelNarration(
   text: string,
   aliasMap: PositionAliasMap | undefined | null,
   currentPersonnel?: Record<string, unknown> | null,
+  rosterJerseys?: Set<number> | null,
 ): PersonnelParseResult {
   const patch: Record<string, number | null> = {};
   const report: PersonnelParseEntry[] = [];
+  const offRosterJerseys: number[] = [];
+  const duplicateJerseys: number[] = [];
 
-  if (!text || !text.trim()) return { patch, report };
+  if (!text || !text.trim()) {
+    return { patch, report, offRosterJerseys, duplicateJerseys };
+  }
 
-  // Where each canonical slot will land after this parse pass (locally tracked
-  // so multiple sentences in one parse interact correctly).
+  // Local tracking across clauses in the same parse pass.
   const localAssignments: Record<string, number | null> = {};
+  // Jersey → canonical slot it has been assigned to in this parse pass.
+  // Used to detect intra-utterance duplicates (same jersey targeted at >1 slot).
+  const jerseyTargetSlot = new Map<number, string>();
 
-  // Split into clauses on sentence/clause separators including " and ".
-  // Conservative: handles common multi-assignment narration in one breath.
   const clauses = text
     .split(/(?:[.;\n]|,\s+|\s+and\s+)+/i)
     .map((s) => s.trim())
@@ -161,56 +166,91 @@ export function parsePersonnelNarration(
     const rawSentence = clause;
     const jersey = parseJerseyToken(jerseyToken);
     if (jersey == null) {
-      report.push({ rawSentence, status: "unrecognized", reason: `Could not parse jersey "${jerseyToken}"` });
+      report.push({
+        rawSentence,
+        status: "unrecognized",
+        reason: `Could not parse jersey "${jerseyToken}"`,
+      });
       continue;
     }
 
-      const canonicalField = resolvePositionPhrase(positionPhrase, aliasMap);
-      if (!canonicalField || !CANONICAL_SET.has(canonicalField)) {
-        report.push({
-          rawSentence,
-          status: "unrecognized",
-          jersey,
-          reason: `Unknown position "${positionPhrase.trim()}"`,
-        });
-        continue;
-      }
-
-      // Move detection: did this jersey already live at a different canonical
-      // slot in current personnel (or in a prior sentence in this same parse)?
-      let movedFrom: string | undefined;
-      const checkSources: Array<Record<string, unknown>> = [];
-      if (currentPersonnel) checkSources.push(currentPersonnel);
-      checkSources.push(localAssignments as Record<string, unknown>);
-
-      for (const src of checkSources) {
-        for (const pos of PERSONNEL_POSITIONS) {
-          if (pos === canonicalField) continue;
-          const v = src[pos];
-          if (v == null || v === "") continue;
-          if (Number(v) === jersey) {
-            movedFrom = pos;
-            break;
-          }
-        }
-        if (movedFrom) break;
-      }
-
-      if (movedFrom) {
-        localAssignments[movedFrom] = null;
-        patch[movedFrom] = null;
-      }
-      localAssignments[canonicalField] = jersey;
-      patch[canonicalField] = jersey;
-
+    const canonicalField = resolvePositionPhrase(positionPhrase, aliasMap);
+    if (!canonicalField || !CANONICAL_SET.has(canonicalField)) {
       report.push({
         rawSentence,
-        status: "matched",
+        status: "unrecognized",
+        jersey,
+        reason: `Unknown position "${positionPhrase.trim()}"`,
+      });
+      continue;
+    }
+
+    // Roster gate (when roster is supplied). Off-roster jerseys are NEVER
+    // silently applied to the patch — coach must explicitly resolve.
+    if (rosterJerseys && !rosterJerseys.has(jersey)) {
+      if (!offRosterJerseys.includes(jersey)) offRosterJerseys.push(jersey);
+      report.push({
+        rawSentence,
+        status: "off_roster",
         jersey,
         canonicalField,
-        movedFrom,
+        reason: `Jersey #${jersey} is not on the roster`,
+      });
+      continue;
+    }
+
+    // Intra-utterance duplicate gate: if this jersey was already targeted at
+    // a DIFFERENT canonical slot earlier in the same parse, surface a
+    // duplicate error rather than silently overwriting/clearing slots.
+    const priorTarget = jerseyTargetSlot.get(jersey);
+    if (priorTarget && priorTarget !== canonicalField) {
+      if (!duplicateJerseys.includes(jersey)) duplicateJerseys.push(jersey);
+      report.push({
+        rawSentence,
+        status: "duplicate",
+        jersey,
+        canonicalField,
+        reason: `Jersey #${jersey} was already assigned to ${priorTarget} in this parse`,
+      });
+      continue;
+    }
+
+    // Move detection: jersey already at a different canonical slot in CURRENT
+    // committed personnel? Treat as a relocation (clear old, set new).
+    let movedFrom: string | undefined;
+    const checkSources: Array<Record<string, unknown>> = [];
+    if (currentPersonnel) checkSources.push(currentPersonnel);
+    checkSources.push(localAssignments as Record<string, unknown>);
+
+    for (const src of checkSources) {
+      for (const pos of PERSONNEL_POSITIONS) {
+        if (pos === canonicalField) continue;
+        const v = src[pos];
+        if (v == null || v === "") continue;
+        if (Number(v) === jersey) {
+          movedFrom = pos;
+          break;
+        }
+      }
+      if (movedFrom) break;
+    }
+
+    if (movedFrom) {
+      localAssignments[movedFrom] = null;
+      patch[movedFrom] = null;
+    }
+    localAssignments[canonicalField] = jersey;
+    patch[canonicalField] = jersey;
+    jerseyTargetSlot.set(jersey, canonicalField);
+
+    report.push({
+      rawSentence,
+      status: "matched",
+      jersey,
+      canonicalField,
+      movedFrom,
     });
   }
 
-  return { patch, report };
+  return { patch, report, offRosterJerseys, duplicateJerseys };
 }
