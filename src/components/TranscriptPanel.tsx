@@ -30,6 +30,7 @@ import { useRoster } from "@/engine/rosterContext";
 import { getSeasonConfig } from "@/engine/db";
 import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
 import { PERSONNEL_LABELS } from "@/engine/personnel";
+import { RosterResolveDialog, type OffRosterPending } from "@/components/RosterResolveDialog";
 import { toast } from "sonner";
 
 interface ParseSnapshot {
