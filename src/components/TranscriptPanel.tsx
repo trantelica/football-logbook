@@ -1,18 +1,20 @@
 /**
- * TranscriptPanel — Editable transcript working draft with explicit Parse and Apply actions.
+ * TranscriptPanel — Editable transcript working draft.
  *
  * - Transcript is an editable textarea (coach can fix STT errors).
- * - Parse is triggered only on explicit button press.
- * - Parse operates on a frozen snapshot of the current text.
- * - Apply to Draft transfers the frozen parse result into the draft via applySystemPatch.
- * - Editing after parse marks transcript as "dirty" — Apply is disabled until re-parse.
- * - No auto-parse. No AI. No silent mutation of candidate/proposal/committed state.
+ * - Pass 1: two-step Parse → Apply to Draft (anchor parser).
+ * - Pass 2+: SINGLE "Update Proposal" action that parses personnel narration
+ *   and writes canonical pos* fields directly into proposal/draft state via
+ *   applySystemPatch. No silent commit. Same-slot conflicts, off-roster, and
+ *   duplicate jersey assignments are surfaced visibly and excluded from the
+ *   patch.
+ * - No auto-parse. No AI. No silent mutation of committed state.
  */
 
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight } from "lucide-react";
+import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { parseRawInput, type ParseResult } from "@/engine/rawInputParser";
