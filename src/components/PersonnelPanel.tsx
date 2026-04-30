@@ -224,6 +224,21 @@ export function PersonnelPanel() {
         </div>
       ) : (
         <>
+          {/* Pass 2 narration summary — counts pos* fields whose current value
+              originated from the latest narration parse. Proposal-state only. */}
+          {(() => {
+            const narrationPosCount = PERSONNEL_POSITIONS.filter((p) => deterministicParseFields.has(p)).length;
+            if (narrationPosCount === 0) return null;
+            return (
+              <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {narrationPosCount} personnel slot(s) updated from narration. Proposal only — not yet committed.
+                </span>
+              </div>
+            );
+          })()}
+
           {/* Personnel Positions */}
           <div>
             <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
