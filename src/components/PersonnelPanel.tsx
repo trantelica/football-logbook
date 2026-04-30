@@ -20,7 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, AlertTriangle, ArrowRight, Sparkles, Plus } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Lock, AlertTriangle, ArrowRight, Sparkles, Plus, Terminal, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
