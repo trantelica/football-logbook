@@ -203,6 +203,44 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
               })}
             </div>
           </div>
+
+          {/* Pass 2 Position Aliases */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Pass 2 Position Aliases
+            </Label>
+            <p className="text-[10px] text-muted-foreground -mt-1">
+              Optional coach-friendly nicknames (e.g. 1 → QB, 2 → H, 3 → F).
+              Aliases are display/parsing helpers only — committed data and
+              exports always use canonical position names.
+            </p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {PERSONNEL_POSITIONS.map((pos) => {
+                const err = aliasErrors[pos];
+                return (
+                  <div key={pos} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono w-7 text-muted-foreground">
+                        {PERSONNEL_LABELS[pos]}
+                      </span>
+                      <Input
+                        value={positionAliases[pos] ?? ""}
+                        onChange={(e) =>
+                          setPositionAliases((prev) => ({ ...prev, [pos]: e.target.value }))
+                        }
+                        placeholder="—"
+                        className={`h-7 text-xs ${err ? "border-destructive" : ""}`}
+                        maxLength={12}
+                      />
+                    </div>
+                    {err && (
+                      <span className="text-[10px] text-destructive pl-9">{err}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         <DialogFooter>
