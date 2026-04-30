@@ -231,17 +231,39 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
   const handleUpdateProposal = useCallback(() => {
     const parsed = handleParse();
     if (!parsed) return;
-    const { sourceText, mergedPatch } = parsed;
+    const { sourceText, mergedPatch, personnel } = parsed;
+
+    // Auto-launch roster resolution dialog when off-roster jerseys were
+    // surfaced. Preserves intended canonical slot + raw narration clause so
+    // the assignment can continue against the intended slot once the jersey
+    // is added to the roster. Coach can still cancel — blocked state is
+    // preserved.
+    if (personnel && personnel.offRosterJerseys.length > 0) {
+      const pending: OffRosterPending[] = personnel.report
+        .filter((r) => r.status === "off_roster" && r.jersey != null)
+        .map((r) => ({
+          jersey: r.jersey as number,
+          canonicalField: r.canonicalField,
+          rawSentence: r.rawSentence,
+        }));
+      setRosterResolve({ pending, sourceText });
+      // Fall through and apply any non-off-roster fields that did make it
+      // into mergedPatch so partial progress isn't lost.
+    }
+
     if (Object.keys(mergedPatch).length === 0) {
-      toast.info("No personnel assignments recognized in narration.");
+      // Nothing applied yet, but roster dialog (if any) is now open.
+      if (!personnel || personnel.offRosterJerseys.length === 0) {
+        toast.info("No personnel assignments recognized in narration.");
+      }
       return;
     }
     // Build per-field evidence from the personnel parse report so each
     // narration-updated pos* slot carries its source clause as transcript
     // evidence (visible via the Parse provenance badge tooltip).
     const evidence: Record<string, { snippet: string }> = {};
-    if (parsed.personnel) {
-      for (const entry of parsed.personnel.report) {
+    if (personnel) {
+      for (const entry of personnel.report) {
         if (entry.status !== "matched" || !entry.canonicalField) continue;
         evidence[entry.canonicalField] = { snippet: entry.rawSentence };
         if (entry.movedFrom) {
@@ -273,6 +295,82 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       onApply?.(sourceText, mergedPatch);
     }
   }, [handleParse, applySystemPatch, onApply]);
+
+  /**
+   * Handle roster-resolution outcome. Re-parses the original narration with
+   * an extended roster set (the jerseys just added) and applies ONLY the
+   * newly-unblocked off-roster assignments to proposal state. Same-slot
+   * conflicts and duplicates remain blocked. No silent commit.
+   */
+  const handleRosterResolved = useCallback((addedJerseys: number[]) => {
+    const ctx = rosterResolve;
+    setRosterResolve(null);
+    if (!ctx || addedJerseys.length === 0) return;
+
+    // Build extended roster set: current + just-added jerseys (state may
+    // not have flushed yet through reload()).
+    const extendedRoster = new Set<number>(rosterJerseys);
+    for (const j of addedJerseys) extendedRoster.add(j);
+
+    const personnel = parsePersonnelNarration(
+      ctx.sourceText,
+      aliasMap,
+      currentCandidate ?? null,
+      extendedRoster,
+    );
+
+    // Restrict re-application to the jerseys we just added — do not retread
+    // assignments that were already applied (or already blocked for other
+    // reasons like same-slot conflicts).
+    const addedSet = new Set(addedJerseys);
+    const reapplyPatch: Record<string, number | null> = {};
+    const evidence: Record<string, { snippet: string }> = {};
+    for (const entry of personnel.report) {
+      if (entry.status !== "matched" || !entry.canonicalField || entry.jersey == null) continue;
+      if (!addedSet.has(entry.jersey)) continue;
+      reapplyPatch[entry.canonicalField] = entry.jersey;
+      evidence[entry.canonicalField] = { snippet: entry.rawSentence };
+      if (entry.movedFrom) {
+        reapplyPatch[entry.movedFrom] = null;
+        evidence[entry.movedFrom] = {
+          snippet: `moved #${entry.jersey} → ${entry.canonicalField}`,
+        };
+      }
+    }
+
+    if (Object.keys(reapplyPatch).length === 0) {
+      toast.info("Roster updated, but no eligible assignments to re-apply.");
+      return;
+    }
+
+    const collisions = applySystemPatch(reapplyPatch, {
+      fillOnly: true,
+      evidence,
+      source: "deterministic_parse",
+    });
+    if (collisions.length > 0) {
+      const nonCollisionCount = Object.keys(reapplyPatch).length - collisions.length;
+      setCollisionState({
+        collisions: collisions.map((c: SystemPatchCollision) => ({
+          fieldName: c.fieldName,
+          currentValue: c.currentValue,
+          proposedValue: c.proposedValue,
+        })),
+        nonCollisionCount,
+        fullPatch: reapplyPatch,
+      });
+    } else {
+      toast.success(
+        `Re-applied ${Object.keys(reapplyPatch).length} field(s) after roster update.`,
+      );
+      onApply?.(ctx.sourceText, reapplyPatch);
+    }
+  }, [rosterResolve, rosterJerseys, aliasMap, currentCandidate, applySystemPatch, onApply]);
+
+  const handleRosterResolveCancel = useCallback(() => {
+    setRosterResolve(null);
+    toast.info("Off-roster assignments remain blocked.");
+  }, []);
 
   /**
    * Apply to Draft — transfers frozen parse snapshot into draft via applySystemPatch.
