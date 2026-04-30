@@ -120,11 +120,11 @@ function extractClauseMatch(clause: string): { jerseyToken: string; positionPhra
   if (!trimmed) return null;
 
   // Form 1: "number <token> ..."
-  let m = trimmed.match(/^number\s+(#?\w+)\s+(?:is\s+playing|plays|playing|is)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  let m = trimmed.match(/^number\s+(#?\w+)\s+(?:is\s+playing|is\s+at|is\s+in|plays|playing|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
-  // Form 2: "#22 ..." or "22 ..."
-  m = trimmed.match(/^(#?\d+)\s+(?:is\s+playing|plays|playing|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  // Form 2: "#22 ..." or "22 ..." — includes compact "<jersey> is at <pos>"
+  m = trimmed.match(/^(#?\d+)\s+(?:is\s+playing|is\s+at|is\s+in|plays|playing|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
   return null;
