@@ -798,6 +798,17 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           fieldsToReseed.push(f);
         }
       }
+      // Penalty derivative cleanup: penYards is seeded as `predicted` from the
+      // canonical penalty value, so it does not appear in parse/AI provenance
+      // sets. When penalty is being cleared in this section, also clear the
+      // derived penYards so the field doesn't keep a stale default.
+      if (
+        section.ownedFields.includes("penalty") &&
+        fieldsToReseed.includes("penalty") &&
+        !fieldsToReseed.includes("penYards")
+      ) {
+        fieldsToReseed.push("penYards");
+      }
       if (fieldsToReseed.length > 0) {
         // Fire-and-forget; reseedAutoFieldsFor handles state updates atomically.
         void reseedAutoFieldsFor(fieldsToReseed);
