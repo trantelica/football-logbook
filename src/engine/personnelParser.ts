@@ -104,16 +104,27 @@ function resolvePositionPhrase(
 }
 
 /**
- * Core regex set for personnel sentences. Each capture group order:
- *   [1] = jersey token
- *   [2] = position phrase (until end / sentence terminator)
+ * Try to extract (jerseyToken, positionPhrase) from a single sentence/clause.
+ *
+ * Supported shapes (case-insensitive):
+ *   number <jersey> (is playing|plays|playing|is) [at|in|the] <position>
+ *   #<digits>       (is playing|plays|playing|at)  [at|in|the] <position>
+ *   <digits>        (is playing|plays|playing|at)  [at|in|the] <position>
  */
-const SENTENCE_PATTERNS: RegExp[] = [
-  // "number 7 is playing at left guard" / "number seven plays Q"
-  /\bnumber\s+(#?\w+)\s+(?:is\s+playing|plays|playing|is)\s+(?:at\s+|in\s+|the\s+)?([^.,;\n]+?)(?=\s+(?:and\s+number|number\s+\w|$|[.,;\n]))/gi,
-  // "#22 at right tackle" / "22 plays X"
-  /(?:^|[\s,;])(#\d+|\d+)\s+(?:is\s+playing|plays|playing|at)\s+(?:at\s+|in\s+|the\s+)?([^.,;\n]+?)(?=\s+(?:and\s+(?:number|#?\d)|number\s+\w|#?\d+\s+(?:is\s+playing|plays|playing|at)|$|[.,;\n]))/gi,
-];
+function extractClauseMatch(clause: string): { jerseyToken: string; positionPhrase: string } | null {
+  const trimmed = clause.trim();
+  if (!trimmed) return null;
+
+  // Form 1: "number <token> ..."
+  let m = trimmed.match(/^number\s+(#?\w+)\s+(?:is\s+playing|plays|playing|is)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
+
+  // Form 2: "#22 ..." or "22 ..."
+  m = trimmed.match(/^(#?\d+)\s+(?:is\s+playing|plays|playing|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
+
+  return null;
+}
 
 /**
  * Parse personnel narration into a canonical pos* patch + report.
