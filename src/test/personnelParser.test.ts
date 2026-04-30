@@ -146,4 +146,24 @@ describe("parsePersonnelNarration", () => {
     expect(r.patch).toEqual({ pos1: 7 });
     expect(r.duplicateJerseys).toEqual([]);
   });
+
+  it("parses compact 'is at' shorthand with comma-chained assignments", () => {
+    const r = parsePersonnelNarration(
+      "0 is at q, #1 is at 2, 2 is at F, #5 is at 1",
+      aliases,
+    );
+    // Trace: pos1=0 (q alias), pos2=1 (canonical "2"), pos3=2 (F alias),
+    // pos1 overwritten to 5 (canonical "1"). Last write wins on same slot.
+    expect(r.patch).toEqual({ pos1: 5, pos2: 1, pos3: 2 });
+  });
+
+  it("parses 'is at' with canonical numeric position labels", () => {
+    const r = parsePersonnelNarration("#1 is at 2", aliases);
+    expect(r.patch).toEqual({ pos2: 1 });
+  });
+
+  it("parses bare-comma separation without trailing whitespace", () => {
+    const r = parsePersonnelNarration("2 is at F,#5 is at 1", aliases);
+    expect(r.patch).toEqual({ pos3: 2, pos1: 5 });
+  });
 });
