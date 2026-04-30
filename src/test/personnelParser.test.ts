@@ -145,5 +145,32 @@ describe("parsePersonnelNarration", () => {
     );
     expect(r.patch).toEqual({ pos1: 7 });
     expect(r.duplicateJerseys).toEqual([]);
+  it("does not flag duplicate when same jersey re-targets the same slot", () => {
+    const r = parsePersonnelNarration(
+      "number 7 is playing at Q. number 7 is playing at Q.",
+      aliases,
+    );
+    expect(r.patch).toEqual({ pos1: 7 });
+    expect(r.duplicateJerseys).toEqual([]);
+  });
+
+  it("parses compact 'is at' shorthand with comma-chained assignments", () => {
+    const r = parsePersonnelNarration(
+      "0 is at q, #1 is at 2, 2 is at F, #5 is at 1",
+      aliases,
+    );
+    expect(r.patch).toEqual({ pos1: 0, pos2: 1, pos3: 2 });
+    // Wait: aliases for pos2="H", pos3="F". "2" is canonical label for pos2; "1" canonical for pos1; "F" alias for pos3; "q" alias for pos1.
+    // But pos1 collisions: "0 at q" -> pos1=0; "#5 at 1" -> pos1=5 → duplicate-target on pos1? No, different jerseys to same slot is allowed (overwrite within parse).
+  });
+
+  it("parses 'is at' with canonical numeric position labels", () => {
+    const r = parsePersonnelNarration("#1 is at 2", aliases);
+    expect(r.patch).toEqual({ pos2: 1 });
+  });
+
+  it("parses bare-comma separation without trailing whitespace", () => {
+    const r = parsePersonnelNarration("2 is at F,#5 is at 1", aliases);
+    expect(r.patch).toEqual({ pos3: 2, pos1: 5 });
   });
 });
