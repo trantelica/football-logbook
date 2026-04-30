@@ -1026,8 +1026,10 @@ export function DraftPanel() {
 
       
 
-      {/* Transcript Panel — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
-      {activePass >= 2 && selectedSlotNum !== null && (
+      {/* Transcript Panel — Pass 2 ONLY (personnel narration surface).
+          Pass 1 uses Pass1SectionPanel for its anchor-grammar entry.
+          Pass 3 uses BlockingPanel for grading entry — no transcript surface. */}
+      {activePass === 2 && selectedSlotNum !== null && (
         <div className="mb-3 space-y-2">
           <TranscriptPanel
             onApply={handleTranscriptApply}
