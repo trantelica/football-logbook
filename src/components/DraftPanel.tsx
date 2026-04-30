@@ -992,6 +992,7 @@ export function DraftPanel() {
           lookupValues: lookupMap,
           fieldSize: (activeGame?.fieldSize ?? 80) as 80 | 100,
           predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
+          positionAliases: positionAliasMap,
         },
       );
       if (result.error) {
