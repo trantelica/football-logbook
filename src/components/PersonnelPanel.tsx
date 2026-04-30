@@ -51,7 +51,6 @@ export function PersonnelPanel() {
     inlineErrors,
     carriedForwardFields,
     carriedForwardFromPlayNum,
-    updateFields,
   } = useTransaction();
   const { roster, addPlayer, getPlayer } = useRoster();
   const { activeSeason } = useSeason();
