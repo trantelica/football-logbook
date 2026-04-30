@@ -85,7 +85,22 @@ export function BlockingPanel() {
   const gradesDisabled = noCommittedRow || notOffense || isProposal;
 
   // ── Pass 3 grade narration entry ────────────────────────────────────────
-  const [narrationText, setNarrationText] = useState("");
+  // Dictation is provided by the shared transcript-capture hook (Web Speech
+  // API). The hook owns the working text buffer; we mirror it into
+  // `narrationText` for parsing/UI consistency. No transaction-state side
+  // effects from the hook itself.
+  const {
+    text: dictatedText,
+    interim,
+    listening,
+    supported: dictationSupported,
+    setText: setDictatedText,
+    toggleListening,
+    clear: clearDictation,
+  } = useTranscriptCapture();
+
+  const narrationText = dictatedText;
+  const setNarrationText = setDictatedText;
   const [lastReport, setLastReport] = useState<ReturnType<typeof parseGradeNarration>["report"] | null>(null);
 
   const handleApplyNarration = useCallback(() => {
@@ -117,9 +132,9 @@ export function BlockingPanel() {
   }, [narrationText, gradesDisabled, updateField]);
 
   const handleClearNarration = useCallback(() => {
-    setNarrationText("");
+    clearDictation();
     setLastReport(null);
-  }, []);
+  }, [clearDictation]);
 
   return (
     <div className="space-y-4">
