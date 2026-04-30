@@ -650,6 +650,15 @@ export function normalizeTranscriptForParse(s: string): string {
   // Uppercase all anchors
   t = t.replace(ANCHOR_RE, (m) => m.toUpperCase());
 
+  // Provenance reconciliation: when deterministic normalization produced a
+  // PENALTY token but no RESULT token, prepend "RESULT Penalty" so the
+  // parser records `result` as deterministic (not AI-authored). Avoids the
+  // mixed-provenance case where penalty is Parse but result is AI for the
+  // same recognized phrase.
+  if (/\bPENALTY\b/.test(t) && !/\bRESULT\b/.test(t)) {
+    t = `RESULT Penalty ${t}`.trim();
+  }
+
   return t;
 }
 
