@@ -384,9 +384,10 @@ function QuickAssignRow({
   const handleAdd = () => {
     if (!resolved || !jerseyOk) return;
     onAssign(resolved, String(jerseyNum));
-    toast.success(
-      `Assigned #${jerseyNum} to ${PERSONNEL_LABELS[resolved.replace(/^pos/, "pos") as keyof typeof PERSONNEL_LABELS] ?? resolved}`,
-    );
+    const label = PERSONNEL_LABELS[resolved as keyof typeof PERSONNEL_LABELS] ?? resolved;
+    const alias = getAliasFor(resolved, aliasMap);
+    const slotDisplay = alias ? `${label} (${alias})` : label;
+    toast.success(`Assigned #${jerseyNum} to ${slotDisplay}`);
     setToken("");
     setJersey("");
   };
@@ -420,11 +421,15 @@ function QuickAssignRow({
           <Plus className="h-3 w-3 mr-1" />
           Add
         </Button>
-        {resolved && (
-          <span className="text-[10px] text-muted-foreground">
-            → {PERSONNEL_LABELS[resolved as keyof typeof PERSONNEL_LABELS] ?? resolved}
-          </span>
-        )}
+        {resolved && (() => {
+          const label = PERSONNEL_LABELS[resolved as keyof typeof PERSONNEL_LABELS] ?? resolved;
+          const alias = getAliasFor(resolved, aliasMap);
+          return (
+            <span className="text-[10px] text-muted-foreground">
+              → {alias ? `${label} (${alias})` : label}
+            </span>
+          );
+        })()}
         {tokenInvalid && (
           <span className="text-[10px] text-destructive">Unknown position token</span>
         )}

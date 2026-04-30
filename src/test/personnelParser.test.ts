@@ -88,10 +88,62 @@ describe("parsePersonnelNarration", () => {
     const r = parsePersonnelNarration("", aliases);
     expect(r.patch).toEqual({});
     expect(r.report).toEqual([]);
+    expect(r.offRosterJerseys).toEqual([]);
+    expect(r.duplicateJerseys).toEqual([]);
   });
 
   it("ignores irrelevant chatter without anchors", () => {
     const r = parsePersonnelNarration("we ran a great play out there today", aliases);
     expect(r.patch).toEqual({});
+  });
+
+  it("blocks off-roster jerseys when roster is supplied — never silently applies", () => {
+    const roster = new Set<number>([1, 2, 3]);
+    const r = parsePersonnelNarration(
+      "number 99 is playing at Q",
+      aliases,
+      null,
+      roster,
+    );
+    expect(r.patch).toEqual({});
+    expect(r.offRosterJerseys).toEqual([99]);
+    expect(r.report[0].status).toBe("off_roster");
+    expect(r.report[0].jersey).toBe(99);
+    expect(r.report[0].canonicalField).toBe("pos1");
+  });
+
+  it("applies on-roster jerseys when roster is supplied", () => {
+    const roster = new Set<number>([12]);
+    const r = parsePersonnelNarration(
+      "number 12 is playing at Q",
+      aliases,
+      null,
+      roster,
+    );
+    expect(r.patch).toEqual({ pos1: 12 });
+    expect(r.offRosterJerseys).toEqual([]);
+  });
+
+  it("blocks intra-utterance duplicate when same jersey targets two distinct slots", () => {
+    const r = parsePersonnelNarration(
+      "number 7 is playing at Q. number 7 is playing at H.",
+      aliases,
+    );
+    // First assignment applied; second blocked as duplicate (NOT silently re-routed).
+    expect(r.patch).toEqual({ pos1: 7 });
+    expect(r.duplicateJerseys).toEqual([7]);
+    const dupEntry = r.report.find((x) => x.status === "duplicate");
+    expect(dupEntry).toBeDefined();
+    expect(dupEntry?.jersey).toBe(7);
+    expect(dupEntry?.canonicalField).toBe("pos2");
+  });
+
+  it("does not flag duplicate when same jersey re-targets the same slot", () => {
+    const r = parsePersonnelNarration(
+      "number 7 is playing at Q. number 7 is playing at Q.",
+      aliases,
+    );
+    expect(r.patch).toEqual({ pos1: 7 });
+    expect(r.duplicateJerseys).toEqual([]);
   });
 });
