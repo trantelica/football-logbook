@@ -36,8 +36,11 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
   const [fieldSize, setFieldSize] = useState<"80" | "100">("80");
   const [patMode, setPatMode] = useState<"none" | "youth_1_2" | "hs_kick">("none");
   const [activeFields, setActiveFields] = useState<Record<string, boolean>>({});
+  const [positionAliases, setPositionAliases] = useState<Record<string, string>>({});
   const [locked, setLocked] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const aliasErrors = validateAliasMap(positionAliases as PositionAliasMap);
 
   const fieldKeys = playSchema.map((f) => f.name);
 
@@ -63,6 +66,7 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
       setFieldSize(String(config.fieldSize) as "80" | "100");
       setPatMode(config.patMode ?? "none");
       setActiveFields({ ...config.activeFields });
+      setPositionAliases({ ...(config.positionAliases ?? {}) });
       setLocked(playCount > 0);
     })();
 
@@ -77,13 +81,24 @@ export function ConfigModeDialog({ open, onOpenChange }: ConfigModeDialogProps) 
 
   const handleSave = async () => {
     if (!loadedConfig) return;
+    if (Object.keys(aliasErrors).length > 0) {
+      toast.error("Fix position alias errors before saving.");
+      return;
+    }
     setSaving(true);
     try {
+      // Strip empty aliases so storage stays clean
+      const cleanAliases: Record<string, string> = {};
+      for (const [k, v] of Object.entries(positionAliases)) {
+        const t = (v ?? "").trim();
+        if (t) cleanAliases[k] = t;
+      }
       const after: SeasonConfig = {
         ...loadedConfig,
         fieldSize: Number(fieldSize) as 80 | 100,
         patMode,
         activeFields: { ...activeFields },
+        positionAliases: cleanAliases,
       };
       await saveSeasonConfig(after, loadedConfig);
       toast.success("Season configuration saved.");
