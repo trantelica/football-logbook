@@ -143,26 +143,23 @@ export function parsePersonnelNarration(
   // so multiple sentences in one parse interact correctly).
   const localAssignments: Record<string, number | null> = {};
 
-  // De-dupe the same sentence match to avoid double-processing if multiple
-  // patterns hit the same text.
-  const seenMatches = new Set<string>();
+  // Split into clauses on sentence/clause separators including " and ".
+  // Conservative: handles common multi-assignment narration in one breath.
+  const clauses = text
+    .split(/(?:[.;\n]|,\s+|\s+and\s+)+/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  for (const pattern of SENTENCE_PATTERNS) {
-    pattern.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = pattern.exec(text)) !== null) {
-      const jerseyToken = m[1];
-      const positionPhrase = m[2];
-      const key = `${m.index}:${jerseyToken}:${positionPhrase}`;
-      if (seenMatches.has(key)) continue;
-      seenMatches.add(key);
-
-      const rawSentence = m[0].trim();
-      const jersey = parseJerseyToken(jerseyToken);
-      if (jersey == null) {
-        report.push({ rawSentence, status: "unrecognized", reason: `Could not parse jersey "${jerseyToken}"` });
-        continue;
-      }
+  for (const clause of clauses) {
+    const matched = extractClauseMatch(clause);
+    if (!matched) continue;
+    const { jerseyToken, positionPhrase } = matched;
+    const rawSentence = clause;
+    const jersey = parseJerseyToken(jerseyToken);
+    if (jersey == null) {
+      report.push({ rawSentence, status: "unrecognized", reason: `Could not parse jersey "${jerseyToken}"` });
+      continue;
+    }
 
       const canonicalField = resolvePositionPhrase(positionPhrase, aliasMap);
       if (!canonicalField || !CANONICAL_SET.has(canonicalField)) {
