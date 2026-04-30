@@ -363,34 +363,20 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       toast.success(
         `Re-applied ${Object.keys(reapplyPatch).length} field(s) after roster update.`,
       );
-      // Clear stale off-roster blocked state from the visible snapshot so
-      // the red blocked panel disappears for jerseys that were just
-      // resolved. Re-classify their report entries as "matched" and merge
-      // the re-applied fields into the snapshot's patch preview. Entries
-      // for jerseys NOT resolved (skipped in the dialog) remain blocked.
+      // Replace the visible personnel snapshot with the fresh re-parse so
+      // the blocked banner render path is driven by current blocked arrays /
+      // report state instead of partially patched stale snapshot data.
+      // Any unresolved jerseys remain blocked because they are still absent
+      // from the extended roster used for this re-parse.
       setLastSnapshot((prev) => {
-        if (!prev || !prev.personnel) return prev;
-        const p = prev.personnel;
-        const updatedReport = p.report.map((entry) => {
-          if (
-            entry.status === "off_roster" &&
-            entry.jersey != null &&
-            addedSet.has(entry.jersey) &&
-            entry.canonicalField
-          ) {
-            return { ...entry, status: "matched" as const, reason: undefined };
-          }
-          return entry;
-        });
-        const updatedOffRoster = p.offRosterJerseys.filter((j) => !addedSet.has(j));
+        if (!prev) return prev;
         return {
           ...prev,
-          result: { ...prev.result, patch: { ...prev.result.patch, ...reapplyPatch } },
-          personnel: {
-            ...p,
-            report: updatedReport,
-            offRosterJerseys: updatedOffRoster,
+          result: {
+            ...prev.result,
+            patch: { ...prev.result.patch, ...personnel.patch },
           },
+          personnel,
         };
       });
       onApply?.(ctx.sourceText, reapplyPatch);
