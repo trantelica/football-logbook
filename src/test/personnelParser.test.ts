@@ -215,3 +215,26 @@ describe("parsePersonnelNarration — move/switch verbs", () => {
     expect(r.sameSlotConflicts[0].jerseys.sort()).toEqual([6, 7]);
   });
 });
+
+describe("parsePersonnelNarration — off-roster pending payload", () => {
+  it("preserves jersey, canonicalField, and rawSentence for off-roster blocks (used by roster-resolve dialog)", () => {
+    const roster = new Set<number>([1, 2, 3]);
+    const r = parsePersonnelNarration("12 at C", aliases, null, roster);
+    expect(r.patch).toEqual({});
+    expect(r.offRosterJerseys).toEqual([12]);
+    const entry = r.report.find((e) => e.status === "off_roster");
+    expect(entry).toBeDefined();
+    expect(entry?.jersey).toBe(12);
+    expect(entry?.canonicalField).toBe("posC");
+    expect(entry?.rawSentence).toBe("12 at C");
+  });
+
+  it("re-parse with extended roster unblocks the previously off-roster assignment", () => {
+    const r1 = parsePersonnelNarration("12 at C", aliases, null, new Set([1]));
+    expect(r1.patch).toEqual({});
+    // Simulate dialog adding #12 to roster, then re-parse with extended set.
+    const r2 = parsePersonnelNarration("12 at C", aliases, null, new Set([1, 12]));
+    expect(r2.patch).toEqual({ posC: 12 });
+    expect(r2.offRosterJerseys).toEqual([]);
+  });
+});
