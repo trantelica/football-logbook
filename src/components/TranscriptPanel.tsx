@@ -145,15 +145,33 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     if (!sourceText) return;
 
     const normalized = normalizeTranscriptForParse(sourceText);
-    const result = parseRawInput(normalized);
+    const anchorResult = parseRawInput(normalized);
+
+    // Pass 2+: also run deterministic personnel-narration parser. Personnel
+    // patch keys are always canonical pos* fields. Merge into anchor patch
+    // (personnel takes precedence on canonical pos* keys — it's the only
+    // producer of those keys).
+    let personnel: PersonnelParseResult | undefined;
+    let mergedPatch = anchorResult.patch;
+    if ((activePass ?? 1) >= 2) {
+      personnel = parsePersonnelNarration(
+        sourceText,
+        aliasMap,
+        currentCandidate ?? null,
+      );
+      if (Object.keys(personnel.patch).length > 0) {
+        mergedPatch = { ...anchorResult.patch, ...personnel.patch };
+      }
+    }
 
     setLastSnapshot({
       sourceText,
-      result,
+      result: { patch: mergedPatch, report: anchorResult.report },
+      personnel,
       parsedAt: new Date().toISOString(),
     });
     setApplied(false);
-  }, [text]);
+  }, [text, activePass, aliasMap, currentCandidate]);
 
   /**
    * Apply to Draft — transfers frozen parse snapshot into draft via applySystemPatch.
