@@ -234,8 +234,9 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [
     /\b(?:the\s+)?(offense|defense|special\s+teams|kicking\s+team|receiving\s+team|other\s+team|opposing\s+team|our\s+team)\s+(?:was\s+|were\s+|got\s+)?(?:called|flagged|whistled)\s+for\s+(pass\s+interference|false\s+start|delay\s+of\s+game|holding|encroachment|offside|face\s+mask|personal\s+foul|unsportsmanlike\s+conduct|roughing\s+the\s+passer|roughing\s+the\s+kicker|illegal\s+motion|illegal\s+shift|illegal\s+formation|illegal\s+substitution|illegal\s+contact|illegal\s+use\s+of\s+hands|intentional\s+grounding|targeting|tripping|chop\s+block)\b/gi,
     (_m, sideRaw: string, infraction: string) => {
-      const side = /defense/i.test(sideRaw) ? "D"
-        : /offense/i.test(sideRaw) ? "O"
+      // Map team-perspective subjects to side: "our team" → O; "other/opposing team" → D.
+      const side = /defense|other\s+team|opposing\s+team/i.test(sideRaw) ? "D"
+        : /offense|our\s+team/i.test(sideRaw) ? "O"
         : "S";
       const titled = String(infraction)
         .toLowerCase()
