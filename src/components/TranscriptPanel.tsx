@@ -1,18 +1,20 @@
 /**
- * TranscriptPanel — Editable transcript working draft with explicit Parse and Apply actions.
+ * TranscriptPanel — Editable transcript working draft.
  *
  * - Transcript is an editable textarea (coach can fix STT errors).
- * - Parse is triggered only on explicit button press.
- * - Parse operates on a frozen snapshot of the current text.
- * - Apply to Draft transfers the frozen parse result into the draft via applySystemPatch.
- * - Editing after parse marks transcript as "dirty" — Apply is disabled until re-parse.
- * - No auto-parse. No AI. No silent mutation of candidate/proposal/committed state.
+ * - Pass 1: two-step Parse → Apply to Draft (anchor parser).
+ * - Pass 2+: SINGLE "Update Proposal" action that parses personnel narration
+ *   and writes canonical pos* fields directly into proposal/draft state via
+ *   applySystemPatch. No silent commit. Same-slot conflicts, off-roster, and
+ *   duplicate jersey assignments are surfaced visibly and excluded from the
+ *   patch.
+ * - No auto-parse. No AI. No silent mutation of committed state.
  */
 
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight } from "lucide-react";
+import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { parseRawInput, type ParseResult } from "@/engine/rawInputParser";
@@ -188,6 +190,14 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
           `Duplicate assignment for jersey ${list} blocked. Each jersey may hold only one position.`,
         );
       }
+      if (personnel.sameSlotConflicts.length > 0) {
+        const list = personnel.sameSlotConflicts
+          .map((c) => `${c.canonicalField} (${c.jerseys.map((j) => `#${j}`).join(" vs ")})`)
+          .join("; ");
+        toast.error(
+          `Same-slot conflict blocked: ${list}. Resolve before updating proposal.`,
+        );
+      }
     }
 
     setLastSnapshot({
@@ -197,7 +207,43 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       parsedAt: new Date().toISOString(),
     });
     setApplied(false);
+    return { sourceText, mergedPatch, personnel };
   }, [text, activePass, aliasMap, currentCandidate, rosterJerseys]);
+
+  /**
+   * Pass 2+ consolidated action — parse personnel narration AND immediately
+   * write the canonical pos* patch into proposal/draft state. Single button.
+   * Same-slot conflicts, off-roster, and duplicate jerseys are surfaced via
+   * toast + the inline issues panel and excluded from the patch. Existing-
+   * field draft collisions still go through the standard collision dialog
+   * (no silent overwrite). No commit happens here.
+   */
+  const handleUpdateProposal = useCallback(() => {
+    const parsed = handleParse();
+    if (!parsed) return;
+    const { sourceText, mergedPatch } = parsed;
+    if (Object.keys(mergedPatch).length === 0) {
+      toast.info("No personnel assignments recognized in narration.");
+      return;
+    }
+    const collisions = applySystemPatch(mergedPatch, { fillOnly: true });
+    if (collisions.length > 0) {
+      const nonCollisionCount = Object.keys(mergedPatch).length - collisions.length;
+      setCollisionState({
+        collisions: collisions.map((c: SystemPatchCollision) => ({
+          fieldName: c.fieldName,
+          currentValue: c.currentValue,
+          proposedValue: c.proposedValue,
+        })),
+        nonCollisionCount,
+        fullPatch: mergedPatch,
+      });
+    } else {
+      setApplied(true);
+      toast.success(`Updated proposal: ${Object.keys(mergedPatch).length} field(s)`);
+      onApply?.(sourceText, mergedPatch);
+    }
+  }, [handleParse, applySystemPatch, onApply]);
 
   /**
    * Apply to Draft — transfers frozen parse snapshot into draft via applySystemPatch.
@@ -337,31 +383,47 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Parse button */}
-          {hasParseableText && !listening && (
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 text-xs gap-1"
-              onClick={handleParse}
-            >
-              <Play className="h-3 w-3" />
-              Parse
-            </Button>
-          )}
-
-          {/* Apply to Draft button */}
-          {hasPatchFields && !listening && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1"
-              onClick={handleApplyToDraft}
-              disabled={!canApply}
-            >
-              <ArrowRight className="h-3 w-3" />
-              Apply to Draft
-            </Button>
+          {/* Pass 2+: single consolidated "Update Proposal" action.
+              Pass 1: legacy two-step Parse → Apply to Draft. */}
+          {isPass2Plus ? (
+            hasParseableText && !listening && (
+              <Button
+                size="sm"
+                variant="default"
+                className="h-7 text-xs gap-1"
+                onClick={handleUpdateProposal}
+                title="Parse narration and update proposal immediately. No commit."
+              >
+                <Wand2 className="h-3 w-3" />
+                Update Proposal
+              </Button>
+            )
+          ) : (
+            <>
+              {hasParseableText && !listening && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleParse}
+                >
+                  <Play className="h-3 w-3" />
+                  Parse
+                </Button>
+              )}
+              {hasPatchFields && !listening && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleApplyToDraft}
+                  disabled={!canApply}
+                >
+                  <ArrowRight className="h-3 w-3" />
+                  Apply to Draft
+                </Button>
+              )}
+            </>
           )}
 
           {hasContent && !listening && (
@@ -443,23 +505,26 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
                 ` · ${lastSnapshot.personnel.offRosterJerseys.length} off-roster blocked`}
               {lastSnapshot.personnel.duplicateJerseys.length > 0 &&
                 ` · ${lastSnapshot.personnel.duplicateJerseys.length} duplicate blocked`}
+              {lastSnapshot.personnel.sameSlotConflicts.length > 0 &&
+                ` · ${lastSnapshot.personnel.sameSlotConflicts.length} same-slot conflict(s) blocked`}
             </>
           )}
         </p>
       )}
 
-      {/* Personnel issues panel — visible whenever roster or duplicate problems were detected. */}
+      {/* Personnel issues panel — visible whenever roster, duplicate, or same-slot conflicts were detected. */}
       {hasParsed && lastSnapshot.personnel &&
         (lastSnapshot.personnel.offRosterJerseys.length > 0 ||
-          lastSnapshot.personnel.duplicateJerseys.length > 0) && (
+          lastSnapshot.personnel.duplicateJerseys.length > 0 ||
+          lastSnapshot.personnel.sameSlotConflicts.length > 0) && (
           <div className="rounded border border-destructive/40 bg-destructive/10 p-2 space-y-1">
             <div className="flex items-center gap-1 text-[10px] font-semibold text-destructive">
               <AlertTriangle className="h-3 w-3" />
-              Personnel assignments blocked — resolve before applying
+              Personnel assignments blocked — resolve before updating proposal
             </div>
             <ul className="text-[10px] text-destructive/90 space-y-0.5 pl-4 list-disc">
               {lastSnapshot.personnel.report
-                .filter((r) => r.status === "off_roster" || r.status === "duplicate")
+                .filter((r) => r.status === "off_roster" || r.status === "duplicate" || r.status === "same_slot_conflict")
                 .map((r, i) => {
                   const slotLabel = r.canonicalField
                     ? (PERSONNEL_LABELS[r.canonicalField] ?? r.canonicalField)

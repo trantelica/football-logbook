@@ -147,14 +147,28 @@ describe("parsePersonnelNarration", () => {
     expect(r.duplicateJerseys).toEqual([]);
   });
 
-  it("parses compact 'is at' shorthand with comma-chained assignments", () => {
+  it("blocks same-slot conflict in compact comma-chained assignments", () => {
+    // pos1 is targeted by both #0 ('q' alias) and #5 (canonical '1') in the
+    // same utterance. Per strict policy, NEITHER assignment to pos1 is
+    // applied — last-write-wins is forbidden. Other slots still apply.
     const r = parsePersonnelNarration(
       "0 is at q, #1 is at 2, 2 is at F, #5 is at 1",
       aliases,
     );
-    // Trace: pos1=0 (q alias), pos2=1 (canonical "2"), pos3=2 (F alias),
-    // pos1 overwritten to 5 (canonical "1"). Last write wins on same slot.
-    expect(r.patch).toEqual({ pos1: 5, pos2: 1, pos3: 2 });
+    expect(r.patch).toEqual({ pos2: 1, pos3: 2 });
+    expect(r.sameSlotConflicts).toHaveLength(1);
+    expect(r.sameSlotConflicts[0].canonicalField).toBe("pos1");
+    expect(r.sameSlotConflicts[0].jerseys.sort()).toEqual([0, 5]);
+    const conflictReports = r.report.filter((x) => x.status === "same_slot_conflict");
+    expect(conflictReports).toHaveLength(2);
+  });
+
+  it("blocks simple same-slot conflict between two jerseys", () => {
+    const r = parsePersonnelNarration("12 is at Q, 13 is at Q", aliases);
+    expect(r.patch).toEqual({});
+    expect(r.sameSlotConflicts).toHaveLength(1);
+    expect(r.sameSlotConflicts[0].canonicalField).toBe("pos1");
+    expect(r.sameSlotConflicts[0].jerseys.sort()).toEqual([12, 13]);
   });
 
   it("parses 'is at' with canonical numeric position labels", () => {

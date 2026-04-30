@@ -23,7 +23,7 @@ import { resolveToCanonicalPos, type PositionAliasMap } from "./positionAliases"
 
 export interface PersonnelParseEntry {
   rawSentence: string;
-  status: "matched" | "unrecognized" | "ambiguous" | "off_roster" | "duplicate";
+  status: "matched" | "unrecognized" | "ambiguous" | "off_roster" | "duplicate" | "same_slot_conflict";
   jersey?: number;
   canonicalField?: string;
   /** Set when the jersey was relocated from another slot. */
@@ -39,6 +39,8 @@ export interface PersonnelParseResult {
   offRosterJerseys: number[];
   /** Intra-utterance duplicate jersey assignments (jersey targeted at >1 distinct slot). */
   duplicateJerseys: number[];
+  /** Canonical slots targeted by >1 distinct jersey in the same utterance. */
+  sameSlotConflicts: { canonicalField: string; jerseys: number[] }[];
 }
 
 /**
@@ -143,21 +145,30 @@ export function parsePersonnelNarration(
   const report: PersonnelParseEntry[] = [];
   const offRosterJerseys: number[] = [];
   const duplicateJerseys: number[] = [];
+  const sameSlotConflicts: { canonicalField: string; jerseys: number[] }[] = [];
 
   if (!text || !text.trim()) {
-    return { patch, report, offRosterJerseys, duplicateJerseys };
+    return { patch, report, offRosterJerseys, duplicateJerseys, sameSlotConflicts };
   }
-
-  // Local tracking across clauses in the same parse pass.
-  const localAssignments: Record<string, number | null> = {};
-  // Jersey → canonical slot it has been assigned to in this parse pass.
-  // Used to detect intra-utterance duplicates (same jersey targeted at >1 slot).
-  const jerseyTargetSlot = new Map<number, string>();
 
   const clauses = text
     .split(/(?:[.;,\n]|\s+and\s+)+/i)
     .map((s) => s.trim())
     .filter(Boolean);
+
+  // Pass A — extract candidate intentions per clause (without committing to patch).
+  type Intention = {
+    rawSentence: string;
+    jersey: number;
+    canonicalField: string;
+  };
+  const intentions: Intention[] = [];
+  // Jersey → first canonical slot it was assigned to in this parse pass
+  // (for intra-utterance jersey-duplicate detection).
+  const jerseyTargetSlot = new Map<number, string>();
+  // Canonical slot → jerseys targeting it in this parse pass
+  // (for same-slot conflict detection).
+  const slotTargetJerseys = new Map<string, number[]>();
 
   for (const clause of clauses) {
     const matched = extractClauseMatch(clause);
@@ -199,9 +210,7 @@ export function parsePersonnelNarration(
       continue;
     }
 
-    // Intra-utterance duplicate gate: if this jersey was already targeted at
-    // a DIFFERENT canonical slot earlier in the same parse, surface a
-    // duplicate error rather than silently overwriting/clearing slots.
+    // Intra-utterance duplicate gate: same jersey targeted at a DIFFERENT slot.
     const priorTarget = jerseyTargetSlot.get(jersey);
     if (priorTarget && priorTarget !== canonicalField) {
       if (!duplicateJerseys.includes(jersey)) duplicateJerseys.push(jersey);
@@ -214,9 +223,44 @@ export function parsePersonnelNarration(
       });
       continue;
     }
+    jerseyTargetSlot.set(jersey, canonicalField);
 
-    // Move detection: jersey already at a different canonical slot in CURRENT
-    // committed personnel? Treat as a relocation (clear old, set new).
+    // Track slot → jerseys for same-slot conflict detection.
+    const existingForSlot = slotTargetJerseys.get(canonicalField) ?? [];
+    if (!existingForSlot.includes(jersey)) existingForSlot.push(jersey);
+    slotTargetJerseys.set(canonicalField, existingForSlot);
+
+    intentions.push({ rawSentence, jersey, canonicalField });
+  }
+
+  // Identify slots where >1 distinct jersey was assigned in this utterance.
+  const conflictedSlots = new Set<string>();
+  for (const [slot, jerseys] of slotTargetJerseys.entries()) {
+    if (jerseys.length > 1) {
+      conflictedSlots.add(slot);
+      sameSlotConflicts.push({ canonicalField: slot, jerseys: [...jerseys] });
+    }
+  }
+
+  // Pass B — emit patch for non-conflicting intentions, with move detection.
+  // Conflicted intentions are surfaced in the report but excluded from the patch.
+  const localAssignments: Record<string, number | null> = {};
+  for (const it of intentions) {
+    if (conflictedSlots.has(it.canonicalField)) {
+      const others = (slotTargetJerseys.get(it.canonicalField) ?? []).filter(
+        (j) => j !== it.jersey,
+      );
+      report.push({
+        rawSentence: it.rawSentence,
+        status: "same_slot_conflict",
+        jersey: it.jersey,
+        canonicalField: it.canonicalField,
+        reason: `Slot ${it.canonicalField} also targeted by ${others.map((j) => `#${j}`).join(", ")} in this parse`,
+      });
+      continue;
+    }
+
+    // Move detection from current personnel + locally-staged assignments.
     let movedFrom: string | undefined;
     const checkSources: Array<Record<string, unknown>> = [];
     if (currentPersonnel) checkSources.push(currentPersonnel);
@@ -224,10 +268,10 @@ export function parsePersonnelNarration(
 
     for (const src of checkSources) {
       for (const pos of PERSONNEL_POSITIONS) {
-        if (pos === canonicalField) continue;
+        if (pos === it.canonicalField) continue;
         const v = src[pos];
         if (v == null || v === "") continue;
-        if (Number(v) === jersey) {
+        if (Number(v) === it.jersey) {
           movedFrom = pos;
           break;
         }
@@ -239,18 +283,17 @@ export function parsePersonnelNarration(
       localAssignments[movedFrom] = null;
       patch[movedFrom] = null;
     }
-    localAssignments[canonicalField] = jersey;
-    patch[canonicalField] = jersey;
-    jerseyTargetSlot.set(jersey, canonicalField);
+    localAssignments[it.canonicalField] = it.jersey;
+    patch[it.canonicalField] = it.jersey;
 
     report.push({
-      rawSentence,
+      rawSentence: it.rawSentence,
       status: "matched",
-      jersey,
-      canonicalField,
+      jersey: it.jersey,
+      canonicalField: it.canonicalField,
       movedFrom,
     });
   }
 
-  return { patch, report, offRosterJerseys, duplicateJerseys };
+  return { patch, report, offRosterJerseys, duplicateJerseys, sameSlotConflicts };
 }
