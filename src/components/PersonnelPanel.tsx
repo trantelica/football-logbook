@@ -384,9 +384,10 @@ function QuickAssignRow({
   const handleAdd = () => {
     if (!resolved || !jerseyOk) return;
     onAssign(resolved, String(jerseyNum));
-    toast.success(
-      `Assigned #${jerseyNum} to ${PERSONNEL_LABELS[resolved.replace(/^pos/, "pos") as keyof typeof PERSONNEL_LABELS] ?? resolved}`,
-    );
+    const label = PERSONNEL_LABELS[resolved as keyof typeof PERSONNEL_LABELS] ?? resolved;
+    const alias = getAliasFor(resolved, aliasMap);
+    const slotDisplay = alias ? `${label} (${alias})` : label;
+    toast.success(`Assigned #${jerseyNum} to ${slotDisplay}`);
     setToken("");
     setJersey("");
   };
