@@ -12,12 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig, saveSeasonConfig, countSeasonCommittedPlays } from "@/engine/db";
 import { buildDefaultConfig, diffConfig, type SeasonConfig } from "@/engine/configStore";
 import { playSchema } from "@/engine/schema";
+import { PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
+import { validateAliasMap, type PositionAliasMap } from "@/engine/positionAliases";
 import { toast } from "sonner";
 
 interface ConfigModeDialogProps {
