@@ -205,8 +205,7 @@ export function parsePersonnelNarration(
         jersey,
         canonicalField,
         movedFrom,
-      });
-    }
+    });
   }
 
   return { patch, report };
