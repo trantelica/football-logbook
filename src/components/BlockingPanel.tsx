@@ -17,16 +17,17 @@
  * introduced. Committed row data is never mutated directly here.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
 import { parseGradeNarration } from "@/engine/gradeNarrationParser";
+import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Lock, AlertTriangle, Wand2, Trash2 } from "lucide-react";
+import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 /** Map grade field → corresponding personnel position field */
