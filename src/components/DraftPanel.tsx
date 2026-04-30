@@ -55,6 +55,9 @@ const DEPENDENT_FIELD_MAP: Record<string, string[]> = {
   offForm: ["offStrength", "personnel"],
   offPlay: ["playType", "playDir"],
   motion: ["motionDir"],
+  // penYards is a deterministic predicted derivative of penalty; clearing
+  // penalty must also clear the derived yardage to avoid stale defaults.
+  penalty: ["penYards"],
 };
 
 /** Actor fields backed by roster */
