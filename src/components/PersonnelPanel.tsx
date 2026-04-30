@@ -246,7 +246,8 @@ export function PersonnelPanel() {
                               ({alias})
                             </span>
                           )}
-                          {isCarried && (
+                          {renderProvenance(pos)}
+                          {isCarried && !deterministicParseFields.has(pos) && (
                             <Sparkles className="h-2.5 w-2.5 text-violet-500" />
                           )}
                         </span>
