@@ -64,6 +64,14 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
 
   const { applySystemPatch, commitCount } = useTransaction();
   const { activeSeason } = useSeason();
+  const { roster } = useRoster();
+
+  // Set of roster jersey numbers, used by personnel parser to gate
+  // off-roster assignments out of the patch.
+  const rosterJerseys = React.useMemo(
+    () => new Set<number>(roster.map((r) => r.jerseyNumber)),
+    [roster],
+  );
 
   // Load season alias map for personnel-narration token resolution.
   const [aliasMap, setAliasMap] = useState<PositionAliasMap>({});
