@@ -168,9 +168,25 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
         sourceText,
         aliasMap,
         currentCandidate ?? null,
+        rosterJerseys,
       );
       if (Object.keys(personnel.patch).length > 0) {
         mergedPatch = { ...anchorResult.patch, ...personnel.patch };
+      }
+
+      // Surface roster + duplicate problems immediately and visibly so
+      // parsed personnel assignments never silently disappear.
+      if (personnel.offRosterJerseys.length > 0) {
+        const list = personnel.offRosterJerseys.map((j) => `#${j}`).join(", ");
+        toast.error(
+          `Off-roster jersey ${list} not applied. Add to roster, then re-parse.`,
+        );
+      }
+      if (personnel.duplicateJerseys.length > 0) {
+        const list = personnel.duplicateJerseys.map((j) => `#${j}`).join(", ");
+        toast.error(
+          `Duplicate assignment for jersey ${list} blocked. Each jersey may hold only one position.`,
+        );
       }
     }
 
@@ -181,7 +197,7 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       parsedAt: new Date().toISOString(),
     });
     setApplied(false);
-  }, [text, activePass, aliasMap, currentCandidate]);
+  }, [text, activePass, aliasMap, currentCandidate, rosterJerseys]);
 
   /**
    * Apply to Draft — transfers frozen parse snapshot into draft via applySystemPatch.
