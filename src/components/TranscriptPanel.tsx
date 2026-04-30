@@ -24,8 +24,10 @@ import {
   type PersonnelParseResult,
 } from "@/engine/personnelParser";
 import { useSeason } from "@/engine/seasonContext";
+import { useRoster } from "@/engine/rosterContext";
 import { getSeasonConfig } from "@/engine/db";
-import type { PositionAliasMap } from "@/engine/positionAliases";
+import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
+import { PERSONNEL_LABELS } from "@/engine/personnel";
 import { toast } from "sonner";
 
 interface ParseSnapshot {
