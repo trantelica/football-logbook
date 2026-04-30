@@ -383,31 +383,47 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Parse button */}
-          {hasParseableText && !listening && (
-            <Button
-              size="sm"
-              variant="default"
-              className="h-7 text-xs gap-1"
-              onClick={handleParse}
-            >
-              <Play className="h-3 w-3" />
-              Parse
-            </Button>
-          )}
-
-          {/* Apply to Draft button */}
-          {hasPatchFields && !listening && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1"
-              onClick={handleApplyToDraft}
-              disabled={!canApply}
-            >
-              <ArrowRight className="h-3 w-3" />
-              Apply to Draft
-            </Button>
+          {/* Pass 2+: single consolidated "Update Proposal" action.
+              Pass 1: legacy two-step Parse → Apply to Draft. */}
+          {isPass2Plus ? (
+            hasParseableText && !listening && (
+              <Button
+                size="sm"
+                variant="default"
+                className="h-7 text-xs gap-1"
+                onClick={handleUpdateProposal}
+                title="Parse narration and update proposal immediately. No commit."
+              >
+                <Wand2 className="h-3 w-3" />
+                Update Proposal
+              </Button>
+            )
+          ) : (
+            <>
+              {hasParseableText && !listening && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleParse}
+                >
+                  <Play className="h-3 w-3" />
+                  Parse
+                </Button>
+              )}
+              {hasPatchFields && !listening && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleApplyToDraft}
+                  disabled={!canApply}
+                >
+                  <ArrowRight className="h-3 w-3" />
+                  Apply to Draft
+                </Button>
+              )}
+            </>
           )}
 
           {hasContent && !listening && (
