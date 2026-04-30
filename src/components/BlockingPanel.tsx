@@ -1,16 +1,33 @@
 /**
  * BlockingPanel — Pass 3 UI for blocking grades.
- * Read-only play context + read-only personnel (from committedRow) + grade grid.
+ *
+ * Layout:
+ *   1. Pass 3 banner
+ *   2. Gating banners (no committed row / not offense)
+ *   3. Pass 3 grade narration entry (Pass-3-only narration surface).
+ *      Parses simple "LT 2, C -1, RG 3" style into proposal updates only.
+ *      No commit. Validation -3..+3 still runs downstream.
+ *   4. Read-only play context (from committedRow)
+ *   5. Read-only personnel (from committedRow)
+ *   6. Grade grid — manual entry per position (proposal/candidate state).
+ *
  * ODK gating: grades only editable when committedRow exists and odk === "O".
+ * Canonical Pass 3 field keys (gradeLT, gradeLG, gradeC, gradeRG, gradeRT,
+ * gradeX, gradeY, grade1..grade4) are unchanged. No alias keys are
+ * introduced. Committed row data is never mutated directly here.
  */
 
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
+import { parseGradeNarration } from "@/engine/gradeNarrationParser";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Lock, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Lock, AlertTriangle, Wand2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 /** Map grade field → corresponding personnel position field */
 const GRADE_TO_POS: Record<string, string> = {
@@ -39,10 +56,10 @@ export function BlockingPanel() {
     committedPlays,
     inlineErrors,
     commitErrors,
+    state,
   } = useTransaction();
   const { roster } = useRoster();
 
-  const state = useTransaction().state;
   const isProposal = state === "proposal";
 
   // Find committedRow — canonical source for ODK gating and personnel display
@@ -66,6 +83,43 @@ export function BlockingPanel() {
   const notOffense = committedRow != null && committedRow.odk !== "O";
   const gradesDisabled = noCommittedRow || notOffense || isProposal;
 
+  // ── Pass 3 grade narration entry ────────────────────────────────────────
+  const [narrationText, setNarrationText] = useState("");
+  const [lastReport, setLastReport] = useState<ReturnType<typeof parseGradeNarration>["report"] | null>(null);
+
+  const handleApplyNarration = useCallback(() => {
+    const trimmed = narrationText.trim();
+    if (!trimmed) return;
+    if (gradesDisabled) {
+      toast.error("Grades are not currently editable.");
+      return;
+    }
+    const { patch, report } = parseGradeNarration(trimmed);
+    setLastReport(report);
+    const matchedCount = report.filter((r) => r.status === "matched").length;
+    if (matchedCount === 0) {
+      toast.info("No grade entries recognized.");
+      return;
+    }
+    // Route every matched grade through updateField so it lands in
+    // proposal/candidate state via the standard pipeline (validation runs,
+    // committed row is not mutated).
+    for (const [field, value] of Object.entries(patch)) {
+      updateField(field, String(value));
+    }
+    const blockedCount = report.length - matchedCount;
+    toast.success(
+      blockedCount > 0
+        ? `Applied ${matchedCount} grade(s) to proposal. ${blockedCount} clause(s) skipped.`
+        : `Applied ${matchedCount} grade(s) to proposal.`,
+    );
+  }, [narrationText, gradesDisabled, updateField]);
+
+  const handleClearNarration = useCallback(() => {
+    setNarrationText("");
+    setLastReport(null);
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Section 1: Banner */}
@@ -88,7 +142,75 @@ export function BlockingPanel() {
         </div>
       )}
 
-      {/* Section 2: Play Context (read-only from committedRow) */}
+      {/* Section 2: Pass 3 grade narration entry — proposal-only */}
+      {!noCommittedRow && !notOffense && (
+        <div className="rounded-lg border border-border/50 p-3 space-y-2 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Pass 3 · Grade narration
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              Proposal only · no commit
+            </span>
+          </div>
+          <Textarea
+            className="text-xs font-mono min-h-[50px] resize-y bg-background/50"
+            placeholder={'Enter grades. Examples:\n  • "LT 2, C -1, RG +3"\n  • "left tackle 2"\n  • "X 0, Y 1"'}
+            value={narrationText}
+            onChange={(e) => setNarrationText(e.target.value)}
+            disabled={gradesDisabled}
+          />
+          <div className="flex items-center justify-end gap-1">
+            {narrationText && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-[10px] gap-1 text-muted-foreground"
+                onClick={handleClearNarration}
+              >
+                <Trash2 className="h-2.5 w-2.5" />
+                Clear
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 text-xs gap-1"
+              onClick={handleApplyNarration}
+              disabled={gradesDisabled || !narrationText.trim()}
+              title="Parse grade narration and update proposal. No commit."
+            >
+              <Wand2 className="h-3 w-3" />
+              Update Proposal
+            </Button>
+          </div>
+          {lastReport && lastReport.length > 0 && (
+            <div className="space-y-1">
+              {(() => {
+                const skipped = lastReport.filter((r) => r.status !== "matched");
+                if (skipped.length === 0) return null;
+                return (
+                  <div className="rounded border border-destructive/40 bg-destructive/10 p-2 space-y-0.5">
+                    <div className="flex items-center gap-1 text-[10px] font-semibold text-destructive">
+                      <AlertTriangle className="h-3 w-3" />
+                      {skipped.length} clause(s) skipped
+                    </div>
+                    <ul className="text-[10px] text-destructive/90 pl-4 list-disc">
+                      {skipped.map((r, i) => (
+                        <li key={i}>
+                          <span className="font-mono">"{r.rawClause}"</span> — {r.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Section 3: Play Context (read-only from committedRow) */}
       {committedRow && (
         <div className="space-y-1">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Play Context</div>
@@ -112,7 +234,7 @@ export function BlockingPanel() {
         </div>
       )}
 
-      {/* Section 3: Personnel (read-only from committedRow) */}
+      {/* Section 4: Personnel (read-only from committedRow) */}
       {committedRow && committedRow.odk === "O" && (
         <div className="space-y-1">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Personnel (Committed)</div>
@@ -138,7 +260,7 @@ export function BlockingPanel() {
         </div>
       )}
 
-      {/* Section 4: Grade Grid */}
+      {/* Section 5: Grade Grid */}
       {committedRow && (
         <div className="space-y-1">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Blocking Grades</div>
