@@ -1052,56 +1052,10 @@ export function DraftPanel() {
         </div>
       )}
 
-      {/* Raw Input Section — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
-      {activePass >= 2 && selectedSlotNum !== null && (
-        <Collapsible open={rawInputOpen} onOpenChange={setRawInputOpen} className="mb-3">
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 mb-1">
-              <Terminal className="h-3.5 w-3.5" />
-              Raw Input
-              <ChevronDown className={cn("h-3 w-3 transition-transform", rawInputOpen && "rotate-180")} />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="rounded-lg border border-border/50 p-3 space-y-2 bg-muted/30">
-              <Textarea
-                className="text-xs font-mono h-16 resize-none"
-                placeholder="e.g. DN 2 DIST 6 FORM Trips Rt RESULT Rush GN/LS 4"
-                value={rawInputText}
-                onChange={(e) => setRawInputText(e.target.value)}
-                disabled={isProposal}
-              />
-              <div className="flex items-center justify-between">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs gap-1"
-                  onClick={handleParseAndApply}
-                  disabled={!rawInputText.trim() || isProposal}
-                >
-                  <Terminal className="h-3 w-3" />
-                  Parse &amp; Apply
-                </Button>
-                <Collapsible>
-                  <CollapsibleTrigger className="text-[10px] text-muted-foreground hover:text-foreground underline">
-                    Grammar help
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <pre className="text-[10px] text-muted-foreground mt-1 bg-muted/50 rounded p-2 font-mono whitespace-pre-wrap">
-{`Anchors (case-insensitive):
-DN 2 DIST 6 YARD -35 HASH L
-FORM Trips Rt PLAY 26 Punch MOTION Jet
-RESULT Rush GN/LS 4
-RUSHER 22 PASSER 7 RECEIVER 11
-PENALTY O-Holding EFF Y 2MIN N`}
-                    </pre>
-                  </CollapsibleContent>
-                </Collapsible>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {/* Raw Input legacy panel intentionally removed from Pass 2+. The
+          authoritative narration surface in Pass 2/3 is the TranscriptPanel
+          above. Pass 1 uses Pass1SectionPanel for its own anchor-grammar
+          entry, so Raw Input has no remaining home in this view. */}
 
 
       {/* Coach Notes — visible on all passes, independent of transaction */}

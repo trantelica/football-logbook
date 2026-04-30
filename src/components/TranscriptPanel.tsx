@@ -276,8 +276,22 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     setCollisionState(null);
   }, [collisionState]);
 
+  const isPass2Plus = (activePass ?? 1) >= 2;
+
   return (
     <div className="rounded-lg border border-border/50 p-3 space-y-2 bg-muted/30">
+      {/* Surface label — makes the authoritative narration surface explicit. */}
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {isPass2Plus ? "Pass 2 · Personnel narration" : "Transcript"}
+        </span>
+        {isPass2Plus && (
+          <span className="text-[10px] text-muted-foreground">
+            Authoritative input for personnel assignments
+          </span>
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -370,7 +384,13 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
           "text-xs font-mono min-h-[60px] resize-y bg-background/50",
           listening && "border-destructive/30"
         )}
-        placeholder={listening ? "Listening — speech will appear here…" : "Transcript working draft — type or dictate, then press Parse."}
+        placeholder={
+          listening
+            ? "Listening — speech will appear here…"
+            : (activePass ?? 1) >= 2
+              ? 'Pass 2 personnel narration — type or dictate, then press Parse.\nExamples:\n  • "20 is playing RG"\n  • "number one is at QB"\n  • "7 is playing left guard"\n  • "20 moves to H"'
+              : "Transcript working draft — type or dictate, then press Parse."
+        }
         value={text + (interim ? (text ? "\n" : "") + interim : "")}
         onChange={(e) => {
           if (!listening) setText(e.target.value);
