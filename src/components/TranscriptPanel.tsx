@@ -190,6 +190,14 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
           `Duplicate assignment for jersey ${list} blocked. Each jersey may hold only one position.`,
         );
       }
+      if (personnel.sameSlotConflicts.length > 0) {
+        const list = personnel.sameSlotConflicts
+          .map((c) => `${c.canonicalField} (${c.jerseys.map((j) => `#${j}`).join(" vs ")})`)
+          .join("; ");
+        toast.error(
+          `Same-slot conflict blocked: ${list}. Resolve before updating proposal.`,
+        );
+      }
     }
 
     setLastSnapshot({
@@ -199,7 +207,43 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       parsedAt: new Date().toISOString(),
     });
     setApplied(false);
+    return { sourceText, mergedPatch, personnel };
   }, [text, activePass, aliasMap, currentCandidate, rosterJerseys]);
+
+  /**
+   * Pass 2+ consolidated action — parse personnel narration AND immediately
+   * write the canonical pos* patch into proposal/draft state. Single button.
+   * Same-slot conflicts, off-roster, and duplicate jerseys are surfaced via
+   * toast + the inline issues panel and excluded from the patch. Existing-
+   * field draft collisions still go through the standard collision dialog
+   * (no silent overwrite). No commit happens here.
+   */
+  const handleUpdateProposal = useCallback(() => {
+    const parsed = handleParse();
+    if (!parsed) return;
+    const { sourceText, mergedPatch } = parsed;
+    if (Object.keys(mergedPatch).length === 0) {
+      toast.info("No personnel assignments recognized in narration.");
+      return;
+    }
+    const collisions = applySystemPatch(mergedPatch, { fillOnly: true });
+    if (collisions.length > 0) {
+      const nonCollisionCount = Object.keys(mergedPatch).length - collisions.length;
+      setCollisionState({
+        collisions: collisions.map((c: SystemPatchCollision) => ({
+          fieldName: c.fieldName,
+          currentValue: c.currentValue,
+          proposedValue: c.proposedValue,
+        })),
+        nonCollisionCount,
+        fullPatch: mergedPatch,
+      });
+    } else {
+      setApplied(true);
+      toast.success(`Updated proposal: ${Object.keys(mergedPatch).length} field(s)`);
+      onApply?.(sourceText, mergedPatch);
+    }
+  }, [handleParse, applySystemPatch, onApply]);
 
   /**
    * Apply to Draft — transfers frozen parse snapshot into draft via applySystemPatch.
