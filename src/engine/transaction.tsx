@@ -1311,8 +1311,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   const selectSlot = useCallback(
     async (playNum: number) => {
-      const slot = committedPlays.find((p) => p.playNum === playNum);
-      if (!slot) return;
+      // Defensive: prefer in-memory committedPlays for hot paths, but fall back
+      // to a DB read so callers like commitAndNext (which run mid-render after
+      // setState) are not blocked by a stale closure of committedPlays.
+      let slot = committedPlays.find((p) => p.playNum === playNum);
+      if (!slot) {
+        const fresh = await getPlay(gameId, playNum);
+        if (!fresh) return;
+        slot = fresh;
+      }
 
       const newCandidate: CandidateData = { ...slot };
       
