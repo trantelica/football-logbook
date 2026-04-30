@@ -363,6 +363,36 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       toast.success(
         `Re-applied ${Object.keys(reapplyPatch).length} field(s) after roster update.`,
       );
+      // Clear stale off-roster blocked state from the visible snapshot so
+      // the red blocked panel disappears for jerseys that were just
+      // resolved. Re-classify their report entries as "matched" and merge
+      // the re-applied fields into the snapshot's patch preview. Entries
+      // for jerseys NOT resolved (skipped in the dialog) remain blocked.
+      setLastSnapshot((prev) => {
+        if (!prev || !prev.personnel) return prev;
+        const p = prev.personnel;
+        const updatedReport = p.report.map((entry) => {
+          if (
+            entry.status === "off_roster" &&
+            entry.jersey != null &&
+            addedSet.has(entry.jersey) &&
+            entry.canonicalField
+          ) {
+            return { ...entry, status: "matched" as const, reason: undefined };
+          }
+          return entry;
+        });
+        const updatedOffRoster = p.offRosterJerseys.filter((j) => !addedSet.has(j));
+        return {
+          ...prev,
+          result: { ...prev.result, patch: { ...prev.result.patch, ...reapplyPatch } },
+          personnel: {
+            ...p,
+            report: updatedReport,
+            offRosterJerseys: updatedOffRoster,
+          },
+        };
+      });
       onApply?.(ctx.sourceText, reapplyPatch);
     }
   }, [rosterResolve, rosterJerseys, aliasMap, currentCandidate, applySystemPatch, onApply]);
