@@ -505,23 +505,26 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
                 ` · ${lastSnapshot.personnel.offRosterJerseys.length} off-roster blocked`}
               {lastSnapshot.personnel.duplicateJerseys.length > 0 &&
                 ` · ${lastSnapshot.personnel.duplicateJerseys.length} duplicate blocked`}
+              {lastSnapshot.personnel.sameSlotConflicts.length > 0 &&
+                ` · ${lastSnapshot.personnel.sameSlotConflicts.length} same-slot conflict(s) blocked`}
             </>
           )}
         </p>
       )}
 
-      {/* Personnel issues panel — visible whenever roster or duplicate problems were detected. */}
+      {/* Personnel issues panel — visible whenever roster, duplicate, or same-slot conflicts were detected. */}
       {hasParsed && lastSnapshot.personnel &&
         (lastSnapshot.personnel.offRosterJerseys.length > 0 ||
-          lastSnapshot.personnel.duplicateJerseys.length > 0) && (
+          lastSnapshot.personnel.duplicateJerseys.length > 0 ||
+          lastSnapshot.personnel.sameSlotConflicts.length > 0) && (
           <div className="rounded border border-destructive/40 bg-destructive/10 p-2 space-y-1">
             <div className="flex items-center gap-1 text-[10px] font-semibold text-destructive">
               <AlertTriangle className="h-3 w-3" />
-              Personnel assignments blocked — resolve before applying
+              Personnel assignments blocked — resolve before updating proposal
             </div>
             <ul className="text-[10px] text-destructive/90 space-y-0.5 pl-4 list-disc">
               {lastSnapshot.personnel.report
-                .filter((r) => r.status === "off_roster" || r.status === "duplicate")
+                .filter((r) => r.status === "off_roster" || r.status === "duplicate" || r.status === "same_slot_conflict")
                 .map((r, i) => {
                   const slotLabel = r.canonicalField
                     ? (PERSONNEL_LABELS[r.canonicalField] ?? r.canonicalField)
