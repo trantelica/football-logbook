@@ -4,15 +4,23 @@
  * and actor integrity section with fix options.
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
+import { useSeason } from "@/engine/seasonContext";
+import { getSeasonConfig } from "@/engine/db";
 import { PERSONNEL_POSITIONS, PERSONNEL_LABELS, ACTOR_FIELDS } from "@/engine/personnel";
+import {
+  getAliasFor,
+  resolveToCanonicalPos,
+  type PositionAliasMap,
+} from "@/engine/positionAliases";
 import { ActorCombobox } from "./ActorCombobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, AlertTriangle, ArrowRight, Sparkles } from "lucide-react";
+import { Lock, AlertTriangle, ArrowRight, Sparkles, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
