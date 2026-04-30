@@ -52,6 +52,12 @@ export function PersonnelPanel() {
     inlineErrors,
     carriedForwardFields,
     carriedForwardFromPlayNum,
+    deterministicParseFields,
+    parseEvidenceByField,
+    aiProposedFields,
+    predictedFields,
+    slotMetaMap,
+    isSlotMode,
   } = useTransaction();
   const { roster, addPlayer, getPlayer } = useRoster();
   const { activeSeason } = useSeason();
