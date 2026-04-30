@@ -1011,7 +1011,7 @@ export function DraftPanel() {
     <>
       {stageSelector}
 
-      {/* Dev panels are rendered at the bottom of the component (see end of return). */}
+      
 
       {/* Transcript Panel — visible in Pass 2+ with a slot selected (Pass 1 uses Section panel) */}
       {activePass >= 2 && selectedSlotNum !== null && (
