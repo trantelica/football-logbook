@@ -155,7 +155,7 @@ export function parsePersonnelNarration(
   const jerseyTargetSlot = new Map<number, string>();
 
   const clauses = text
-    .split(/(?:[.;\n]|,\s+|\s+and\s+)+/i)
+    .split(/(?:[.;,\n]|\s+and\s+)+/i)
     .map((s) => s.trim())
     .filter(Boolean);
 
