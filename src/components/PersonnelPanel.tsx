@@ -158,12 +158,18 @@ export function PersonnelPanel() {
                 const isCarried = carriedForwardFields.has(pos);
                 const jerseyVal = c[pos] != null ? String(c[pos]) : "";
                 const playerName = jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
+                const alias = getAliasFor(pos, aliasMap);
                 return (
                   <div key={pos} className="space-y-0.5">
                     <ActorCombobox
                       fieldLabel={
                         <span className="flex items-center gap-1">
-                          {PERSONNEL_LABELS[pos]}
+                          <span>{PERSONNEL_LABELS[pos]}</span>
+                          {alias && (
+                            <span className="text-[9px] font-normal text-muted-foreground">
+                              ({alias})
+                            </span>
+                          )}
                           {isCarried && (
                             <Sparkles className="h-2.5 w-2.5 text-violet-500" />
                           )}
@@ -191,6 +197,12 @@ export function PersonnelPanel() {
                 );
               })}
             </div>
+
+            {/* Quick Assign by position token (canonical or alias) */}
+            <QuickAssignRow
+              aliasMap={aliasMap}
+              onAssign={(canonicalField, jersey) => updateField(canonicalField, jersey)}
+            />
           </div>
 
           {/* Actor Integrity Section */}
