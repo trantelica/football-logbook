@@ -387,6 +387,14 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
           ✓ Parsed {Object.keys(lastSnapshot.result.patch).length} field(s)
           {lastSnapshot.result.report.filter((r) => r.status === "unrecognized").length > 0 &&
             ` · ${lastSnapshot.result.report.filter((r) => r.status === "unrecognized").length} unrecognized`}
+          {lastSnapshot.personnel && lastSnapshot.personnel.report.length > 0 && (
+            <>
+              {" · "}
+              {lastSnapshot.personnel.report.filter((r) => r.status === "matched").length} personnel matched
+              {lastSnapshot.personnel.report.filter((r) => r.status === "unrecognized").length > 0 &&
+                ` (${lastSnapshot.personnel.report.filter((r) => r.status === "unrecognized").length} unrecognized)`}
+            </>
+          )}
         </p>
       )}
 
