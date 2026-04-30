@@ -103,8 +103,40 @@ export function filterAiProposal(opts: {
   const collisions: SystemPatchCollision[] = [];
   const evidence: Record<string, AIFieldEvidence> = {};
 
+  // Penalty contamination guard.
+  // When this proposal sets penalty (or candidate already has one) and the
+  // result is/becomes "Penalty", AI must NOT also propose gainLoss or
+  // penYards — those are deterministic derivatives. AI hallucinates them
+  // (typically copying the canonical penalty yardage into gainLoss) which
+  // pollutes proposal review. penYards is seeded by the deterministic
+  // penalty→penYards effect; gainLoss must be coach-spoken or omitted.
+  const proposedPenalty = (() => {
+    const v = (proposal as Record<string, unknown>)["penalty"];
+    if (isGovernedProposal(v)) return v.value;
+    return v;
+  })();
+  const proposedResult = (() => {
+    const v = (proposal as Record<string, unknown>)["result"];
+    if (isGovernedProposal(v)) return v.value;
+    return v;
+  })();
+  const candidatePenalty = (candidate as Record<string, unknown>)["penalty"];
+  const candidateResult = (candidate as Record<string, unknown>)["result"];
+  const penaltyContext =
+    (proposedPenalty !== undefined && proposedPenalty !== null && proposedPenalty !== "") ||
+    (candidatePenalty !== null && candidatePenalty !== undefined && candidatePenalty !== "") ||
+    proposedResult === "Penalty" ||
+    candidateResult === "Penalty";
+
   for (const [fieldName, rawValue] of Object.entries(proposal)) {
     if (EXCLUDED_FIELDS.has(fieldName)) continue;
+
+    // Penalty-context contamination guard: drop AI gainLoss / penYards
+    // whenever a penalty is in play. These are deterministic-only fields
+    // in this context.
+    if (penaltyContext && (fieldName === "gainLoss" || fieldName === "penYards")) {
+      continue;
+    }
 
     // Unwrap governed field objects to extract value and matchType
     let proposedValue: unknown;
