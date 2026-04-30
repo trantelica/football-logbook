@@ -46,7 +46,7 @@ function makePlay(overrides: Partial<PlayRecord> = {}): PlayRecord {
     returner: null,
   };
   for (const pos of PERSONNEL_POSITIONS) base[pos] = null;
-  return { ...(base as PlayRecord), ...overrides };
+  return { ...(base as unknown as PlayRecord), ...overrides };
 }
 
 function complete11(extra: Partial<PlayRecord> = {}): Partial<PlayRecord> {
