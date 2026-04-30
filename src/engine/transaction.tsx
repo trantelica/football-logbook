@@ -1852,13 +1852,21 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       });
 
       // Mark restored predictable fields as predicted again (not touched).
-      if (restoredPredicted.size > 0) {
-        setPredictedFields((prev) => {
-          const next = new Set(prev);
-          for (const f of restoredPredicted) next.add(f);
-          return next;
-        });
-      }
+      // Also strip the predicted flag for any cleared (non-restored) fields so
+      // derived defaults like penYards (predicted from penalty) don't keep a
+      // stale provenance badge after a section Clear.
+      setPredictedFields((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        for (const f of fieldNames) {
+          if (restoredPredicted.has(f)) {
+            if (!next.has(f)) { next.add(f); changed = true; }
+          } else if (next.delete(f)) {
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
 
       // Ensure none of these fields are mistakenly marked as touched.
       setTouchedFields((prev) => {
