@@ -1712,6 +1712,16 @@ function LookupCombobox({
           if (!open) setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        onBlur={() => {
+          // Delay to allow click on dropdown items (onMouseDown prevents blur-before-click)
+          setTimeout(() => setOpen(false), 150);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
         placeholder={lookupValues.length === 0 ? "No values yet. Type to add." : "—"}
         disabled={disabled}
         autoComplete="off"
