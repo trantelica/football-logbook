@@ -195,7 +195,7 @@ export function BlockingPanel() {
     setLastReport(null);
   }, [clearDictation]);
 
-  // ── Provenance badge helper (consistent with DraftPanel pattern) ──────
+  // ── Provenance badge helper (exact match with DraftPanel pattern) ──────
   const renderGradeProvenance = (fieldName: string): React.ReactNode => {
     if (deterministicParseFields.has(fieldName)) {
       const meta = proposalMeta.get(fieldName);
@@ -208,24 +208,17 @@ export function BlockingPanel() {
               </span>
             </TooltipTrigger>
             <TooltipContent>
-              <p>From grade narration parse. Editable.</p>
+              <p>From transcript parse. Editable.</p>
               {meta?.transcriptEvidence && (
-                <p className="text-[10px] mt-1 opacity-80 font-mono">"{meta.transcriptEvidence}"</p>
+                <p className="text-[10px] mt-1 opacity-80 font-mono">
+                  <Info className="h-2.5 w-2.5 inline mr-0.5" />
+                  "{meta.transcriptEvidence}"
+                </p>
               )}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       );
-    }
-    if (touchedFields.has(fieldName)) {
-      const val = c[fieldName];
-      if (val != null && val !== "") {
-        return (
-          <span className="inline-flex items-center text-[9px] font-semibold text-foreground/60 bg-muted rounded px-1">
-            Edited
-          </span>
-        );
-      }
     }
     return null;
   };
