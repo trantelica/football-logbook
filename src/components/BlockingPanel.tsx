@@ -246,20 +246,19 @@ export function BlockingPanel() {
 
     return (
       <div key={gradeField} className="space-y-1">
-        {/* Label row: position + alias + provenance + indicator */}
+        {/* Label row: position + alias + provenance (no duplicate indicator) */}
         <div className="flex items-center gap-1.5 min-h-[18px]">
           <span className="text-[11px] font-semibold text-foreground">
             {primary}
             {alias && <span className="text-muted-foreground font-normal ml-0.5">({alias})</span>}
           </span>
-          <GradeIndicator value={numValue} />
           {renderGradeProvenance(gradeField)}
         </div>
         {/* Player context */}
         <div className="text-[10px] text-muted-foreground truncate" title={playerDisplay}>
           {playerDisplay}
         </div>
-        {/* Select */}
+        {/* Select with inline grade indicator (right-aligned) */}
         <Select
           value={value != null && String(value) !== "" ? String(value) : "__none__"}
           onValueChange={(v) => updateField(gradeField, v === "__none__" ? "" : v)}
@@ -271,7 +270,10 @@ export function BlockingPanel() {
             isTouched && !error && "bg-field-touched",
             error && "border-destructive",
           )}>
-            <SelectValue placeholder="—" />
+            <span className="flex items-center justify-between w-full">
+              <SelectValue placeholder="—" />
+              <span className="ml-2 shrink-0"><GradeIndicator value={numValue} /></span>
+            </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">
