@@ -81,7 +81,7 @@ function GradeIndicator({ value }: { value: number | null | undefined }) {
   return (
     <span className={cn(INDICATOR_BOX, color)} title={String(value)}>
       {Array.from({ length: abs }, (_, i) => (
-        <span key={i} className="text-[11px] leading-none font-bold">
+        <span key={i} className="text-[12px] leading-none font-bold">
           {positive ? "▲" : "▼"}
         </span>
       ))}
