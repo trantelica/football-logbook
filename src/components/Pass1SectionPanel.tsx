@@ -272,6 +272,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       dictationGenAtClearRef.current = dictationGenRef.current;
     }
   }, [recording.text]);
+
+  /**
    * Compute the rendered text for a section, accounting for active dictation.
    * While that section is being dictated into, render base + live transcript.
    * Otherwise render the persisted section.text as-is.
