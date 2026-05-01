@@ -100,6 +100,15 @@ export function ActorCombobox({
           if (!open) setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        onBlur={() => {
+          setTimeout(() => setOpen(false), 150);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
         placeholder="Jersey #"
         disabled={disabled}
         autoComplete="off"
