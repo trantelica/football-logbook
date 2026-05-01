@@ -213,6 +213,16 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   const recordingForRef = useRef<SectionId | null>(null);
   /** Snapshot of section.text at the moment dictation started for that section. */
   const baseTextBeforeDictationRef = useRef<string>("");
+  /**
+   * Monotonic counter incremented on every dictation switch. Used to detect
+   * stale `recording.text` in `computeSectionRenderedText` — after a switch,
+   * `recording.clear()` is async (React setState) so `recording.text` briefly
+   * still holds the OLD section's transcript. By comparing the generation at
+   * switch time vs render time we avoid leaking that stale text into the new
+   * section's textarea.
+   */
+  const dictationGenRef = useRef(0);
+  const dictationGenAtClearRef = useRef(0);
 
   /** Text Editing toggle. */
   const [textEditing, setTextEditing] = useState(false);
@@ -256,6 +266,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     }
   }, [commitCount, recording]);
 
+  // Sync generation counter once recording.text is actually cleared by React.
+  useEffect(() => {
+    if (!recording.text && dictationGenRef.current !== dictationGenAtClearRef.current) {
+      dictationGenAtClearRef.current = dictationGenRef.current;
+    }
+  }, [recording.text]);
+
   /**
    * Compute the rendered text for a section, accounting for active dictation.
    * While that section is being dictated into, render base + live transcript.
@@ -265,6 +282,14 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     (id: SectionId): string => {
       const persisted = sectionState[id].text;
       if (recordingForRef.current !== id) return persisted;
+      // If recording.text hasn't been cleared yet after a section switch,
+      // it still holds stale text from the previous section. Detect this by
+      // comparing generation counters: dictationGenRef is bumped on switch,
+      // dictationGenAtClearRef is bumped once recording.text becomes empty
+      // after the clear call. Until they match, ignore recording.text.
+      if (dictationGenRef.current !== dictationGenAtClearRef.current && recording.text) {
+        return persisted;
+      }
       return joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
     },
     [sectionState, recording.text],
@@ -332,6 +357,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           ? stopped.updatedText
           : sectionState[id].text;
       baseTextBeforeDictationRef.current = base;
+      dictationGenRef.current += 1; // bump generation before clear
       recording.clear();
       recordingForRef.current = id;
       recording.startListening();
