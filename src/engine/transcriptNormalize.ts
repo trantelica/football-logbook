@@ -515,13 +515,13 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "12 to 88 complete/incomplete" — keep narrow; require explicit verb above instead.
 
   // ── RUSHER ──
-  // "number 4 is the ball carrier" / "#4 is the ball carrier" / "4 is the ball carrier"
-  [/(?:#|number\s+)?(\d+)\s+is\s+the\s+ball\s+carrier\b/gi, "RUSHER $1"],
+  // "number 4 is/was the ball carrier" / "#4 is/was the ball carrier" / "4 is/was the ball carrier"
+  [/(?:#|number\s+)?(\d+)\s+(?:is|was)\s+the\s+ball\s+carrier\b/gi, "RUSHER $1"],
   // "ball carrier is number 4" / "ball carrier is 4" / "ball carrier is #4"
   [/\bball\s+carrier\s+is\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
   // "4 is the rusher" / "number 4 is the rusher"
   [/(?:#|number\s+)?(\d+)\s+is\s+the\s+rusher\b/gi, "RUSHER $1"],
-  // "4 carried it", "4 carries it", "4 ran it"
+  // "4 carried it/the ball", "4 carries it", "4 ran it"
   [/(?:#|number\s+)?(\d+)\s+(?:carried|carries|ran|rushed)\s+(?:it|the\s+ball)\b/gi, "RUSHER $1"],
   // "ball being carried by N" / "the ball was carried by N" / "carried by N" / "rushed by N"
   [/\b(?:ball\s+)?(?:being\s+|was\s+)?carried\s+by\s+(?:#|number\s+)?(\d+)/gi, "RUSHER $1"],
