@@ -232,4 +232,34 @@ describe("parseGradeNarration", () => {
     });
     expect(r.report.filter((x) => x.status === "matched")).toHaveLength(7);
   });
+
+  // ── "go to" dictation variant (Issue 2) ──────────────────────────────
+
+  it("handles 'go to' as equivalent to 'got a'", () => {
+    const r = parseGradeNarration("left tackle go to one");
+    expect(r.patch).toEqual({ gradeLT: 1 });
+  });
+
+  it("handles 'go to' with negative grade", () => {
+    const r = parseGradeNarration("center go to minus one");
+    expect(r.patch).toEqual({ gradeC: -1 });
+  });
+
+  it("handles 'go to' with short position", () => {
+    const r = parseGradeNarration("Y go to one");
+    expect(r.patch).toEqual({ gradeY: 1 });
+  });
+
+  it("parses full utterance with 'go to' phrasing", () => {
+    const r = parseGradeNarration(
+      "left tackle go to one left guard go to two center go to minus one Y go to one",
+    );
+    expect(r.patch).toEqual({
+      gradeLT: 1,
+      gradeLG: 2,
+      gradeC: -1,
+      gradeY: 1,
+    });
+    expect(r.report.filter((x) => x.status === "matched")).toHaveLength(4);
+  });
 });
