@@ -99,6 +99,7 @@ export function BlockingPanel() {
   const {
     candidate,
     updateField,
+    applySystemPatch,
     selectedSlotNum,
     committedPlays,
     inlineErrors,
@@ -179,16 +180,23 @@ export function BlockingPanel() {
       toast.info("No grade entries recognized.");
       return;
     }
-    for (const [field, value] of Object.entries(normalizedPatch)) {
-      updateField(field, String(value));
-    }
+    const evidence = Object.fromEntries(
+      report
+        .filter((entry) => entry.status === "matched" && entry.canonicalField)
+        .map((entry) => [entry.canonicalField as string, { snippet: entry.rawClause }]),
+    );
+    applySystemPatch(normalizedPatch, {
+      fillOnly: false,
+      source: "deterministic_parse",
+      evidence,
+    });
     const blockedCount = report.length - matchedCount;
     toast.success(
       blockedCount > 0
         ? `Applied ${matchedCount} grade(s) to proposal. ${blockedCount} clause(s) skipped.`
         : `Applied ${matchedCount} grade(s) to proposal.`,
     );
-  }, [narrationText, gradesDisabled, updateField]);
+  }, [narrationText, gradesDisabled, applySystemPatch]);
 
   const handleClearNarration = useCallback(() => {
     clearDictation();
