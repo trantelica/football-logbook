@@ -756,7 +756,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       return collisions;
     },
-    [candidate, touchedFields, aiProposedFields, getLookupMap, getEntryAttributes, activePass, rebuildLookupGovernanceQueue]
+    [candidate, touchedFields, aiProposedFields, getLookupMap, getEntryAttributes, activePass]
   );
 
   const clearDraft = useCallback(() => {
