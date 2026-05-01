@@ -213,6 +213,16 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   const recordingForRef = useRef<SectionId | null>(null);
   /** Snapshot of section.text at the moment dictation started for that section. */
   const baseTextBeforeDictationRef = useRef<string>("");
+  /**
+   * Monotonic counter incremented on every dictation switch. Used to detect
+   * stale `recording.text` in `computeSectionRenderedText` — after a switch,
+   * `recording.clear()` is async (React setState) so `recording.text` briefly
+   * still holds the OLD section's transcript. By comparing the generation at
+   * switch time vs render time we avoid leaking that stale text into the new
+   * section's textarea.
+   */
+  const dictationGenRef = useRef(0);
+  const dictationGenAtClearRef = useRef(0);
 
   /** Text Editing toggle. */
   const [textEditing, setTextEditing] = useState(false);
