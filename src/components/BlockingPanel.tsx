@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal } from "lucide-react";
+import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -57,21 +57,31 @@ const GRADE_ROW_3 = ["grade1"];
 
 // ── Grade Visual Indicator ─────────────────────────────────────────────────
 
+/** Fixed-width indicator container so controls don't jitter */
+const INDICATOR_BOX = "inline-flex items-center justify-center w-[28px] h-4 shrink-0";
+
 function GradeIndicator({ value }: { value: number | null | undefined }) {
   if (value == null) {
-    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-border bg-muted/50 text-[9px] text-muted-foreground">—</span>;
+    return (
+      <span className={cn(INDICATOR_BOX)}>
+        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-border bg-muted/50 text-[8px] text-muted-foreground leading-none">—</span>
+      </span>
+    );
   }
   if (value === 0) {
-    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />;
+    return (
+      <span className={cn(INDICATOR_BOX)}>
+        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />
+      </span>
+    );
   }
   const abs = Math.min(Math.abs(value), 3);
   const positive = value > 0;
   const color = positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
-  // Render 1-3 triangles
   return (
-    <span className={cn("inline-flex items-center gap-px", color)} title={String(value)}>
+    <span className={cn(INDICATOR_BOX, color)} title={String(value)}>
       {Array.from({ length: abs }, (_, i) => (
-        <span key={i} className="text-[10px] leading-none font-bold">
+        <span key={i} className="text-[8px] leading-none font-bold">
           {positive ? "▲" : "▼"}
         </span>
       ))}
@@ -185,7 +195,7 @@ export function BlockingPanel() {
     setLastReport(null);
   }, [clearDictation]);
 
-  // ── Provenance badge helper (consistent with DraftPanel pattern) ──────
+  // ── Provenance badge helper (exact match with DraftPanel pattern) ──────
   const renderGradeProvenance = (fieldName: string): React.ReactNode => {
     if (deterministicParseFields.has(fieldName)) {
       const meta = proposalMeta.get(fieldName);
@@ -198,24 +208,17 @@ export function BlockingPanel() {
               </span>
             </TooltipTrigger>
             <TooltipContent>
-              <p>From grade narration parse. Editable.</p>
+              <p>From transcript parse. Editable.</p>
               {meta?.transcriptEvidence && (
-                <p className="text-[10px] mt-1 opacity-80 font-mono">"{meta.transcriptEvidence}"</p>
+                <p className="text-[10px] mt-1 opacity-80 font-mono">
+                  <Info className="h-2.5 w-2.5 inline mr-0.5" />
+                  "{meta.transcriptEvidence}"
+                </p>
               )}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       );
-    }
-    if (touchedFields.has(fieldName)) {
-      const val = c[fieldName];
-      if (val != null && val !== "") {
-        return (
-          <span className="inline-flex items-center text-[9px] font-semibold text-foreground/60 bg-muted rounded px-1">
-            Edited
-          </span>
-        );
-      }
     }
     return null;
   };
