@@ -357,6 +357,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           ? stopped.updatedText
           : sectionState[id].text;
       baseTextBeforeDictationRef.current = base;
+      dictationGenRef.current += 1; // bump generation before clear
       recording.clear();
       recordingForRef.current = id;
       recording.startListening();
