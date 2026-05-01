@@ -266,7 +266,12 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     }
   }, [commitCount, recording]);
 
-  /**
+  // Sync generation counter once recording.text is actually cleared by React.
+  useEffect(() => {
+    if (!recording.text && dictationGenRef.current !== dictationGenAtClearRef.current) {
+      dictationGenAtClearRef.current = dictationGenRef.current;
+    }
+  }, [recording.text]);
    * Compute the rendered text for a section, accounting for active dictation.
    * While that section is being dictated into, render base + live transcript.
    * Otherwise render the persisted section.text as-is.
