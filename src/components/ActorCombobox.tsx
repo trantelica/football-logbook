@@ -101,7 +101,10 @@ export function ActorCombobox({
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => {
-          setTimeout(() => setOpen(false), 150);
+          setTimeout(() => {
+            if (wrapperRef.current && wrapperRef.current.contains(document.activeElement)) return;
+            setOpen(false);
+          }, 150);
         }}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
