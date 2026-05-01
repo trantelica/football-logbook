@@ -826,9 +826,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     }
     // ── Pass 3: Grade-only review ──
     if (activePass === 3) {
-      // Only validate touched grade fields
+      // Validate touched + parsed grade fields
       const gradeErrors: ValidationErrors = {};
-      for (const fieldName of touchedFields) {
+      const gradeChangedFields = new Set([...touchedFields, ...deterministicParseFields]);
+      for (const fieldName of gradeChangedFields) {
         if (!GRADE_FIELDS.includes(fieldName as any)) continue;
         const val = (candidate as Record<string, unknown>)[fieldName];
         if (val === null || val === undefined || val === "") continue;
