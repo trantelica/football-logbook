@@ -1465,10 +1465,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setCarriedForwardFields(new Set());
       setCarriedForwardFromPlayNum(null);
       if (activePass === 2 && slot.odk === "O") {
-        const slotMeta = slotMetaMap.get(playNum);
+        // Use fresh DB reads (like commitAndNext) to avoid stale-closure misses
+        const freshPlays = await getPlaysByGame(gameId);
+        const freshMetas = await getAllSlotMetaForGame(gameId);
+        const freshMetaMap = new Map(freshMetas.map((m) => [m.playNum, m]));
+        const slotMeta = freshMetaMap.get(playNum);
         const committedPersonnelCount = countCommittedPersonnel(slotMeta);
         if (committedPersonnelCount === 0) {
-          const sourcePlay = findPriorPass2CompletePlay(committedPlays, slotMetaMap, playNum);
+          const sourcePlay = findPriorPass2CompletePlay(freshPlays, freshMetaMap, playNum);
           if (sourcePlay) {
             const seededFields = new Set<string>();
             const sp = sourcePlay as unknown as Record<string, unknown>;
