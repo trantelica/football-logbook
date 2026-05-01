@@ -81,7 +81,7 @@ function GradeIndicator({ value }: { value: number | null | undefined }) {
   return (
     <span className={cn(INDICATOR_BOX, color)} title={String(value)}>
       {Array.from({ length: abs }, (_, i) => (
-        <span key={i} className="text-[11px] leading-none font-bold">
+        <span key={i} className="text-[12px] leading-none font-bold">
           {positive ? "▲" : "▼"}
         </span>
       ))}
@@ -273,8 +273,8 @@ export function BlockingPanel() {
             isTouched && !error && "bg-field-touched",
             error && "border-destructive",
           )}>
-            <span className="flex items-center gap-2 w-full min-w-0">
-              <span className="shrink-0"><SelectValue placeholder="—" /></span>
+            <span className="flex items-center gap-2 w-full min-w-0 !line-clamp-none !overflow-visible">
+              <span className="shrink-0 whitespace-nowrap"><SelectValue placeholder="—" /></span>
               <span className="ml-auto shrink-0"><GradeIndicator value={numValue} /></span>
             </span>
           </SelectTrigger>
