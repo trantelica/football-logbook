@@ -93,12 +93,27 @@ function parseGradeValue(token: string): number | undefined {
 
 // ── Tokeniser ─────────────────────────────────────────────────────────────
 
+// ── Pre-parse: split collapsed position+grade tokens ──────────────────────
+// Handles voice transcription joins like "Y1", "X-2", "LT1", "RG-1", "C0".
+// Only splits when the prefix is a known short position alias.
+const COLLAPSED_POS = new Set(["lt", "lg", "c", "rg", "rt", "x", "y"]);
+
+function splitCollapsedTokens(raw: string): string {
+  // Match word-boundary position alias immediately followed by optional sign and digits
+  return raw.replace(/\b([a-zA-Z]{1,2})([+-]?\d+)\b/g, (match, pos, num) => {
+    if (COLLAPSED_POS.has(pos.toLowerCase())) {
+      return `${pos} ${num}`;
+    }
+    return match;
+  });
+}
+
 /**
  * Normalise input into a flat lowercase token stream, stripping filler words
  * and punctuation but preserving semantic tokens (positions + numbers).
  */
 function tokenise(input: string): string[] {
-  return input
+  return splitCollapsedTokens(input)
     .toLowerCase()
     .replace(/[,;.\n]/g, " ")
     .split(/\s+/)
