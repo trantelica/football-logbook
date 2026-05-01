@@ -129,7 +129,7 @@ const MULTI_WORD_POSITIONS = [
 
 // Filler words to skip during scanning.
 const FILLER = new Set([
-  "ok", "okay", "our", "and", "got", "gets", "get", "received", "a", "the",
+  "ok", "okay", "our", "and", "got", "gets", "get", "go", "to", "received", "a", "the",
   "an", "of", "is", "was", "his", "her", "their", "with", "looks",
   "like", "back", "grade", "here", "are", "grades", "number",
 ]);
