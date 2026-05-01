@@ -180,4 +180,56 @@ describe("parseGradeNarration", () => {
     expect(r.report.filter((x) => x.status === "matched")).toHaveLength(7);
     expect(r.report.filter((x) => x.status !== "matched")).toHaveLength(0);
   });
+
+  // ── Collapsed / joined-token normalization ────────────────────────────
+
+  it("parses collapsed 'Y1' as gradeY = 1", () => {
+    expect(parseGradeNarration("Y1").patch).toEqual({ gradeY: 1 });
+  });
+
+  it("parses collapsed 'X2' as gradeX = 2", () => {
+    expect(parseGradeNarration("X2").patch).toEqual({ gradeX: 2 });
+  });
+
+  it("parses collapsed 'LT1' as gradeLT = 1", () => {
+    expect(parseGradeNarration("LT1").patch).toEqual({ gradeLT: 1 });
+  });
+
+  it("parses collapsed 'LG2' as gradeLG = 2", () => {
+    expect(parseGradeNarration("LG2").patch).toEqual({ gradeLG: 2 });
+  });
+
+  it("parses collapsed 'C0' as gradeC = 0", () => {
+    expect(parseGradeNarration("C0").patch).toEqual({ gradeC: 0 });
+  });
+
+  it("parses collapsed 'RG-1' as gradeRG = -1", () => {
+    expect(parseGradeNarration("RG-1").patch).toEqual({ gradeRG: -1 });
+  });
+
+  it("parses collapsed 'RT3' as gradeRT = 3", () => {
+    expect(parseGradeNarration("RT3").patch).toEqual({ gradeRT: 3 });
+  });
+
+  it("does not split 'four-1' (not a known short position)", () => {
+    // "four" is not in the collapsed position set; should not produce grade4
+    const r = parseGradeNarration("four-1");
+    expect(r.patch).toEqual({});
+  });
+
+  it("parses realistic utterance with collapsed Y1", () => {
+    const r = parseGradeNarration(
+      "left tackle one left guard one center zero right guard negative one right tackle two Y1 and number four minus one",
+    );
+    expect(r.patch).toEqual({
+      gradeLT: 1,
+      gradeLG: 1,
+      gradeC: 0,
+      gradeRG: -1,
+      gradeRT: 2,
+      gradeY: 1,
+      grade4: -1,
+    });
+    expect(r.report.filter((x) => x.status === "matched")).toHaveLength(7);
+  });
 });
