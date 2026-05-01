@@ -21,7 +21,7 @@ import React, { useState, useCallback } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
-import { parseGradeNarration } from "@/engine/gradeNarrationParser";
+import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarrationParser";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -112,6 +112,7 @@ export function BlockingPanel() {
       return;
     }
     const { patch, report } = parseGradeNarration(trimmed);
+    const normalizedPatch = normalizeGradePatchKeys(patch);
     setLastReport(report);
     const matchedCount = report.filter((r) => r.status === "matched").length;
     if (matchedCount === 0) {
@@ -121,7 +122,7 @@ export function BlockingPanel() {
     // Route every matched grade through updateField so it lands in
     // proposal/candidate state via the standard pipeline (validation runs,
     // committed row is not mutated).
-    for (const [field, value] of Object.entries(patch)) {
+    for (const [field, value] of Object.entries(normalizedPatch)) {
       updateField(field, String(value));
     }
     const blockedCount = report.length - matchedCount;
