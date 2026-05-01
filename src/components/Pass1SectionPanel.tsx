@@ -825,8 +825,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   // Track open modals via refs so the keyboard handlers don't need to re-bind.
   const overwriteOpenRef = useRef(false);
   const clarificationOpenRef = useRef(false);
+  const lookupInterruptOpenRef = useRef(false);
   useEffect(() => { overwriteOpenRef.current = !!overwriteState; }, [overwriteState]);
   useEffect(() => { clarificationOpenRef.current = !!clarification; }, [clarification]);
+  useEffect(() => { lookupInterruptOpenRef.current = !!lookupInterruptPending; }, [lookupInterruptPending]);
 
   /**
    * F — Finish dictation entry.
