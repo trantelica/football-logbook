@@ -881,7 +881,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       if (snap.dirty && snap.text.trim()) {
         // eslint-disable-next-line no-await-in-loop
         await runUpdateProposal(s.id, { textOverride: snap.text });
-        if (overwriteOpenRef.current || clarificationOpenRef.current) {
+        if (overwriteOpenRef.current || clarificationOpenRef.current || lookupInterruptOpenRef.current) {
           // Coach must respond first; do NOT auto-advance to review.
           return false;
         }
