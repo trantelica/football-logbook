@@ -275,6 +275,14 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     (id: SectionId): string => {
       const persisted = sectionState[id].text;
       if (recordingForRef.current !== id) return persisted;
+      // If recording.text hasn't been cleared yet after a section switch,
+      // it still holds stale text from the previous section. Detect this by
+      // comparing generation counters: dictationGenRef is bumped on switch,
+      // dictationGenAtClearRef is bumped once recording.text becomes empty
+      // after the clear call. Until they match, ignore recording.text.
+      if (dictationGenRef.current !== dictationGenAtClearRef.current && recording.text) {
+        return persisted;
+      }
       return joinBaseAndLive(baseTextBeforeDictationRef.current, recording.text);
     },
     [sectionState, recording.text],
