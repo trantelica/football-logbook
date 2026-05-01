@@ -48,6 +48,27 @@ const NUMERIC_POSITION_MAP: Record<string, string> = {
   "1": "grade1", "2": "grade2", "3": "grade3", "4": "grade4",
 };
 
+const GRADE_ALIAS_TO_CANONICAL: Record<string, string> = {
+  gradeLT: "gradeLT",
+  gradeLG: "gradeLG",
+  gradeC: "gradeC",
+  gradeRG: "gradeRG",
+  gradeRT: "gradeRT",
+  gradeX: "gradeX",
+  gradeY: "gradeY",
+  grade1: "grade1",
+  grade2: "grade2",
+  grade3: "grade3",
+  grade4: "grade4",
+  ltGrade: "gradeLT",
+  lgGrade: "gradeLG",
+  cGrade: "gradeC",
+  rgGrade: "gradeRG",
+  rtGrade: "gradeRT",
+  xGrade: "gradeX",
+  yGrade: "gradeY",
+};
+
 // ── Spoken number → integer ───────────────────────────────────────────────
 
 const WORD_TO_NUM: Record<string, number> = {
@@ -93,9 +114,21 @@ const MULTI_WORD_POSITIONS = [
 
 // Filler words to skip during scanning.
 const FILLER = new Set([
-  "ok", "okay", "our", "and", "got", "received", "a", "the",
-  "an", "of", "is", "was", "his", "her", "their", "with",
+  "ok", "okay", "our", "and", "got", "gets", "get", "received", "a", "the",
+  "an", "of", "is", "was", "his", "her", "their", "with", "looks",
+  "like", "back", "grade", "here", "are", "grades", "number",
 ]);
+
+export function normalizeGradePatchKeys(input: Record<string, number>): Record<string, number> {
+  const normalized: Record<string, number> = {};
+  for (const [rawKey, value] of Object.entries(input)) {
+    const canonical = GRADE_ALIAS_TO_CANONICAL[rawKey];
+    if (!canonical) continue;
+    if (!GRADE_FIELDS.includes(canonical as (typeof GRADE_FIELDS)[number])) continue;
+    normalized[canonical] = value;
+  }
+  return normalized;
+}
 
 /**
  * Walk the token stream and extract (position, grade) pairs.
@@ -220,24 +253,35 @@ export function parseGradeNarration(input: string): GradeParseResult {
       continue;
     }
 
-    // 3. Try "the <number>" as numeric position (grade1..grade4)
-    if (tok === "the" && i + 1 < tokens.length) {
-      const nextTok = tokens[i + 1];
-      // Resolve spoken word to digit
-      const posDigit = nextTok === "one" ? "1" : nextTok === "two" ? "2" : nextTok === "three" ? "3" : nextTok === "four" ? "4" : /^[1-4]$/.test(nextTok) ? nextTok : null;
-      if (posDigit && NUMERIC_POSITION_MAP[posDigit]) {
-        const field = NUMERIC_POSITION_MAP[posDigit];
-        const gradeStart = skipFiller(i + 2);
-        const gr = readGrade(gradeStart);
-        if (gr && "value" in gr) {
-          const clauseEnd = gradeStart + gr.consumed;
-          const clause = tokens.slice(i, clauseEnd).join(" ");
-          pairs.push({ field, value: gr.value, clause });
-          i = clauseEnd;
+    // 3. Try numeric position phrases like "the four", "number four",
+    // or "the number four" as grade1..grade4.
+    {
+      let j = i;
+      if (tokens[j] === "the") j++;
+      if (tokens[j] === "number") j++;
+      if (j > i && j < tokens.length) {
+        const nextTok = tokens[j];
+        const posDigit = nextTok === "one" ? "1" : nextTok === "two" ? "2" : nextTok === "three" ? "3" : nextTok === "four" ? "4" : /^[1-4]$/.test(nextTok) ? nextTok : null;
+        if (posDigit && NUMERIC_POSITION_MAP[posDigit]) {
+          const field = NUMERIC_POSITION_MAP[posDigit];
+          const gradeStart = skipFiller(j + 1);
+          const gr = readGrade(gradeStart);
+          if (gr && "value" in gr) {
+            const clauseEnd = gradeStart + gr.consumed;
+            const clause = tokens.slice(i, clauseEnd).join(" ");
+            pairs.push({ field, value: gr.value, clause });
+            i = clauseEnd;
+            continue;
+          } else if (gr && "outOfRange" in gr) {
+            const clauseEnd = gradeStart + gr.consumed;
+            const clause = tokens.slice(i, clauseEnd).join(" ");
+            report.push({ rawClause: clause, canonicalField: field, status: "out_of_range", reason: `Grade ${gr.raw} is out of range (-3..+3).` });
+            i = clauseEnd;
+            continue;
+          }
+          i = j + 1;
           continue;
         }
-        i += 2;
-        continue;
       }
     }
 
@@ -289,7 +333,7 @@ export function parseGradeNarration(input: string): GradeParseResult {
     }
   }
 
-  return { patch, report };
+  return { patch: normalizeGradePatchKeys(patch), report };
 }
 
 export { GRADE_FIELDS, GRADE_LABELS };

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseGradeNarration } from "@/engine/gradeNarrationParser";
+import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarrationParser";
 
 describe("parseGradeNarration", () => {
   // ── Basic short-form (backward compat) ───────────────────────────────
@@ -125,6 +125,26 @@ describe("parseGradeNarration", () => {
     expect(r.patch).toEqual({ gradeLT: 2 });
   });
 
+  it("normalizes proposal patch aliases to canonical grade keys", () => {
+    expect(normalizeGradePatchKeys({
+      ltGrade: 1,
+      lgGrade: 1,
+      cGrade: 0,
+      rgGrade: -1,
+      rtGrade: 2,
+      yGrade: 3,
+      grade4: -1,
+    })).toEqual({
+      gradeLT: 1,
+      gradeLG: 1,
+      gradeC: 0,
+      gradeRG: -1,
+      gradeRT: 2,
+      gradeY: 3,
+      grade4: -1,
+    });
+  });
+
   // ── Acceptance test utterance ────────────────────────────────────────
 
   it("parses the full acceptance-test utterance", () => {
@@ -139,6 +159,23 @@ describe("parseGradeNarration", () => {
       gradeRT: 1,
       gradeY: 1,
       grade4: 2,
+    });
+    expect(r.report.filter((x) => x.status === "matched")).toHaveLength(7);
+    expect(r.report.filter((x) => x.status !== "matched")).toHaveLength(0);
+  });
+
+  it("parses the retest-failed utterance with coach filler phrasing", () => {
+    const r = parseGradeNarration(
+      "OK here are grades left tackle gets a one left guard gets a one center gets a zero right guard gets a negative one right tackle gets a two the Y looks like a three And the number four back is a minus one grade",
+    );
+    expect(r.patch).toEqual({
+      gradeLT: 1,
+      gradeLG: 1,
+      gradeC: 0,
+      gradeRG: -1,
+      gradeRT: 2,
+      gradeY: 3,
+      grade4: -1,
     });
     expect(r.report.filter((x) => x.status === "matched")).toHaveLength(7);
     expect(r.report.filter((x) => x.status !== "matched")).toHaveLength(0);
