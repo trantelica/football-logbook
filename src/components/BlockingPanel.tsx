@@ -58,20 +58,20 @@ const GRADE_ROW_3 = ["grade1"];
 // ── Grade Visual Indicator ─────────────────────────────────────────────────
 
 /** Fixed-width indicator container so controls don't jitter */
-const INDICATOR_BOX = "inline-flex items-center justify-center w-[28px] h-4 shrink-0";
+const INDICATOR_BOX = "inline-flex items-center justify-center w-[28px] h-4 shrink-0 gap-px";
 
 function GradeIndicator({ value }: { value: number | null | undefined }) {
   if (value == null) {
     return (
       <span className={cn(INDICATOR_BOX)}>
-        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-border bg-muted/50 text-[8px] text-muted-foreground leading-none">—</span>
+        <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-border bg-muted/50 text-[7px] text-muted-foreground leading-none">—</span>
       </span>
     );
   }
   if (value === 0) {
     return (
       <span className={cn(INDICATOR_BOX)}>
-        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />
+        <span className="inline-flex items-center justify-center w-3 h-3 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />
       </span>
     );
   }
@@ -81,7 +81,7 @@ function GradeIndicator({ value }: { value: number | null | undefined }) {
   return (
     <span className={cn(INDICATOR_BOX, color)} title={String(value)}>
       {Array.from({ length: abs }, (_, i) => (
-        <span key={i} className="text-[8px] leading-none font-bold">
+        <span key={i} className="text-[11px] leading-none font-bold">
           {positive ? "▲" : "▼"}
         </span>
       ))}
