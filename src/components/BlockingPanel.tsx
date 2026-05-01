@@ -273,9 +273,9 @@ export function BlockingPanel() {
             isTouched && !error && "bg-field-touched",
             error && "border-destructive",
           )}>
-            <span className="flex items-center justify-between w-full">
-              <SelectValue placeholder="—" />
-              <span className="ml-2 shrink-0"><GradeIndicator value={numValue} /></span>
+            <span className="flex items-center gap-2 w-full min-w-0">
+              <span className="shrink-0"><SelectValue placeholder="—" /></span>
+              <span className="ml-auto shrink-0"><GradeIndicator value={numValue} /></span>
             </span>
           </SelectTrigger>
           <SelectContent>
