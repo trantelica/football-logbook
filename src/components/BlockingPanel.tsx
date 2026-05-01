@@ -4,30 +4,30 @@
  * Layout:
  *   1. Pass 3 banner
  *   2. Gating banners (no committed row / not offense)
- *   3. Pass 3 grade narration entry (Pass-3-only narration surface).
- *      Parses simple "LT 2, C -1, RG 3" style into proposal updates only.
- *      No commit. Validation -3..+3 still runs downstream.
+ *   3. Pass 3 grade narration entry
  *   4. Read-only play context (from committedRow)
  *   5. Read-only personnel (from committedRow)
- *   6. Grade grid — manual entry per position (proposal/candidate state).
+ *   6. Grade grid — ordered rows with visual indicators and provenance tags.
  *
- * ODK gating: grades only editable when committedRow exists and odk === "O".
- * Canonical Pass 3 field keys (gradeLT, gradeLG, gradeC, gradeRG, gradeRT,
- * gradeX, gradeY, grade1..grade4) are unchanged. No alias keys are
- * introduced. Committed row data is never mutated directly here.
+ * Canonical grade field keys unchanged: gradeLT, gradeLG, gradeC, gradeRG,
+ * gradeRT, gradeX, gradeY, grade1..grade4.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
+import { useSeason } from "@/engine/seasonContext";
+import { getSeasonConfig } from "@/engine/db";
 import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
 import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarrationParser";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
+import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +50,41 @@ const CONTEXT_FIELDS = [
 
 const GRADE_OPTIONS = ["-3", "-2", "-1", "0", "1", "2", "3"];
 
+/** Ordered grade field layout: Row1 (OL+Y), Row2 (X,3,2,4), Row3 (1) */
+const GRADE_ROW_1 = ["gradeLT", "gradeLG", "gradeC", "gradeRG", "gradeRT", "gradeY"];
+const GRADE_ROW_2 = ["gradeX", "grade3", "grade2", "grade4"];
+const GRADE_ROW_3 = ["grade1"];
+
+// ── Grade Visual Indicator ─────────────────────────────────────────────────
+
+function GradeIndicator({ value }: { value: number | null | undefined }) {
+  if (value == null) {
+    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-border bg-muted/50 text-[9px] text-muted-foreground">—</span>;
+  }
+  if (value === 0) {
+    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />;
+  }
+  const abs = Math.min(Math.abs(value), 3);
+  const positive = value > 0;
+  const color = positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
+  // Render 1-3 triangles
+  return (
+    <span className={cn("inline-flex items-center gap-px", color)} title={String(value)}>
+      {Array.from({ length: abs }, (_, i) => (
+        <span key={i} className="text-[10px] leading-none font-bold">
+          {positive ? "▲" : "▼"}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Grade indicator for dropdown option */
+function GradeOptionIndicator({ value }: { value: string }) {
+  const num = value === "__none__" ? null : Number(value);
+  return <GradeIndicator value={num} />;
+}
+
 export function BlockingPanel() {
   const {
     candidate,
@@ -59,10 +94,29 @@ export function BlockingPanel() {
     inlineErrors,
     commitErrors,
     state,
+    touchedFields,
+    deterministicParseFields,
+    proposalMeta,
   } = useTransaction();
   const { roster } = useRoster();
+  const { activeSeason } = useSeason();
 
   const isProposal = state === "proposal";
+
+  // Load season position-alias map (translation/display only)
+  const [aliasMap, setAliasMap] = useState<PositionAliasMap>({});
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeSeason?.seasonId) {
+      setAliasMap({});
+      return;
+    }
+    getSeasonConfig(activeSeason.seasonId).then((cfg) => {
+      if (cancelled) return;
+      setAliasMap((cfg?.positionAliases ?? {}) as PositionAliasMap);
+    });
+    return () => { cancelled = true; };
+  }, [activeSeason?.seasonId]);
 
   // Find committedRow — canonical source for ODK gating and personnel display
   const committedRow = selectedSlotNum != null
@@ -86,10 +140,6 @@ export function BlockingPanel() {
   const gradesDisabled = noCommittedRow || notOffense || isProposal;
 
   // ── Pass 3 grade narration entry ────────────────────────────────────────
-  // Dictation is provided by the shared transcript-capture hook (Web Speech
-  // API). The hook owns the working text buffer; we mirror it into
-  // `narrationText` for parsing/UI consistency. No transaction-state side
-  // effects from the hook itself.
   const {
     text: dictatedText,
     interim,
@@ -119,9 +169,6 @@ export function BlockingPanel() {
       toast.info("No grade entries recognized.");
       return;
     }
-    // Route every matched grade through updateField so it lands in
-    // proposal/candidate state via the standard pipeline (validation runs,
-    // committed row is not mutated).
     for (const [field, value] of Object.entries(normalizedPatch)) {
       updateField(field, String(value));
     }
@@ -137,6 +184,112 @@ export function BlockingPanel() {
     clearDictation();
     setLastReport(null);
   }, [clearDictation]);
+
+  // ── Provenance badge helper (consistent with DraftPanel pattern) ──────
+  const renderGradeProvenance = (fieldName: string): React.ReactNode => {
+    if (deterministicParseFields.has(fieldName)) {
+      const meta = proposalMeta.get(fieldName);
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                <Terminal className="h-2.5 w-2.5" />Parse
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>From grade narration parse. Editable.</p>
+              {meta?.transcriptEvidence && (
+                <p className="text-[10px] mt-1 opacity-80 font-mono">"{meta.transcriptEvidence}"</p>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+    if (touchedFields.has(fieldName)) {
+      const val = c[fieldName];
+      if (val != null && val !== "") {
+        return (
+          <span className="inline-flex items-center text-[9px] font-semibold text-foreground/60 bg-muted rounded px-1">
+            Edited
+          </span>
+        );
+      }
+    }
+    return null;
+  };
+
+  // ── Grade field label with alias helper ────────────────────────────────
+  const gradeLabel = (gradeField: string): { primary: string; alias: string | null } => {
+    const posField = GRADE_TO_POS[gradeField];
+    const alias = posField ? getAliasFor(posField, aliasMap) : null;
+    return { primary: GRADE_LABELS[gradeField], alias };
+  };
+
+  // ── Render a single grade control ──────────────────────────────────────
+  const renderGradeControl = (gradeField: string) => {
+    const posField = GRADE_TO_POS[gradeField];
+    const jersey = cr?.[posField] as number | null | undefined;
+    const name = getPlayerName(jersey != null ? Number(jersey) : null);
+    const value = c[gradeField];
+    const error = errors[gradeField];
+    const { primary, alias } = gradeLabel(gradeField);
+    const numValue = value != null && value !== "" ? Number(value) : null;
+
+    const playerDisplay = jersey != null
+      ? `#${jersey}${name ? ` ${name}` : ""}`
+      : "—";
+
+    const isParsed = deterministicParseFields.has(gradeField);
+    const isTouched = touchedFields.has(gradeField);
+
+    return (
+      <div key={gradeField} className="space-y-1">
+        {/* Label row: position + alias + provenance + indicator */}
+        <div className="flex items-center gap-1.5 min-h-[18px]">
+          <span className="text-[11px] font-semibold text-foreground">
+            {primary}
+            {alias && <span className="text-muted-foreground font-normal ml-0.5">({alias})</span>}
+          </span>
+          <GradeIndicator value={numValue} />
+          {renderGradeProvenance(gradeField)}
+        </div>
+        {/* Player context */}
+        <div className="text-[10px] text-muted-foreground truncate" title={playerDisplay}>
+          {playerDisplay}
+        </div>
+        {/* Select */}
+        <Select
+          value={value != null && String(value) !== "" ? String(value) : "__none__"}
+          onValueChange={(v) => updateField(gradeField, v === "__none__" ? "" : v)}
+          disabled={gradesDisabled}
+        >
+          <SelectTrigger className={cn(
+            "h-8 text-sm font-mono",
+            isParsed && !isTouched && !error && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
+            isTouched && !error && "bg-field-touched",
+            error && "border-destructive",
+          )}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">
+              <span className="flex items-center gap-2">— <GradeOptionIndicator value="__none__" /></span>
+            </SelectItem>
+            {GRADE_OPTIONS.map((g) => (
+              <SelectItem key={g} value={g}>
+                <span className="flex items-center gap-2">
+                  {g} <GradeOptionIndicator value={g} />
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {error && <p className="text-[10px] text-destructive">{error}</p>}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -320,46 +473,33 @@ export function BlockingPanel() {
         </div>
       )}
 
-      {/* Section 5: Grade Grid */}
+      {/* Section 5: Grade Grid — ordered rows */}
       {committedRow && (
-        <div className="space-y-1">
+        <div className="space-y-3">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Blocking Grades</div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {GRADE_FIELDS.map((gradeField) => {
-              const posField = GRADE_TO_POS[gradeField];
-              const jersey = cr?.[posField] as number | null | undefined;
-              const name = getPlayerName(jersey != null ? Number(jersey) : null);
-              const value = c[gradeField];
-              const error = errors[gradeField];
 
-              const playerDisplay = jersey != null
-                ? `#${jersey}${name ? ` ${name}` : ""}`
-                : "—";
+          {/* Row 1: OL + Y */}
+          <div className="space-y-1">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">O-Line + Y</div>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {GRADE_ROW_1.map(renderGradeControl)}
+            </div>
+          </div>
 
-              return (
-                <div key={gradeField} className="space-y-0.5">
-                  <div className="text-[10px] text-muted-foreground font-medium">
-                    {GRADE_LABELS[gradeField]} — {playerDisplay}
-                  </div>
-                  <Select
-                    value={value != null && String(value) !== "" ? String(value) : "__none__"}
-                    onValueChange={(v) => updateField(gradeField, v === "__none__" ? "" : v)}
-                    disabled={gradesDisabled}
-                  >
-                    <SelectTrigger className="h-8 text-sm font-mono">
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">—</SelectItem>
-                      {GRADE_OPTIONS.map((g) => (
-                        <SelectItem key={g} value={g}>{g}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {error && <p className="text-[10px] text-destructive">{error}</p>}
-                </div>
-              );
-            })}
+          {/* Row 2: Skill */}
+          <div className="space-y-1">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">Skill</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {GRADE_ROW_2.map(renderGradeControl)}
+            </div>
+          </div>
+
+          {/* Row 3: QB / 1 */}
+          <div className="space-y-1">
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">Signal Caller</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {GRADE_ROW_3.map(renderGradeControl)}
+            </div>
           </div>
         </div>
       )}
