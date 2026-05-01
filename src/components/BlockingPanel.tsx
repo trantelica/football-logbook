@@ -261,19 +261,23 @@ export function BlockingPanel() {
         <div className="text-[10px] text-muted-foreground truncate" title={playerDisplay}>
           {playerDisplay}
         </div>
-        {/* Select with inline grade indicator (right-aligned) */}
+        {/* Select with inline grade indicator (right-aligned, single indicator only) */}
         <Select
           value={value != null && String(value) !== "" ? String(value) : "__none__"}
           onValueChange={(v) => updateField(gradeField, v === "__none__" ? "" : v)}
           disabled={gradesDisabled}
         >
           <SelectTrigger className={cn(
-            "h-8 text-sm font-mono",
+            "h-8 text-sm font-mono [&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:justify-between [&>span:first-child]:w-full [&>span:first-child]:!line-clamp-none [&>span:first-child]:!overflow-visible",
             isParsed && !isTouched && !error && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
             isTouched && !error && "bg-field-touched",
             error && "border-destructive",
           )}>
-            <SelectValue placeholder="—" />
+            {/* Custom display: numeric value left, single indicator right */}
+            <span className="flex items-center justify-between w-full min-w-0">
+              <span className="shrink-0 whitespace-nowrap">{numValue != null ? String(numValue) : "—"}</span>
+              <GradeIndicator value={numValue} />
+            </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">
