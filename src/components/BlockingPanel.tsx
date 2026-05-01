@@ -273,10 +273,7 @@ export function BlockingPanel() {
             isTouched && !error && "bg-field-touched",
             error && "border-destructive",
           )}>
-            <span className="flex items-center gap-2 w-full min-w-0 !line-clamp-none !overflow-visible">
-              <span className="shrink-0 whitespace-nowrap"><SelectValue placeholder="—" /></span>
-              <span className="ml-auto shrink-0"><GradeIndicator value={numValue} /></span>
-            </span>
+            <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">
