@@ -57,21 +57,31 @@ const GRADE_ROW_3 = ["grade1"];
 
 // ── Grade Visual Indicator ─────────────────────────────────────────────────
 
+/** Fixed-width indicator container so controls don't jitter */
+const INDICATOR_BOX = "inline-flex items-center justify-center w-[28px] h-4 shrink-0";
+
 function GradeIndicator({ value }: { value: number | null | undefined }) {
   if (value == null) {
-    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-border bg-muted/50 text-[9px] text-muted-foreground">—</span>;
+    return (
+      <span className={cn(INDICATOR_BOX)}>
+        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-border bg-muted/50 text-[8px] text-muted-foreground leading-none">—</span>
+      </span>
+    );
   }
   if (value === 0) {
-    return <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />;
+    return (
+      <span className={cn(INDICATOR_BOX)}>
+        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />
+      </span>
+    );
   }
   const abs = Math.min(Math.abs(value), 3);
   const positive = value > 0;
   const color = positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
-  // Render 1-3 triangles
   return (
-    <span className={cn("inline-flex items-center gap-px", color)} title={String(value)}>
+    <span className={cn(INDICATOR_BOX, color)} title={String(value)}>
       {Array.from({ length: abs }, (_, i) => (
-        <span key={i} className="text-[10px] leading-none font-bold">
+        <span key={i} className="text-[8px] leading-none font-bold">
           {positive ? "▲" : "▼"}
         </span>
       ))}
