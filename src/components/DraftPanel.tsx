@@ -1194,71 +1194,85 @@ export function DraftPanel() {
           </div>
         )}
 
-        <div className="flex gap-2 pt-2 border-t border-border/30">
-          {!isProposal && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1"
-                onClick={reviewProposal}
-                disabled={
-                  activePass === 3
-                    ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f)) &&
-                      !Array.from(deterministicParseFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
-                    : activePass >= 2
-                      ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
-                      : (touchedFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
-                }
-              >
-                <Eye className="h-3.5 w-3.5" />
-                Review Proposal
-              </Button>
-            </>
-          )}
-          {selectedSlotNum !== null && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="gap-1 text-xs"
-              onClick={handleNextSlot}
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-              Next Slot
-            </Button>
-          )}
-          {isProposal && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1"
-                onClick={backToEdit}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Back to Edit
-              </Button>
-              <Button
-                size="sm"
-                className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                onClick={() => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }}
-              >
-                <Check className="h-3.5 w-3.5" />
-                Commit
-              </Button>
-              {isSlotMode && (
+        {/*
+         * In Pass 1 slot mode the Pass1SectionPanel renders its OWN
+         * Finish dictation entry / Commit & Next / Commit & Leave controls
+         * inside the Unified Proposal Candidate. The outer Review Proposal /
+         * Back to Edit / Commit / Commit & Next buttons here would form a
+         * second, redundant commit layer for the same play. Suppress them
+         * for Pass 1 slot mode only — Pass 0/2/3 keep the outer row.
+         * `Next Slot` (plain navigation) is kept for all passes.
+         */}
+        {(() => {
+          const pass1SectionOwnsActions = activePass === 1 && selectedSlotNum !== null;
+          return (
+            <div className="flex gap-2 pt-2 border-t border-border/30">
+              {!isProposal && !pass1SectionOwnsActions && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={reviewProposal}
+                    disabled={
+                      activePass === 3
+                        ? !Array.from(touchedFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f)) &&
+                          !Array.from(deterministicParseFields).some((f) => (GRADE_FIELDS as readonly string[]).includes(f))
+                        : activePass >= 2
+                          ? (touchedFields.size === 0 && carriedForwardFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
+                          : (touchedFields.size === 0 && deterministicParseFields.size === 0 && aiProposedFields.size === 0)
+                    }
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Review Proposal
+                  </Button>
+                </>
+              )}
+              {selectedSlotNum !== null && (
                 <Button
                   size="sm"
-                  className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                  onClick={handleCommitAndNext}
+                  variant="ghost"
+                  className="gap-1 text-xs"
+                  onClick={handleNextSlot}
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
-                  Commit & Next
+                  Next Slot
                 </Button>
               )}
-            </>
-          )}
-        </div>
+              {isProposal && !pass1SectionOwnsActions && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={backToEdit}
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
+                    onClick={() => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Commit
+                  </Button>
+                  {isSlotMode && (
+                    <Button
+                      size="sm"
+                      className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
+                      onClick={handleCommitAndNext}
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                      Commit & Next
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {confirmDialog && (
