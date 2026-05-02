@@ -186,6 +186,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     reviewProposal,
     commitProposal,
     commitAndNext,
+    backToEdit,
     deselectSlot,
     commitCount,
     lookupInterruptPending,
