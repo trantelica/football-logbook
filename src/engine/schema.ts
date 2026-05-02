@@ -481,7 +481,7 @@ export const playSchema: readonly FieldDefinition[] = [
   {
     name: "pos1",
     label: "1",
-    outputLabel: "POS 1",
+    outputLabel: "1",
     dataType: "integer",
     source: "COACH",
     defaultPolicy: "carryForward",
@@ -491,7 +491,7 @@ export const playSchema: readonly FieldDefinition[] = [
   {
     name: "pos2",
     label: "2",
-    outputLabel: "POS 2",
+    outputLabel: "2",
     dataType: "integer",
     source: "COACH",
     defaultPolicy: "carryForward",
@@ -501,7 +501,7 @@ export const playSchema: readonly FieldDefinition[] = [
   {
     name: "pos3",
     label: "3",
-    outputLabel: "POS 3",
+    outputLabel: "3",
     dataType: "integer",
     source: "COACH",
     defaultPolicy: "carryForward",
@@ -511,7 +511,7 @@ export const playSchema: readonly FieldDefinition[] = [
   {
     name: "pos4",
     label: "4",
-    outputLabel: "POS 4",
+    outputLabel: "4",
     dataType: "integer",
     source: "COACH",
     defaultPolicy: "carryForward",
