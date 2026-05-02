@@ -551,8 +551,8 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "N is at quarterback" / "quarterback is N" / "N at quarterback"
   [/(?:#|number\s+)?(\d+)\s+(?:is\s+)?at\s+quarterback\b/gi, "PASSER $1"],
   [/\bquarterback\s+is\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
-  // "N was the quarterback" / "N is the quarterback" / "#0 was the quarterback"
-  [/(?:#|number\s+)?(\d+)\s+(?:was|is)\s+the\s+quarterback\b/gi, "PASSER $1"],
+  // "N was the/a quarterback" / "N is the/a quarterback" / "#0 was the quarterback"
+  [/(?:#|number\s+)?(\d+)\s+(?:was|is)\s+(?:the|a)\s+quarterback\b/gi, "PASSER $1"],
   // "the quarterback was N" / "the quarterback is N"
   [/\bthe\s+quarterback\s+(?:was|is)\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
 
