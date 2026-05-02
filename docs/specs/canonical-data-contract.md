@@ -305,7 +305,7 @@ Grade values are optional unless a future workflow explicitly requires them. A b
 | `penYards` | `PEN YARDS` | integer | No | penalty yard map or override | LOOKUP / COACH | lookup-derived | May be derived from penalty |
 | `eff` | `EFF` | enum | No | Y, N | LOGIC / COACH | null | Efficiency marker |
 | `offStrength` | `OFF STR` | enum | No | L, BAL, R | LOOKUP | lookup-derived | Derived from `offForm` |
-| `personnel` | `PERSONNEL` | enum/string | No | 11, 12, 13, 21, 22, 23, 31, 32, 41, 50 | LOOKUP | lookup-derived | Derived from `offForm` |
+| `personnel` | `PERSONNEL` | enum/string | No | 10, 11, 12, 13, 21, 22, 23, 31, 32, 41, 50 | LOOKUP | lookup-derived | Derived from `offForm` |
 | `playType` | `PLAY TYPE` | enum | No | fixed play type enum | LOOKUP | lookup-derived | Derived from `offPlay` |
 | `playDir` | `PLAY DIR` | enum | No | L, M, R | LOOKUP | lookup-derived | Derived from `offPlay` |
 | `motionDir` | `MOTION DIR` | enum | No | L, R | LOOKUP | lookup-derived | Derived from `motion` |
