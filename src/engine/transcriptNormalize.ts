@@ -505,6 +505,11 @@ const STT_SAFETY_SUBSTITUTIONS: [RegExp, string][] = [
   [/\b(\d+)\s+is\s+the\s+russia\b/gi, "$1 is the rusher"],
   [/\bthe\s+russia\b/gi, "the rusher"],
   [/\brussia\s+(\d+)\b/gi, "rusher $1"],
+
+  // "illegal procedure" is a common spoken alias for "false start".
+  // Substitute early (before phrase normalization) so side-aware penalty rules
+  // ("illegal procedure on the offense") canonicalize to "O-False Start".
+  [/\billegal\s+procedure\b/gi, "false start"],
 ];
 
 /**
