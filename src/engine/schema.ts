@@ -115,7 +115,7 @@ export interface LookupAttrDef {
 export const LOOKUP_DEPENDENT_ATTRS: Record<string, LookupAttrDef[]> = {
   offForm: [
     { name: "offStrength", label: "Strength", allowedValues: ["L", "BAL", "R"] },
-    { name: "personnel", label: "Personnel", allowedValues: ["11", "12", "13", "21", "22", "23", "31", "32", "41", "50"] },
+    { name: "personnel", label: "Personnel", allowedValues: ["10", "11", "12", "13", "21", "22", "23", "31", "32", "41", "50"] },
   ],
   offPlay: [
     { name: "playType", label: "Play Type", allowedValues: PLAY_TYPE_VALUES },
