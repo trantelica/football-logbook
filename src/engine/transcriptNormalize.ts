@@ -57,10 +57,12 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // Ordinal "and N" phrases (no explicit "down" word required).
   // Examples: "4th and 10", "first and goal" (skipped — only digit), "third and 7".
   // Run BEFORE the bare ordinal-down rules so we capture both DN and DIST in one pass.
-  [/\b(1st|first)\s+and\s+(\d+)\b/gi, "DN 1 DIST $2"],
-  [/\b(2nd|second)\s+and\s+(\d+)\b/gi, "DN 2 DIST $2"],
-  [/\b(3rd|third)\s+and\s+(\d+)\b/gi, "DN 3 DIST $2"],
-  [/\b(4th|fourth)\s+and\s+(\d+)\b/gi, "DN 4 DIST $2"],
+  // Also accept STT variant "in" instead of "and" (common mis-recognition):
+  // "first in 10" → DN 1 DIST 10, "second in 14" → DN 2 DIST 14.
+  [/\b(1st|first)\s+(?:and|in)\s+(\d+)\b/gi, "DN 1 DIST $2"],
+  [/\b(2nd|second)\s+(?:and|in)\s+(\d+)\b/gi, "DN 2 DIST $2"],
+  [/\b(3rd|third)\s+(?:and|in)\s+(\d+)\b/gi, "DN 3 DIST $2"],
+  [/\b(4th|fourth)\s+(?:and|in)\s+(\d+)\b/gi, "DN 4 DIST $2"],
 
   // Down phrases: "1st down", "2nd down", "3rd down", "4th down", "down 3"
   [/\b(1st|first)\s+down\b/gi, "DN 1"],
@@ -470,14 +472,21 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // Bare "flagged" cue (legacy)
   [/\bflagged\b/gi, "PENALTY"],
 
-  // Hash phrases: "left hash", "right hash", "middle hash"
+  // Hash phrases: "left hash", "right hash", "middle hash", "center hash"
   [/\bleft\s+hash\b/gi, "HASH L"],
   [/\bright\s+hash\b/gi, "HASH R"],
   [/\bmiddle\s+hash\b/gi, "HASH M"],
+  [/\bcenter\s+hash\b/gi, "HASH M"],
 
   // "call" and "concept" as PLAY markers
   [/\bcall\b/gi, "PLAY"],
   [/\bconcept\b/gi, "PLAY"],
+
+  // "(we )?run the play X" / "running the play X" → "PLAY X" cue.
+  // Narrow: requires explicit "the play" determiner so it does not collide
+  // with the bare word "play".
+  [/\b(?:we\s+)?(?:run|ran|running)\s+the\s+play\b/gi, "PLAY"],
+
 ];
 
 /**
@@ -496,6 +505,11 @@ const STT_SAFETY_SUBSTITUTIONS: [RegExp, string][] = [
   [/\b(\d+)\s+is\s+the\s+russia\b/gi, "$1 is the rusher"],
   [/\bthe\s+russia\b/gi, "the rusher"],
   [/\brussia\s+(\d+)\b/gi, "rusher $1"],
+
+  // "illegal procedure" is a common spoken alias for "false start".
+  // Substitute early (before phrase normalization) so side-aware penalty rules
+  // ("illegal procedure on the offense") canonicalize to "O-False Start".
+  [/\billegal\s+procedure\b/gi, "false start"],
 ];
 
 /**
@@ -537,8 +551,8 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "N is at quarterback" / "quarterback is N" / "N at quarterback"
   [/(?:#|number\s+)?(\d+)\s+(?:is\s+)?at\s+quarterback\b/gi, "PASSER $1"],
   [/\bquarterback\s+is\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
-  // "N was the quarterback" / "N is the quarterback" / "#0 was the quarterback"
-  [/(?:#|number\s+)?(\d+)\s+(?:was|is)\s+the\s+quarterback\b/gi, "PASSER $1"],
+  // "N was the/a quarterback" / "N is the/a quarterback" / "#0 was the quarterback"
+  [/(?:#|number\s+)?(\d+)\s+(?:was|is)\s+(?:the|a)\s+quarterback\b/gi, "PASSER $1"],
   // "the quarterback was N" / "the quarterback is N"
   [/\bthe\s+quarterback\s+(?:was|is)\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
 
@@ -555,6 +569,11 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
   [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // Sentence-leading "to number N" / "to #N" cue. Narrow: requires the
+  // explicit "number" or "#" prefix so this does NOT match plain "to N"
+  // (which would collide with phrases like "5 to go" or "ball to the 30").
+  // Common in continuation narration: "To number six for a 4 yard loss".
+  [/(?:^|[.!?]\s+|\n\s*)to\s+(?:#|number\s+)(\d+)\b/gi, " RECEIVER $1"],
   // "complete to N" / "complete to number 4" — emit BOTH the RESULT and
   // the RECEIVER so a single phrase carries both pieces of information.
   // Narrow: only fires on explicit "complete to <jersey>" cue, never on a

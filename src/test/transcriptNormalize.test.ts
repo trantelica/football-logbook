@@ -606,4 +606,77 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).not.toContain("PENALTY");
     });
   });
+
+  describe("STT 'in' variant for 'and N' (down/distance)", () => {
+    it("'first in 10' → DN 1 DIST 10", () => {
+      const out = normalizeTranscriptForParse("first in 10");
+      expect(out).toContain("DN 1");
+      expect(out).toContain("DIST 10");
+    });
+
+    it("'second in 14' → DN 2 DIST 14", () => {
+      const out = normalizeTranscriptForParse("second in 14");
+      expect(out).toContain("DN 2");
+      expect(out).toContain("DIST 14");
+    });
+
+    it("preserves original 'first and 10' behavior", () => {
+      const out = normalizeTranscriptForParse("first and 10");
+      expect(out).toContain("DN 1");
+      expect(out).toContain("DIST 10");
+    });
+  });
+
+  describe("Hash phrase: 'center hash' → HASH M", () => {
+    it("'from the center hash' normalizes to HASH M", () => {
+      const out = normalizeTranscriptForParse("from the center hash");
+      expect(out).toContain("HASH M");
+    });
+  });
+
+  describe("PASSER: 'is a quarterback' variant", () => {
+    it("'number zero is a quarterback' → PASSER 0", () => {
+      const out = normalizeTranscriptForParse("number zero is a quarterback");
+      expect(out).toContain("PASSER 0");
+    });
+
+    it("preserves 'is the quarterback' behavior", () => {
+      const out = normalizeTranscriptForParse("number 7 is the quarterback");
+      expect(out).toContain("PASSER 7");
+    });
+  });
+
+  describe("RECEIVER: sentence-leading 'to number N'", () => {
+    it("'To number six for a 4 yard loss' → RECEIVER 6", () => {
+      const out = normalizeTranscriptForParse("To number six for a 4 yard loss");
+      expect(out).toContain("RECEIVER 6");
+    });
+
+    it("does NOT convert bare 'to N' phrases", () => {
+      // "5 to go" must remain DIST 5, not produce a RECEIVER token.
+      const out = normalizeTranscriptForParse("5 to go");
+      expect(out).not.toContain("RECEIVER");
+    });
+  });
+
+  describe("Penalty synonym: 'illegal procedure' → false start", () => {
+    it("'illegal procedure on the offense' → PENALTY O-False Start", () => {
+      const out = normalizeTranscriptForParse("illegal procedure on the offense");
+      expect(out).toContain("PENALTY O-False Start");
+    });
+
+    it("bare 'illegal procedure' canonicalizes via penalty rules", () => {
+      const out = normalizeTranscriptForParse("there was an illegal procedure penalty");
+      expect(out).toContain("PENALTY");
+      expect(out).toContain("False Start");
+    });
+  });
+
+  describe("PLAY marker: 'run the play X'", () => {
+    it("'we run the play door open' produces PLAY anchor before 'door open'", () => {
+      const out = normalizeTranscriptForParse("we run the play door open");
+      expect(out).toContain("PLAY door open");
+    });
+  });
 });
+
