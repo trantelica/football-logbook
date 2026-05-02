@@ -487,11 +487,6 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // with the bare word "play".
   [/\b(?:we\s+)?(?:run|ran|running)\s+the\s+play\b/gi, "PLAY"],
 
-  // "illegal procedure" is a common spoken alias for false start.
-  // Map BEFORE penalty rules canonicalize the infraction. Side-bearing
-  // phrasings ("illegal procedure on the offense") still produce O-False Start
-  // because the downstream side-aware rules will pick up "false start" + side.
-  [/\billegal\s+procedure\b/gi, "false start"],
 ];
 
 /**
