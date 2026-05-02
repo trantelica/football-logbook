@@ -357,7 +357,7 @@ export const playSchema: readonly FieldDefinition[] = [
     label: "Personnel",
     outputLabel: "PERSONNEL",
     dataType: "enum",
-    allowedValues: ["11", "12", "13", "21", "22", "23", "31", "32", "41", "50"],
+    allowedValues: ["10", "11", "12", "13", "21", "22", "23", "31", "32", "41", "50"],
     source: "LOOKUP",
     defaultPolicy: "null",
     defaultPassEntry: 1,
