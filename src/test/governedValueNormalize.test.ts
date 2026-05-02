@@ -71,4 +71,12 @@ describe("normalizeGovernedCandidateForField — cue-word stripping", () => {
   it("non-governed field falls through to generic normalize", () => {
     expect(normalizeGovernedCandidateForField("orange formation", "someOtherField")).toBe("Orange Formation");
   });
+  it("offForm strips trailing connector 'and' (parser bleed)", () => {
+    // When the parser stops at a downstream anchor, conjunctions can bleed
+    // into the captured value. Generic cue filler must drop them.
+    expect(normalizeGovernedCandidateForField("Poison and", "offForm")).toBe("Poison");
+  });
+  it("offPlay strips trailing 'and'", () => {
+    expect(normalizeGovernedCandidateForField("Door Open and", "offPlay")).toBe("Door Open");
+  });
 });
