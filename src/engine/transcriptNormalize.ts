@@ -569,6 +569,11 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
   [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // Sentence-leading "to number N" / "to #N" cue. Narrow: requires the
+  // explicit "number" or "#" prefix so this does NOT match plain "to N"
+  // (which would collide with phrases like "5 to go" or "ball to the 30").
+  // Common in continuation narration: "To number six for a 4 yard loss".
+  [/(?:^|[.!?]\s+|\n\s*)to\s+(?:#|number\s+)(\d+)\b/gi, " RECEIVER $1"],
   // "complete to N" / "complete to number 4" — emit BOTH the RESULT and
   // the RECEIVER so a single phrase carries both pieces of information.
   // Narrow: only fires on explicit "complete to <jersey>" cue, never on a
