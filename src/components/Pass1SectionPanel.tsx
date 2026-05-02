@@ -902,16 +902,32 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
     stopDictation();
 
+    // Process every dirty section. A lookup-governance interrupt opened by an
+    // earlier section does NOT block subsequent sections from contributing
+    // their parsed proposal patches: section ownedFields are disjoint, the
+    // governance queue accumulates across all governed fields, and the queue
+    // modal blocks commit (not parsing). We do still bail on overwrite-review
+    // or clarification modals — those are section-scoped, single-slot UI that
+    // would be clobbered by the next section's runUpdateProposal.
+    let lookupBlockerOpened = false;
     for (const s of SECTIONS) {
       const snap = snapshot[s.id];
       if (snap.dirty && snap.text.trim()) {
         // eslint-disable-next-line no-await-in-loop
         await runUpdateProposal(s.id, { textOverride: snap.text });
-        if (overwriteOpenRef.current || clarificationOpenRef.current || lookupInterruptOpenRef.current) {
-          // Coach must respond first; do NOT auto-advance to review.
+        if (overwriteOpenRef.current || clarificationOpenRef.current) {
+          // Section-scoped modal — coach must respond before more sections run.
           return false;
         }
+        if (lookupInterruptOpenRef.current) {
+          // Remember it but keep merging remaining sections' patches in.
+          lookupBlockerOpened = true;
+        }
       }
+    }
+    if (lookupBlockerOpened) {
+      // Coach must resolve lookup governance before review/commit.
+      return false;
     }
     // Sweep ALL sections for any unresolved governed lookup value (covers
     // sections that were not dirty this pass but still hold an unknown value
