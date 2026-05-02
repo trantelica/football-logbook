@@ -98,6 +98,10 @@ const CUE_WORDS_BY_FIELD: Record<string, ReadonlySet<string>> = {
 const GENERIC_CUE_FILLER = new Set([
   "the", "a", "an", "we", "we're", "were", "im", "i'm",
   "have", "has", "had", "is", "are", "was", "with", "in", "on", "at",
+  // Trailing/leading conjunctions that bleed into a captured governed value
+  // when the deterministic parser stops at the next anchor (e.g. "Poison and"
+  // when followed by a PLAY anchor). Safe to drop for governed candidates.
+  "and", "then", "but",
 ]);
 
 /**

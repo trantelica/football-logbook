@@ -106,7 +106,32 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\bgain\s+(\d+)\b/gi, "GN/LS $1"],
   [/\bloss\s+(\d+)\b/gi, "GN/LS -$1"],
 
-  // Formation phrase: "formation"
+  // Formation phrase: anchor-leading rewrites for common cue patterns.
+  // These reorder "<Name> formation" / "we are in <Name> formation" /
+  // "out of <Name> formation" / "formation is <Name>" so the FORM anchor
+  // LEADS the formation name (the deterministic parser consumes value tokens
+  // AFTER an anchor, up to the next anchor). The cue words ("we are in",
+  // "out of", "formation", "is") are dropped.
+  //
+  // The name span is bounded to 1–3 word tokens (digits, hyphens and single
+  // letters allowed) to avoid greedy capture across sentence content.
+  // Trailing "formation" / "form" is consumed so it doesn't pollute the value.
+  //
+  // Run BEFORE the in-place "formation" → "FORM" fallback so cue-shaped
+  // phrases produce clean anchor-leading output.
+  //
+  // "formation is <Name>" / "the formation is <Name>"
+  [/\b(?:the\s+)?formation\s+is\s+([A-Za-z0-9][A-Za-z0-9-]*(?:\s+[A-Za-z0-9][A-Za-z0-9-]*){0,2})\b/gi,
+    (_m, name: string) => ` FORM ${name}`],
+  // "we are in <Name> formation" / "in <Name> formation" /
+  // "out of <Name> formation" / "from <Name> formation" / "<Name> formation"
+  // The leading-cue group is optional so a bare "<Name> formation" also matches.
+  [/(?:^|\s)(?:we\s+are\s+(?:in|running)|we're\s+(?:in|running)|are\s+(?:in|running)|in|out\s+of|from)?\s*([A-Za-z0-9][A-Za-z0-9-]*(?:\s+[A-Za-z0-9][A-Za-z0-9-]*){0,2})\s+formation\b/gi,
+    (_m, name: string) => ` FORM ${name}`],
+
+  // Fallback: bare "formation" (no surrounding cue) → in-place FORM anchor.
+  // Coaches occasionally say "formation" by itself; lookup governance will
+  // surface a modal when the captured value isn't canonical.
   [/\bformation\b/gi, "FORM"],
 
   // Motion phrases: "<token> <direction> motion" → "MOTION <token> <Direction>"

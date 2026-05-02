@@ -678,5 +678,25 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).toContain("PLAY door open");
     });
   });
+
+  describe("formation cue rewrites — anchor leads name", () => {
+    it("rewrites 'we are in <Name> formation' so FORM leads", () => {
+      expect(normalizeTranscriptForParse("We are in Poison formation")).toBe("FORM Poison");
+    });
+    it("rewrites 'we are in Purple formation'", () => {
+      expect(normalizeTranscriptForParse("we are in Purple formation")).toBe("FORM Purple");
+    });
+    it("rewrites 'out of <Multi Word> formation'", () => {
+      expect(normalizeTranscriptForParse("out of Trips Right formation")).toBe("FORM Trips Right");
+    });
+    it("rewrites 'formation is <Name>'", () => {
+      expect(normalizeTranscriptForParse("formation is Black")).toBe("FORM Black");
+    });
+    it("handles formation + run-the-play in one phrase", () => {
+      const out = normalizeTranscriptForParse("We are in Poison formation and run the play Door Open");
+      expect(out).toContain("FORM Poison");
+      expect(out).toContain("PLAY Door Open");
+    });
+  });
 });
 
