@@ -550,7 +550,7 @@ L, R
 Current allowed personnel values:
 
 ```text
-11, 12, 13, 21, 22, 23, 31, 32, 41, 50
+10, 11, 12, 13, 21, 22, 23, 31, 32, 41, 50
 ```
 
 ### 14.10 Grade Values
