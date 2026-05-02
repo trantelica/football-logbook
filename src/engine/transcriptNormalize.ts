@@ -472,14 +472,26 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // Bare "flagged" cue (legacy)
   [/\bflagged\b/gi, "PENALTY"],
 
-  // Hash phrases: "left hash", "right hash", "middle hash"
+  // Hash phrases: "left hash", "right hash", "middle hash", "center hash"
   [/\bleft\s+hash\b/gi, "HASH L"],
   [/\bright\s+hash\b/gi, "HASH R"],
   [/\bmiddle\s+hash\b/gi, "HASH M"],
+  [/\bcenter\s+hash\b/gi, "HASH M"],
 
   // "call" and "concept" as PLAY markers
   [/\bcall\b/gi, "PLAY"],
   [/\bconcept\b/gi, "PLAY"],
+
+  // "(we )?run the play X" / "running the play X" → "PLAY X" cue.
+  // Narrow: requires explicit "the play" determiner so it does not collide
+  // with the bare word "play".
+  [/\b(?:we\s+)?(?:run|ran|running)\s+the\s+play\b/gi, "PLAY"],
+
+  // "illegal procedure" is a common spoken alias for false start.
+  // Map BEFORE penalty rules canonicalize the infraction. Side-bearing
+  // phrasings ("illegal procedure on the offense") still produce O-False Start
+  // because the downstream side-aware rules will pick up "false start" + side.
+  [/\billegal\s+procedure\b/gi, "false start"],
 ];
 
 /**
