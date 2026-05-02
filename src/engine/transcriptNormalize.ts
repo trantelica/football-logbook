@@ -57,10 +57,12 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // Ordinal "and N" phrases (no explicit "down" word required).
   // Examples: "4th and 10", "first and goal" (skipped — only digit), "third and 7".
   // Run BEFORE the bare ordinal-down rules so we capture both DN and DIST in one pass.
-  [/\b(1st|first)\s+and\s+(\d+)\b/gi, "DN 1 DIST $2"],
-  [/\b(2nd|second)\s+and\s+(\d+)\b/gi, "DN 2 DIST $2"],
-  [/\b(3rd|third)\s+and\s+(\d+)\b/gi, "DN 3 DIST $2"],
-  [/\b(4th|fourth)\s+and\s+(\d+)\b/gi, "DN 4 DIST $2"],
+  // Also accept STT variant "in" instead of "and" (common mis-recognition):
+  // "first in 10" → DN 1 DIST 10, "second in 14" → DN 2 DIST 14.
+  [/\b(1st|first)\s+(?:and|in)\s+(\d+)\b/gi, "DN 1 DIST $2"],
+  [/\b(2nd|second)\s+(?:and|in)\s+(\d+)\b/gi, "DN 2 DIST $2"],
+  [/\b(3rd|third)\s+(?:and|in)\s+(\d+)\b/gi, "DN 3 DIST $2"],
+  [/\b(4th|fourth)\s+(?:and|in)\s+(\d+)\b/gi, "DN 4 DIST $2"],
 
   // Down phrases: "1st down", "2nd down", "3rd down", "4th down", "down 3"
   [/\b(1st|first)\s+down\b/gi, "DN 1"],
