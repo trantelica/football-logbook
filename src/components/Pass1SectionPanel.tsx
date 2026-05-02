@@ -902,16 +902,30 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
     stopDictation();
 
+    // Process every dirty section, even if a previous section opened a blocker
+    // (overwrite review, clarification, or lookup-governance interrupt).
+    // Section ownedFields are disjoint, so a blocker on one section does NOT
+    // prevent another section from contributing its own parsed proposal patch.
+    // We just remember that a blocker fired so we don't auto-advance to review.
+    let blockerOpened = false;
     for (const s of SECTIONS) {
       const snap = snapshot[s.id];
       if (snap.dirty && snap.text.trim()) {
         // eslint-disable-next-line no-await-in-loop
         await runUpdateProposal(s.id, { textOverride: snap.text });
-        if (overwriteOpenRef.current || clarificationOpenRef.current || lookupInterruptOpenRef.current) {
-          // Coach must respond first; do NOT auto-advance to review.
-          return false;
+        if (
+          overwriteOpenRef.current ||
+          clarificationOpenRef.current ||
+          lookupInterruptOpenRef.current
+        ) {
+          blockerOpened = true;
+          // Continue to next section so its proposal patch still merges in.
         }
       }
+    }
+    if (blockerOpened) {
+      // Coach must resolve the open modal first; do not auto-advance to review.
+      return false;
     }
     // Sweep ALL sections for any unresolved governed lookup value (covers
     // sections that were not dirty this pass but still hold an unknown value
