@@ -92,6 +92,13 @@ describe("normalizeTranscriptForParse", () => {
     expect(normalizeTranscriptForParse("ball on the 35")).toBe("YARD 35");
   });
 
+  it("parses signed 'from the -39 yard line' to YARD -39 without inferring hash", () => {
+    const input = "It is first down in 10 yards to go from the -39 yard line you're at the mall";
+    const out = normalizeTranscriptForParse(input);
+    expect(out).toContain("YARD -39");
+    expect(out).not.toContain("HASH");
+  });
+
   it("normalizes scaffold acceptance example 1", () => {
     const input = "Down 3 DIST 2 Yard Line -28 Form Trips Play Curly Chair Max GN 12 Passer 1 Receiver 3";
     const out = normalizeTranscriptForParse(input);

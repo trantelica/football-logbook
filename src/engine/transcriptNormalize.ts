@@ -87,6 +87,11 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\bfrom\s+(?:the\s+)?our\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD -$1"],
   [/\bon\s+(?:the\s+)?their\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD $1"],
   [/\bon\s+(?:the\s+)?our\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD -$1"],
+  // Signed yard-line phrases: "from the -39 yard line" / "on the -39 yard line".
+  // Only match when the number carries an explicit sign so we don't infer a side
+  // for a bare positive yard-line phrase.
+  [/\bfrom\s+(?:the\s+)?(-\d+)\s+YARD\b/gi, "YARD $1"],
+  [/\bon\s+(?:the\s+)?(-\d+)\s+YARD\b/gi, "YARD $1"],
   // "ball on the N" (no side qualifier) — positive
   [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(-?\d+)\b/gi, "YARD $1"],
 
