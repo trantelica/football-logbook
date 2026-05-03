@@ -566,6 +566,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             lookupValues: lookupMap,
             fieldSize: (activeGame?.fieldSize ?? 80) as 80 | 100,
             predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
+            // Slice A: scope AI proposals to this section's owned fields only.
+            activeSection: id,
           },
         );
 
