@@ -65,6 +65,7 @@ import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "@/engine/governedValueNormalize";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { scanKnownLookups } from "@/engine/lookupScanner";
+import { detectParserSuspicion } from "@/engine/parserSuspicion";
 import { playSchema } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
 
@@ -579,6 +580,20 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         }
 
         const lookupMap = getLookupMap();
+
+        // Slice D1: compute parser suspicion locally for Play Details only.
+        // This is transient — it lives within this function call and is not
+        // persisted to TransactionContext.
+        const parserSuspicion =
+          id === "playDetails"
+            ? detectParserSuspicion({
+                parserPatch: scopedParsePatch,
+                scannerResult: scanResult,
+                lookupMap,
+                sourceText: normalized,
+              })
+            : undefined;
+
         const aiResult = await fetchAiProposal(
           candidate as Record<string, unknown>,
           activePass,
@@ -596,6 +611,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
             // Slice A: scope AI proposals to this section's owned fields only.
             activeSection: id,
+            // Slice D1: AI parser-crosscheck for Play Details (no-op elsewhere).
+            parserSuspicion,
+            parserPatch: scopedParsePatch,
           },
         );
 
@@ -699,6 +717,34 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         if (Object.keys(ownedAiProposal).length > 0) {
           aiCollisions = requestAiEnrichment(ownedAiProposal);
         }
+
+        // ── Slice D1: AI parser-crosscheck corrections ──
+        // Process returned corrections separately from the base AI fill patch.
+        // requestAiEnrichment is a LOCAL proposal/collision/governance pass —
+        // it does NOT make a second AI/edge-function call. Parser-filled fields
+        // are "resolved" in transaction state, so corrections targeting them
+        // surface as collisions rather than silent overwrites. Governed values
+        // (including matchType:'candidate_new') retain the existing lookup
+        // governance interrupt path because the shape is identical.
+        const corrections = aiResult.corrections;
+        if (corrections && id === "playDetails") {
+          const correctionPatch: Record<string, unknown> = {};
+          for (const [k, c] of Object.entries(corrections)) {
+            if (!ownedSet.has(k)) continue;
+            if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
+            correctionPatch[k] = { value: c.value, matchType: c.matchType };
+          }
+          if (Object.keys(correctionPatch).length > 0) {
+            const correctionCollisions = requestAiEnrichment(correctionPatch);
+            if (correctionCollisions.length > 0) {
+              const labels = correctionCollisions
+                .map((c) => FIELD_LABELS[c.fieldName] ?? c.fieldName)
+                .join(", ");
+              toast.info(`${section.title}: AI suggested correction for ${labels} (review).`);
+            }
+          }
+        }
+
         if (droppedGovernedFields.length > 0) {
           // Surface lightly so coach knows AI couldn't pull a clean candidate.
           const labels = droppedGovernedFields.map((f) => FIELD_LABELS[f] ?? f).join(", ");

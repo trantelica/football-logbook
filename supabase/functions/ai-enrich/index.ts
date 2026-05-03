@@ -28,6 +28,7 @@ const corsHeaders = {
 function buildSuggestFieldsSchema(
   unresolvedFields: string[],
   fieldHints: Record<string, unknown>,
+  suspectFields: string[] = [],
 ): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   for (const name of unresolvedFields) {
@@ -74,6 +75,34 @@ function buildSuggestFieldsSchema(
     }
   }
 
+  // Slice D1: optional `corrections` block, only when suspectFields supplied.
+  if (suspectFields.length > 0) {
+    const correctionProps: Record<string, unknown> = {};
+    for (const f of suspectFields) {
+      correctionProps[f] = {
+        type: "object",
+        description: `Optional AI-proposed correction for parser-filled ${f}. Omit unless the parser value is clearly wrong given the coach's observation.`,
+        properties: {
+          value: { type: "string", description: "Proposed corrected canonical value" },
+          matchType: {
+            type: "string",
+            enum: ["exact", "fuzzy", "candidate_new"],
+          },
+          reasonCode: { type: "string", description: "Short reason code from suspicion evidence (informational)" },
+        },
+        required: ["value", "matchType"],
+        additionalProperties: false,
+      };
+    }
+    properties.corrections = {
+      type: "object",
+      description:
+        "Optional AI-proposed corrections to suspicious parser-filled governed fields. Only include a field if you have strong evidence from the coach's observation that the parser value is wrong. OMIT this entire object if no corrections are warranted.",
+      properties: correctionProps,
+      additionalProperties: false,
+    };
+  }
+
   return {
     type: "object",
     description: "Object containing only the fields you can confidently infer from the coach's observation. Omit any field you cannot infer.",
@@ -96,12 +125,16 @@ Deno.serve(async (req) => {
       fieldHints,
       locationMapping,
       activeSection,
+      suspectFields,
+      suspicionEvidence,
     } = await req.json();
+
+    const suspectList: string[] = Array.isArray(suspectFields) ? suspectFields : [];
 
     if (
       !candidate ||
       !Array.isArray(unresolvedFields) ||
-      unresolvedFields.length === 0
+      (unresolvedFields.length === 0 && suspectList.length === 0)
     ) {
       return new Response(
         JSON.stringify({ proposal: {} }),
@@ -166,7 +199,13 @@ For NON-governed fields (no governedValues in hints), return a plain value (stri
 ${locationInstructions}${sectionInstruction}
 
 Field hints (types, allowed/governed values, phraseology):
-${JSON.stringify(fieldHints ?? {}, null, 2)}`;
+${JSON.stringify(fieldHints ?? {}, null, 2)}
+${suspectList.length > 0 ? `
+Parser suspicion (Slice D1): The deterministic parser produced potentially-wrong values for these governed fields: ${JSON.stringify(suspectList)}. You MAY include a top-level "corrections" object with proposed replacements ONLY for those fields. Each correction must use the same { value, matchType } shape as governed proposals. OMIT a correction unless the coach's observation strongly contradicts the parser value. Do NOT propose a correction equal to the parser value.
+
+Suspicion evidence:
+${JSON.stringify(suspicionEvidence ?? {}, null, 2)}
+` : ""}`;
 
     const userPrompt = `Coach's observation:
 "${observationText.trim()}"
@@ -202,7 +241,7 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
                 name: "suggest_fields",
                 description:
                   "Return suggested values for unresolved play fields based on the coach's observation. Omit any field you cannot confidently infer.",
-                parameters: buildSuggestFieldsSchema(unresolvedFields, fieldHints ?? {}),
+                parameters: buildSuggestFieldsSchema(unresolvedFields, fieldHints ?? {}, suspectList),
               },
             },
           ],
@@ -259,6 +298,7 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
     const unresolvedSet = new Set(unresolvedFields);
     const filtered: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(proposal)) {
+      if (k === "corrections") continue; // Slice D1: extracted separately below
       if (!unresolvedSet.has(k)) continue;
       // Governed field shape: { value: "...", matchType: "..." } — pass through as-is
       if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
@@ -272,8 +312,33 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
       }
     }
 
+    // Slice D1: extract corrections (defensive: only fields in suspectList).
+    let correctionsOut: Record<string, unknown> | undefined;
+    if (suspectList.length > 0) {
+      const rawCorr = (proposal as Record<string, unknown>).corrections;
+      if (rawCorr && typeof rawCorr === "object" && !Array.isArray(rawCorr)) {
+        const suspectSet = new Set(suspectList);
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(rawCorr as Record<string, unknown>)) {
+          if (!suspectSet.has(k)) continue;
+          if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+          const obj = v as Record<string, unknown>;
+          const val = obj.value;
+          const mt = obj.matchType;
+          if (typeof val !== "string" || !val.trim()) continue;
+          if (mt !== "exact" && mt !== "fuzzy" && mt !== "candidate_new") continue;
+          out[k] = {
+            value: val,
+            matchType: mt,
+            ...(typeof obj.reasonCode === "string" ? { reasonCode: obj.reasonCode } : {}),
+          };
+        }
+        if (Object.keys(out).length > 0) correctionsOut = out;
+      }
+    }
+
     return new Response(
-      JSON.stringify({ proposal: filtered }),
+      JSON.stringify(correctionsOut ? { proposal: filtered, corrections: correctionsOut } : { proposal: filtered }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {

@@ -23,6 +23,30 @@ import {
 import { getSection, type SectionId } from "./sectionOwnership";
 import type { CandidateData } from "./types";
 import type { FieldSize } from "./prediction";
+import type { ParserSuspicionReport } from "./parserSuspicion";
+
+/** Slice D1: AI parser-crosscheck — fields eligible for AI corrections. */
+const CORRECTION_ALLOWED_FIELDS = new Set(["offForm", "offPlay", "motion"]);
+const CORRECTION_ELIGIBLE_SECTION: SectionId = "playDetails";
+
+/**
+ * Slice D1: Filtered AI-proposed correction for a parser-filled governed field.
+ *
+ * Shape mirrors existing AI governed proposals so the downstream collision /
+ * lookup-governance path handles it without any special casing.
+ */
+export interface AiCorrection {
+  value: string;
+  matchType: "exact" | "fuzzy" | "candidate_new";
+  /** Parser value the AI is challenging (echoed for trace; informational). */
+  replaces?: string;
+  /** Suspicion code(s) that motivated the correction. Informational only. */
+  reasonCodes?: string[];
+}
+
+export type AiCorrectionsByField = Partial<
+  Record<"offForm" | "offPlay" | "motion", AiCorrection>
+>;
 
 /** Location mapping block for the AI context packet */
 export interface LocationMappingContext {
@@ -143,8 +167,22 @@ export async function fetchAiProposal(
      * Omit (e.g. cross-section "Suggest Fills") to preserve legacy behavior.
      */
     activeSection?: SectionId;
+    /**
+     * Slice D1: Parser suspicion report (computed locally by caller from the
+     * scoped parser patch + scanner result + lookupMap + section text).
+     * When present and `activeSection === 'playDetails'`, drives the
+     * AI parser-crosscheck contract: the edge function may return a
+     * separate `corrections` object for suspicious parser-filled fields.
+     */
+    parserSuspicion?: ParserSuspicionReport;
+    /**
+     * Slice D1: The deterministic parser patch (post section scope, pre
+     * scanner). Used here only to (a) gate which fields can receive a
+     * correction and (b) reject corrections equal to the parser value.
+     */
+    parserPatch?: Record<string, unknown>;
   },
-): Promise<{ proposal: Record<string, unknown>; error?: string }> {
+): Promise<{ proposal: Record<string, unknown>; corrections?: AiCorrectionsByField; error?: string }> {
   // Gate: no observation text = no AI call
   const observationText = opts?.observationText?.trim() ?? "";
   if (!observationText) {
@@ -180,7 +218,26 @@ export async function fetchAiProposal(
     aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => sectionOwnedSet.has(f));
   }
 
-  if (aiEligibleUnresolved.length === 0) {
+
+  // Slice D1: derive suspectFields (the AI-correction allowlist scoped by
+  // section + suspicion + parser presence). Pure local filter — no AI yet.
+  const suspectFields: string[] = [];
+  const parserPatch = opts?.parserPatch ?? {};
+  if (
+    opts?.activeSection === CORRECTION_ELIGIBLE_SECTION &&
+    opts?.parserSuspicion &&
+    sectionOwnedSet
+  ) {
+    for (const field of Object.keys(opts.parserSuspicion.perField)) {
+      if (!CORRECTION_ALLOWED_FIELDS.has(field)) continue;
+      if (!sectionOwnedSet.has(field)) continue;
+      const pv = parserPatch[field];
+      if (typeof pv !== "string" || !pv.trim()) continue;
+      suspectFields.push(field);
+    }
+  }
+
+  if (aiEligibleUnresolved.length === 0 && suspectFields.length === 0) {
     return { proposal: {}, error: "All AI-eligible fields are already resolved" };
   }
 
@@ -204,6 +261,24 @@ export async function fetchAiProposal(
 
   const positionAliases = (opts?.positionAliases ?? {}) as PositionAliasMap;
 
+  // Slice D1: build a slim, deterministic suspicion evidence packet for the
+  // edge function (only fields that survived the suspectFields gate).
+  let suspicionEvidence:
+    | Record<string, { observedValue: string; codes: string[]; scannerCanonical?: string }>
+    | undefined;
+  if (suspectFields.length > 0 && opts?.parserSuspicion) {
+    suspicionEvidence = {};
+    for (const f of suspectFields) {
+      const sig = opts.parserSuspicion.perField[f as "offForm" | "offPlay" | "motion"];
+      if (!sig) continue;
+      suspicionEvidence[f] = {
+        observedValue: sig.observedValue,
+        codes: [...sig.codes],
+        ...(sig.scannerCanonical ? { scannerCanonical: sig.scannerCanonical } : {}),
+      };
+    }
+  }
+
   const { data, error } = await supabase.functions.invoke("ai-enrich", {
     body: {
       observationText,
@@ -217,6 +292,8 @@ export async function fetchAiProposal(
       positionAliases,
       // Slice A: section context for prompt scoping (additive; old function ignores).
       activeSection: opts?.activeSection,
+      // Slice D1: AI parser-crosscheck (additive; absent when no suspicion).
+      ...(suspectFields.length > 0 ? { suspectFields, suspicionEvidence } : {}),
     },
   });
 
@@ -243,5 +320,46 @@ export async function fetchAiProposal(
     }
   }
 
-  return { proposal: normalized };
+  // ── Slice D1: filter and return AI corrections (separate from proposal) ──
+  const correctionsRaw = (data?.corrections ?? {}) as Record<string, unknown>;
+  let corrections: AiCorrectionsByField | undefined;
+  if (suspectFields.length > 0 && correctionsRaw && typeof correctionsRaw === "object") {
+    const suspectSet = new Set(suspectFields);
+    const out: AiCorrectionsByField = {};
+    for (const [k, v] of Object.entries(correctionsRaw)) {
+      // Gate 1: canonical key + allowlist + still in suspectFields
+      if (!CORRECTION_ALLOWED_FIELDS.has(k)) continue;
+      if (!suspectSet.has(k)) continue;
+      // Gate 2: section ownership
+      if (sectionOwnedSet && !sectionOwnedSet.has(k)) continue;
+      // Gate 3: governed value shape
+      if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+      const obj = v as Record<string, unknown>;
+      const value = obj.value;
+      const matchType = obj.matchType;
+      if (typeof value !== "string" || !value.trim()) continue;
+      if (matchType !== "exact" && matchType !== "fuzzy" && matchType !== "candidate_new") continue;
+      // Gate 4: must differ from parser value (case-insensitive, ws-normalized)
+      const parserVal = parserPatch[k];
+      if (typeof parserVal === "string") {
+        const a = parserVal.trim().toLowerCase().replace(/\s+/g, " ");
+        const b = value.trim().toLowerCase().replace(/\s+/g, " ");
+        if (a === b) continue;
+      }
+      const correction: AiCorrection = {
+        value: value.trim(),
+        matchType: matchType as AiCorrection["matchType"],
+        ...(typeof parserVal === "string" ? { replaces: parserVal } : {}),
+        ...(Array.isArray(obj.reasonCodes)
+          ? { reasonCodes: (obj.reasonCodes as unknown[]).filter((x) => typeof x === "string") as string[] }
+          : typeof obj.reasonCode === "string"
+            ? { reasonCodes: [obj.reasonCode as string] }
+            : {}),
+      };
+      out[k as "offForm" | "offPlay" | "motion"] = correction;
+    }
+    if (Object.keys(out).length > 0) corrections = out;
+  }
+
+  return corrections ? { proposal: normalized, corrections } : { proposal: normalized };
 }
