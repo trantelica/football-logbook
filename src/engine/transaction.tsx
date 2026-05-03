@@ -1317,12 +1317,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     // Resume "Commit & Next" navigation if it was interrupted by overwrite review.
     const pending = pendingAdvanceAfterCommitRef.current;
-    if (pending) {
+    if (pending && advanceToNextFilteredSlotRef.current) {
       pendingAdvanceAfterCommitRef.current = null;
-      await advanceToNextFilteredSlot(pending.fromSlotNum, pending.activePass);
+      await advanceToNextFilteredSlotRef.current(pending.fromSlotNum, pending.activePass);
     }
     return true;
-  }, [pendingNormalized, existingPlay, gameId, clearDraft, isSlotMode, selectedSlotNum, slotMetaMap, advanceToNextFilteredSlot]);
+  }, [pendingNormalized, existingPlay, gameId, clearDraft, isSlotMode, selectedSlotNum, slotMetaMap]);
 
   const cancelOverwrite = useCallback(() => {
     // User backed out of overwrite — drop pending advance intent.
