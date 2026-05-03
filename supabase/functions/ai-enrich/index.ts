@@ -28,6 +28,7 @@ const corsHeaders = {
 function buildSuggestFieldsSchema(
   unresolvedFields: string[],
   fieldHints: Record<string, unknown>,
+  suspectFields: string[] = [],
 ): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   for (const name of unresolvedFields) {
@@ -72,6 +73,34 @@ function buildSuggestFieldsSchema(
         description: `Value for ${label}`,
       };
     }
+  }
+
+  // Slice D1: optional `corrections` block, only when suspectFields supplied.
+  if (suspectFields.length > 0) {
+    const correctionProps: Record<string, unknown> = {};
+    for (const f of suspectFields) {
+      correctionProps[f] = {
+        type: "object",
+        description: `Optional AI-proposed correction for parser-filled ${f}. Omit unless the parser value is clearly wrong given the coach's observation.`,
+        properties: {
+          value: { type: "string", description: "Proposed corrected canonical value" },
+          matchType: {
+            type: "string",
+            enum: ["exact", "fuzzy", "candidate_new"],
+          },
+          reasonCode: { type: "string", description: "Short reason code from suspicion evidence (informational)" },
+        },
+        required: ["value", "matchType"],
+        additionalProperties: false,
+      };
+    }
+    properties.corrections = {
+      type: "object",
+      description:
+        "Optional AI-proposed corrections to suspicious parser-filled governed fields. Only include a field if you have strong evidence from the coach's observation that the parser value is wrong. OMIT this entire object if no corrections are warranted.",
+      properties: correctionProps,
+      additionalProperties: false,
+    };
   }
 
   return {
