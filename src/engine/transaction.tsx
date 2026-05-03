@@ -1791,6 +1791,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     return { hasNext: false };
   }, [gameId, odkFilter, refreshCommittedPlays, selectSlot]);
 
+  // Keep the forward ref in sync so confirmOverwrite (defined earlier) can call this helper.
+  useEffect(() => {
+    advanceToNextFilteredSlotRef.current = advanceToNextFilteredSlot;
+  }, [advanceToNextFilteredSlot]);
+
   // Phase 4: Commit & Next — advances to next slot in filtered scaffold list
   const commitAndNext = useCallback(async (): Promise<{ committed: boolean; hasNext: boolean }> => {
     if (state !== "proposal") {
