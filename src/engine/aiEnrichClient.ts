@@ -167,8 +167,22 @@ export async function fetchAiProposal(
      * Omit (e.g. cross-section "Suggest Fills") to preserve legacy behavior.
      */
     activeSection?: SectionId;
+    /**
+     * Slice D1: Parser suspicion report (computed locally by caller from the
+     * scoped parser patch + scanner result + lookupMap + section text).
+     * When present and `activeSection === 'playDetails'`, drives the
+     * AI parser-crosscheck contract: the edge function may return a
+     * separate `corrections` object for suspicious parser-filled fields.
+     */
+    parserSuspicion?: ParserSuspicionReport;
+    /**
+     * Slice D1: The deterministic parser patch (post section scope, pre
+     * scanner). Used here only to (a) gate which fields can receive a
+     * correction and (b) reject corrections equal to the parser value.
+     */
+    parserPatch?: Record<string, unknown>;
   },
-): Promise<{ proposal: Record<string, unknown>; error?: string }> {
+): Promise<{ proposal: Record<string, unknown>; corrections?: AiCorrectionsByField; error?: string }> {
   // Gate: no observation text = no AI call
   const observationText = opts?.observationText?.trim() ?? "";
   if (!observationText) {
