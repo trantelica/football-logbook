@@ -580,6 +580,20 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         }
 
         const lookupMap = getLookupMap();
+
+        // Slice D1: compute parser suspicion locally for Play Details only.
+        // This is transient — it lives within this function call and is not
+        // persisted to TransactionContext.
+        const parserSuspicion =
+          id === "playDetails"
+            ? detectParserSuspicion({
+                parserPatch: scopedParsePatch,
+                scannerResult: scanResult,
+                lookupMap,
+                sourceText: normalized,
+              })
+            : undefined;
+
         const aiResult = await fetchAiProposal(
           candidate as Record<string, unknown>,
           activePass,
@@ -597,6 +611,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             predictedYardLn: predictedFields.has("yardLn") ? (candidate.yardLn as number | null) : null,
             // Slice A: scope AI proposals to this section's owned fields only.
             activeSection: id,
+            // Slice D1: AI parser-crosscheck for Play Details (no-op elsewhere).
+            parserSuspicion,
+            parserPatch: scopedParsePatch,
           },
         );
 
