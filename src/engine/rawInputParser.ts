@@ -32,7 +32,7 @@ export interface ParseResult {
  * Longer anchors first to avoid partial matches.
  * Includes extended markers from scaffold: GAIN, LOSS, GN, LS.
  */
-const ANCHORS = [
+export const ANCHORS = [
   "GN/LS", "GNLS", "PENYARDS", "2MIN",
   "PENALTY", "RESULT", "MOTION", "FORM", "PLAY",
   "RECEIVER", "RUSHER", "PASSER",
