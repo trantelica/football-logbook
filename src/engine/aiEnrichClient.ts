@@ -23,6 +23,30 @@ import {
 import { getSection, type SectionId } from "./sectionOwnership";
 import type { CandidateData } from "./types";
 import type { FieldSize } from "./prediction";
+import type { ParserSuspicionReport } from "./parserSuspicion";
+
+/** Slice D1: AI parser-crosscheck — fields eligible for AI corrections. */
+const CORRECTION_ALLOWED_FIELDS = new Set(["offForm", "offPlay", "motion"]);
+const CORRECTION_ELIGIBLE_SECTION: SectionId = "playDetails";
+
+/**
+ * Slice D1: Filtered AI-proposed correction for a parser-filled governed field.
+ *
+ * Shape mirrors existing AI governed proposals so the downstream collision /
+ * lookup-governance path handles it without any special casing.
+ */
+export interface AiCorrection {
+  value: string;
+  matchType: "exact" | "fuzzy" | "candidate_new";
+  /** Parser value the AI is challenging (echoed for trace; informational). */
+  replaces?: string;
+  /** Suspicion code(s) that motivated the correction. Informational only. */
+  reasonCodes?: string[];
+}
+
+export type AiCorrectionsByField = Partial<
+  Record<"offForm" | "offPlay" | "motion", AiCorrection>
+>;
 
 /** Location mapping block for the AI context packet */
 export interface LocationMappingContext {
