@@ -720,6 +720,20 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).toContain("FORM Poison");
       expect(out).toContain("PLAY Door Open");
     });
+    it("does not over-capture cue tokens into formation name (Pass from Shiny)", () => {
+      const out = normalizeTranscriptForParse("The play is 39 Reverse Pass from Shiny formation.");
+      expect(out).toContain("FORM Shiny");
+      expect(out).not.toContain("FORM Pass");
+      expect(out).not.toMatch(/Pass\s+From\s+Shiny/i);
+      expect(out).not.toContain("MOTION");
+      expect(out).toMatch(/PLAY\s+is\s+39\s+Reverse\s+Pass\s+FORM\s+Shiny/);
+    });
+    it("rewrites bare '<Name> formation' (no cue) for single-token name", () => {
+      expect(normalizeTranscriptForParse("Poison formation")).toBe("FORM Poison");
+    });
+    it("rewrites 'in <Name> formation' with required cue", () => {
+      expect(normalizeTranscriptForParse("in Black formation")).toBe("FORM Black");
+    });
   });
 
   describe("Pass 1 natural-language Play Details / Play Results cues", () => {
