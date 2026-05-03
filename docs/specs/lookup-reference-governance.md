@@ -612,6 +612,60 @@ Rules:
 
 ---
 
+## 18.3 Season Scoping of Lookup / Reference Stores
+
+Lookup and reference stores are **season-scoped**. They are not global, and they do not silently span seasons.
+
+### 18.3.1 Persistence Within a Season
+
+1. A lookup/reference store persists session-to-session within the same season.
+2. All sessions/games created under the active season share that season's lookup store (formations, plays, motions, roster, synonyms, dependent fields).
+3. Lookup append, synonym addition, and roster updates made during any session in the season mutate the active season's store and remain available to subsequent sessions in that same season.
+4. Lookup versioning (`lookupVersion`, audit events, near-duplicate checks) applies within the active season's store.
+
+### 18.3.2 New Season Initialization
+
+1. Starting a new season MUST initialize a distinct lookup/reference store for that season.
+2. A new season MUST NOT automatically inherit formations, plays, motions, synonyms, dependent field mappings, or roster entries from any prior season.
+3. The new season's store begins empty, or is explicitly initialized by the coach (e.g., from a chosen import source).
+4. Prior-season canonical values, synonyms, and roster jerseys MUST NOT resolve in the new season unless they have been explicitly imported into that season's store.
+
+### 18.3.3 Cross-Season Reuse
+
+Reuse of prior-season lookup/reference data is allowed only through an explicit, coach-initiated action:
+
+1. export of a prior season's lookup/reference store
+2. import into the active season's lookup/reference store
+3. or an equivalent migration action explicitly selected by the coach
+
+Cross-season reuse rules:
+
+1. The action must be explicit. No implicit cross-season fallthrough.
+2. The action must be reviewable. The coach must see what is being brought into the new season before it is persisted.
+3. Imported entries enter the new season's store as that season's own canonical values. They do not retain a live link back to the source season.
+4. Import must not mutate the source season's store.
+5. Import must produce audit events in the destination season per Section 17.
+
+### 18.3.4 Session Metadata Reference
+
+Each session/game should record the identity and version of the season lookup/reference store that was active during that session:
+
+1. season identifier
+2. season lookup store identifier (where applicable)
+3. lookup store version at session start
+4. lookup store version at session end (if changed during the session)
+
+This makes it possible to explain, after the fact, which vocabulary state governed a given session's commits.
+
+### 18.3.5 What This Section Does Not Change
+
+1. Hudl export headers are unchanged.
+2. Canonical field names are unchanged.
+3. Parser behavior is unchanged.
+4. This section does not specify the implementation of import/export or migration actions; it only specifies that such actions must be explicit, reviewable, coach-initiated, and audited.
+
+---
+
 ## 19. Error Handling
 
 Lookup/reference errors should be specific and actionable.
@@ -708,6 +762,17 @@ The system passes if:
 3. aliases do not change export labels
 4. aliases do not create schema keys
 5. display changes do not mutate committed rows
+
+### 21.5 Season Scoping
+
+The system passes if:
+
+1. Creating a new session within an existing season reuses that season's lookup/reference store (formations, plays, motions, synonyms, roster).
+2. Creating a new season starts with an empty lookup/reference store, or one explicitly initialized by the coach.
+3. Prior-season canonical values, synonyms, and roster jerseys do not resolve in the new season unless explicitly imported.
+4. Importing prior-season lookup/reference data into a new season is an explicit, reviewable, coach-initiated action.
+5. Import into the destination season produces audit events and does not mutate the source season's store.
+6. Session metadata records the active season lookup store identity and version used during the session.
 
 ---
 
