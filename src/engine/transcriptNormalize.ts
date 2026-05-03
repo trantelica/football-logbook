@@ -602,6 +602,10 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   [/(?:#|number\s+)?(\d+)\s+(?:was|is)\s+(?:the|a)\s+quarterback\b/gi, "PASSER $1"],
   // "the quarterback was N" / "the quarterback is N"
   [/\bthe\s+quarterback\s+(?:was|is)\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+  // Natural passer phrasing: "number 0 is the passer", "#0 is the passer",
+  // "0 is the passer", "0 was the passer", "passer is 0", "passer was #0".
+  [/(?:#|number\s+)?(\d+)\s+(?:is|was)\s+the\s+passer\b/gi, "PASSER $1"],
+  [/\bpasser\s+(?:is|was)\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
 
   // ── RECEIVER (solo) ──
   // "caught by 88", "caught by number 88", "caught by #88"
