@@ -20,6 +20,7 @@ import {
   normalizePatchKeysToCanonical,
   type PositionAliasMap,
 } from "./positionAliases";
+import { getSection, type SectionId } from "./sectionOwnership";
 import type { CandidateData } from "./types";
 import type { FieldSize } from "./prediction";
 
@@ -135,6 +136,13 @@ export async function fetchAiProposal(
      * back to canonical pos* field names before returning.
      */
     positionAliases?: PositionAliasMap | Record<string, string>;
+    /**
+     * Slice A: Active Pass 1 section. When provided, restricts AI-eligible
+     * unresolved fields to this section's `ownedFields` and defensively
+     * drops out-of-section keys from the AI response.
+     * Omit (e.g. cross-section "Suggest Fills") to preserve legacy behavior.
+     */
+    activeSection?: SectionId;
   },
 ): Promise<{ proposal: Record<string, unknown>; error?: string }> {
   // Gate: no observation text = no AI call
@@ -160,7 +168,17 @@ export async function fetchAiProposal(
   });
 
   // Intersect with AI-eligible field set — only Bucket B fields
-  const aiEligibleUnresolved = unresolvedFields.filter((f) => AI_ELIGIBLE_FIELDS.has(f));
+  let aiEligibleUnresolved = unresolvedFields.filter((f) => AI_ELIGIBLE_FIELDS.has(f));
+
+  // Slice A: section-aware scoping for Pass 1. When activeSection is set,
+  // further intersect with the section's ownedFields so AI cannot propose
+  // values for fields outside the active section.
+  const sectionOwnedSet = opts?.activeSection
+    ? new Set<string>(getSection(opts.activeSection).ownedFields)
+    : null;
+  if (sectionOwnedSet) {
+    aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => sectionOwnedSet.has(f));
+  }
 
   if (aiEligibleUnresolved.length === 0) {
     return { proposal: {}, error: "All AI-eligible fields are already resolved" };
@@ -197,6 +215,8 @@ export async function fetchAiProposal(
       // Inform AI of coach-friendly position tokens; AI must still emit
       // canonical pos* field keys, but may reference aliases in reasoning.
       positionAliases,
+      // Slice A: section context for prompt scoping (additive; old function ignores).
+      activeSection: opts?.activeSection,
     },
   });
 
@@ -213,5 +233,15 @@ export async function fetchAiProposal(
   // pos* keys so downstream proposal/commit only ever sees canonical names.
   const rawProposal = (data?.proposal ?? {}) as Record<string, unknown>;
   const { patch: normalized } = normalizePatchKeysToCanonical(rawProposal, positionAliases);
+
+  // Slice A: defensive section drop. Even if the edge function returns
+  // a key outside the active section's owned fields, drop it before it
+  // can enter proposal/collision/governance.
+  if (sectionOwnedSet) {
+    for (const k of Object.keys(normalized)) {
+      if (!sectionOwnedSet.has(k)) delete normalized[k];
+    }
+  }
+
   return { proposal: normalized };
 }

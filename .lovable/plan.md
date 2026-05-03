@@ -1,102 +1,44 @@
+# Slice A — Section-Aware AI Scoping (Pass 1)
 
+Approved scope only. Constrain Pass 1 AI proposals to fields owned by the currently active Pass 1 section. Additive, backward-compatible.
 
-# Design Note Amendment: Governed-Candidate Rule for Lookup-Backed Fields
+## Changes
 
-## What changes
+### 1. `src/engine/aiEnrichClient.ts`
+- Import `getSection`, `SectionId` from `./sectionOwnership`.
+- Add optional `activeSection?: SectionId` to `fetchAiProposal` opts.
+- After computing `aiEligibleUnresolved`, if `activeSection` is provided, intersect with `getSection(activeSection).ownedFields`. If empty after intersection, return early `{ proposal: {}, error: "All AI-eligible fields are already resolved" }`.
+- Pass `activeSection` in the edge-function body (additive, ignored by old function until deployed).
+- After receiving the AI response and normalizing canonical position keys, defensively drop any key not in the section's owned set when `activeSection` is provided.
 
-Replace the blanket "AI must not invent new lookup values" rule with a three-tier resolution strategy that allows AI to propose new candidate values when observation evidence is strong, routing them through the existing lookup-governance interrupt flow.
+### 2. `src/components/Pass1SectionPanel.tsx` (line ~554)
+- Pass `activeSection: id` (the current section id already in scope as `id`) into the `fetchAiProposal` call. No other behavior change — the existing `ownedSet` post-filter remains as belt-and-suspenders.
 
----
+### 3. `src/components/DraftPanel.tsx` (line ~980)
+- This call is the cross-section "Suggest Fills" trigger and is NOT bound to a single Pass 1 section. Leave `activeSection` unset (omitted) so behavior is unchanged. Add a code comment noting Slice A scopes Pass 1 section-bound calls only.
 
-## 1. Revised Rule Set
+### 4. `supabase/functions/ai-enrich/index.ts`
+- Accept optional `activeSection` from the request body.
+- If present, append a single line to the system prompt: `Active Pass 1 section: <id>. Only propose values for fields owned by this section.`
+- In the final defensive `filtered` step, additionally drop keys not in `unresolvedFields` (already done) — no schema change needed because `unresolvedFields` is already section-intersected on the client. No new server-side section table needed; client is the authoritative gate.
 
-**Old rule (removed):**
-> For governed lookup fields, the proposed value MUST match one of the governed values EXACTLY. Do not invent new values.
+### 5. `src/test/aiEnrichment.test.ts`
+Add a `describe("section-aware AI scoping (Slice A)")` block with mocked `supabase.functions.invoke`:
+- Test 1: `activeSection="playDetails"`; mock AI returns `{ result: "Rush", offForm: {value:"Shiny",matchType:"exact"}, offPlay:"39 Reverse Pass" }`. Expect proposal contains `offForm`, `offPlay`; does NOT contain `result`.
+- Test 2: `activeSection="playResults"`; mock AI returns `{ offForm: {value:"Shiny",matchType:"exact"}, result:"Rush", gainLoss:5 }`. Expect proposal contains `result`, `gainLoss`; does NOT contain `offForm`.
+- Test 3: For any section, derived fields (`offStrength`, `playType`, `playDir`, `personnel`, `motionDir`) never appear in the body's `unresolvedFields`. Capture invoke body via mock and assert.
+- Test 4: `candidate_new` governed match passes through unchanged (matchType preserved) when in-section.
+- Test 5: When `activeSection` is omitted (DraftPanel path), no section filter is applied — preserves backward compat.
 
-**New rule:**
+Use `vi.mock("@/integrations/supabase/client", ...)` to stub `supabase.functions.invoke` and capture the request body.
 
-For lookup-backed fields (`offForm`, `offPlay`, `motion`), AI follows a priority cascade:
+## Out of scope (deferred)
+- No section-aware lookup scanner.
+- No AI crosscheck/correction shape.
+- No Pass 2/3 AI.
+- No suspicion signals.
+- No transaction model changes; no provenance changes.
+- No Hudl/canonical/governance changes.
 
-1. **Exact / normalized match.** If the spoken phrase matches a governed lookup value (case-insensitive, whitespace-normalized), propose that canonical value. This is the happy path.
-
-2. **Fuzzy / alias-assisted match.** If no exact match is found, attempt substring or alias resolution against governed values (e.g., "gun trips" → "Shotgun Trips Right"). If a single high-confidence match is found, propose the canonical value. If multiple candidates match, omit the field.
-
-3. **Governed candidate extraction.** If no lookup match is found but the observation text strongly supports a specific value (e.g., coach clearly says "purple formation"), AI may propose the raw candidate value. The proposal must be tagged with `matchType: "candidate_new"` so the system knows it is not an existing lookup entry.
-
-4. **Governed review gate.** Any proposed value with `matchType: "candidate_new"` triggers the existing `lookupInterruptPending` flow — the coach must explicitly add the value to the lookup table, correct it, or dismiss. AI never silently promotes new vocabulary.
-
-5. **Omit if uncertain.** If observation evidence does not strongly support a specific value, omit the field entirely.
-
----
-
-## 2. Updated Field Handling for offForm / offPlay / motion
-
-These fields become **lookup-first, governed-candidate** fields:
-
-```text
-AI proposal for a lookup-backed field:
-  ┌─────────────────────┐
-  │ Observation text     │
-  └────────┬────────────┘
-           ▼
-  ┌─────────────────────┐
-  │ Exact/normalized    │──match──▶ propose canonical value
-  │ lookup match?       │           matchType: "exact"
-  └────────┬────────────┘
-           │ no
-           ▼
-  ┌─────────────────────┐
-  │ Fuzzy/alias match?  │──match──▶ propose canonical value
-  │ (single confident)  │           matchType: "fuzzy"
-  └────────┬────────────┘
-           │ no
-           ▼
-  ┌─────────────────────┐
-  │ Strong observation  │──yes───▶ propose raw candidate
-  │ evidence?           │           matchType: "candidate_new"
-  └────────┬────────────┘
-           │ no
-           ▼
-        OMIT field
-```
-
-The `matchType` tag is returned alongside each proposed value so the client-side filter knows which proposals need governance review.
-
----
-
-## 3. Interaction with Existing Flows
-
-**Proposal review surface:** All AI proposals (exact, fuzzy, or candidate_new) land in the same proposal review surface with `ai_proposed` provenance. No change to the review UX.
-
-**Lookup interrupt:** When `applySystemPatch` receives a governed field value not in the lookup table, it already triggers `lookupInterruptPending`. This existing flow handles `candidate_new` proposals naturally — the coach sees the interrupt dialog and chooses to add, correct, or dismiss. No new UI needed.
-
-**Dependent field behavior:** If a `candidate_new` value is added to the lookup table via the interrupt flow, the coach must also configure its dependent attributes (e.g., `offStrength` for a new `offForm`). This is already handled by the lookup-add flow in Configuration Mode.
-
----
-
-## 4. Changes to Existing Code (What, Not How)
-
-| Location | Change |
-|---|---|
-| `phraseologyBaseline.ts` | Replace "Must match exactly — do not invent" hints with "Prefer exact lookup match. If no match exists but evidence is strong, propose the candidate value and mark it as new." |
-| `aiEnrichClient.ts` line 58 | Replace `governedConstraint: "MUST match exactly"` with updated constraint text explaining the cascade. |
-| Edge function prompt (line 81) | Replace the "MUST match exactly" rule with the three-tier cascade instructions. Tell AI to return `matchType` per governed field. |
-| Edge function response parsing | Extract `matchType` from AI response for governed fields. Pass through to client. |
-| `aiEnrichment.ts` / `filterAiProposal` | Accept `candidate_new` proposals for governed fields (do not reject as collisions). The downstream `applySystemPatch` + lookup interrupt handles governance. |
-
----
-
-## 5. Smallest Next Implementation Slice
-
-1. **Update phraseology hints** for `offForm`, `offPlay` (and `motion` when added): replace "must match exactly" with the governed-candidate cascade language.
-
-2. **Update `governedConstraint`** in `buildFieldHints` to instruct AI to prefer lookup matches but allow candidate proposals with a `matchType` tag.
-
-3. **Update edge function prompt** to describe the three-tier cascade and instruct the AI to return `{ suggestions: { offForm: { value: "Purple", matchType: "candidate_new" } } }` for governed fields (simple string for non-governed fields).
-
-4. **Update edge function response parsing** to unwrap the `{ value, matchType }` shape for governed fields into the flat proposal format the client expects.
-
-5. **No UI changes needed** — the existing `lookupInterruptPending` dialog already handles unknown governed values correctly.
-
-No fuzzy matching logic on the client side yet (tier 2 stays AI-side for now). No `motion` field added to `AI_ELIGIBLE_FIELDS` yet. No new lookup UI.
-
+## Acceptance
+All 5 new tests pass; existing aiEnrichment, transcriptNormalize, hudlExport, and proposal tests continue to pass.

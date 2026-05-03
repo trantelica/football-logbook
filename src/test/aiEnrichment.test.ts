@@ -1,7 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getUnresolvedFields, filterAiProposal, isGovernedProposal } from "../engine/aiEnrichment";
 import { AI_ELIGIBLE_FIELDS } from "../engine/aiEligibility";
 import type { CandidateData } from "../engine/types";
+
+// Slice A: mock the supabase client so we can capture invoke bodies and
+// stub AI responses for section-aware scoping tests.
+const invokeMock = vi.fn();
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    functions: {
+      invoke: (...args: unknown[]) => invokeMock(...args),
+    },
+  },
+}));
 
 function makeCandidate(overrides: Record<string, unknown> = {}): CandidateData {
   return { gameId: "g1", ...overrides } as CandidateData;
@@ -368,5 +379,150 @@ describe("fetchAiProposal client gating", () => {
     const result = await fetchAiProposal({ gameId: "g1" }, 1);
     expect(result.error).toContain("observation context");
     expect(Object.keys(result.proposal)).toHaveLength(0);
+  });
+});
+
+/**
+ * Slice A — Section-aware AI scoping (Pass 1).
+ * Verifies activeSection intersects AI-eligible unresolved fields with the
+ * section's ownedFields and defensively drops out-of-section response keys.
+ */
+describe("Slice A: section-aware AI scoping", () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
+
+  // Empty candidate so all AI-eligible fields are unresolved
+  const emptyCandidate = { gameId: "g1" };
+  const baseOpts = {
+    observationText: "The play is 39 Reverse Pass from Shiny formation. Result: rush for 5.",
+    deterministicPatch: {},
+  };
+
+  it("playDetails: drops AI result, accepts offForm/offPlay/motion", async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: {
+        proposal: {
+          result: "Rush",
+          offForm: { value: "Shiny", matchType: "exact" },
+          offPlay: { value: "39 Reverse Pass", matchType: "exact" },
+          motion: { value: "Jet", matchType: "exact" },
+        },
+      },
+      error: null,
+    });
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal(emptyCandidate, 1, {
+      ...baseOpts,
+      activeSection: "playDetails",
+    });
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const body = invokeMock.mock.calls[0][1].body as { unresolvedFields: string[]; activeSection: string };
+    expect(body.activeSection).toBe("playDetails");
+    // Unresolved fields scoped to section's owned fields ∩ AI-eligible
+    for (const f of body.unresolvedFields) {
+      expect(["offForm", "offPlay", "motion"]).toContain(f);
+    }
+    expect(body.unresolvedFields).not.toContain("result");
+
+    // Defensive drop on response
+    expect(result.proposal).not.toHaveProperty("result");
+    expect(result.proposal).toHaveProperty("offForm");
+    expect(result.proposal).toHaveProperty("offPlay");
+    expect(result.proposal).toHaveProperty("motion");
+  });
+
+  it("playResults: drops AI offForm, accepts result/gainLoss", async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: {
+        proposal: {
+          offForm: { value: "Shiny", matchType: "exact" },
+          result: "Rush",
+          gainLoss: 5,
+        },
+      },
+      error: null,
+    });
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal(emptyCandidate, 1, {
+      ...baseOpts,
+      activeSection: "playResults",
+    });
+
+    const body = invokeMock.mock.calls[0][1].body as { unresolvedFields: string[]; activeSection: string };
+    expect(body.activeSection).toBe("playResults");
+    expect(body.unresolvedFields).not.toContain("offForm");
+    expect(body.unresolvedFields).not.toContain("offPlay");
+    expect(body.unresolvedFields).not.toContain("motion");
+    expect(body.unresolvedFields).toContain("result");
+    expect(body.unresolvedFields).toContain("gainLoss");
+
+    expect(result.proposal).not.toHaveProperty("offForm");
+    expect(result.proposal).toHaveProperty("result");
+    expect(result.proposal).toHaveProperty("gainLoss");
+  });
+
+  it("derived fields are never sent to AI as unresolved, regardless of section", async () => {
+    invokeMock.mockResolvedValue({ data: { proposal: {} }, error: null });
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const derived = ["offStrength", "playType", "playDir", "personnel", "motionDir"];
+
+    for (const section of ["situation", "playDetails", "playResults"] as const) {
+      invokeMock.mockClear();
+      const r = await fetchAiProposal(emptyCandidate, 1, { ...baseOpts, activeSection: section });
+      // Section may have nothing AI-eligible (situation has no AI-eligible fields);
+      // in that case invoke is not called — assertion vacuously holds.
+      if (invokeMock.mock.calls.length === 0) {
+        expect(r.error).toBeDefined();
+        continue;
+      }
+      const body = invokeMock.mock.calls[0][1].body as { unresolvedFields: string[] };
+      for (const d of derived) {
+        expect(body.unresolvedFields).not.toContain(d);
+      }
+    }
+  });
+
+  it("preserves candidate_new governed matchType in-section", async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: {
+        proposal: {
+          offForm: { value: "Purple", matchType: "candidate_new" },
+        },
+      },
+      error: null,
+    });
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal(emptyCandidate, 1, {
+      ...baseOpts,
+      activeSection: "playDetails",
+    });
+    expect(result.proposal.offForm).toEqual({ value: "Purple", matchType: "candidate_new" });
+  });
+
+  it("omitting activeSection preserves legacy cross-section behavior", async () => {
+    invokeMock.mockResolvedValueOnce({
+      data: {
+        proposal: {
+          result: "Rush",
+          offForm: { value: "Shiny", matchType: "exact" },
+        },
+      },
+      error: null,
+    });
+    const { fetchAiProposal } = await import("../engine/aiEnrichClient");
+    const result = await fetchAiProposal(emptyCandidate, 1, baseOpts);
+
+    const body = invokeMock.mock.calls[0][1].body as {
+      unresolvedFields: string[];
+      activeSection?: string;
+    };
+    expect(body.activeSection).toBeUndefined();
+    // Both fields are AI-eligible; without section gate, both pass through
+    expect(body.unresolvedFields).toContain("result");
+    expect(body.unresolvedFields).toContain("offForm");
+    expect(result.proposal).toHaveProperty("result");
+    expect(result.proposal).toHaveProperty("offForm");
   });
 });
