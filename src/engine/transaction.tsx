@@ -242,6 +242,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Phase 5C: TD correction dialog state
   const [tdCorrectionPending, setTdCorrectionPending] = useState<{ correctedResult: string; normalizedPlay: PlayRecord; existingSlot: PlayRecord | null } | null>(null);
+
+  // Tracks intent to advance to next slot after a deferred commit (overwrite-review or TD correction).
+  // Cleared when the deferred flow resolves, or when the user cancels.
+  const pendingAdvanceAfterCommitRef = useRef<{ fromSlotNum: number; activePass: number } | null>(null);
   
   // Adjustment tracking: coach-facing messages for review normalization
   const [adjustments, setAdjustments] = useState<string[]>([]);
