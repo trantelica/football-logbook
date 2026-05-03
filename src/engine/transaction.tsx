@@ -1312,10 +1312,19 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     const plays = await getPlaysByGame(gameId);
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
     clearDraft();
+
+    // Resume "Commit & Next" navigation if it was interrupted by overwrite review.
+    const pending = pendingAdvanceAfterCommitRef.current;
+    if (pending) {
+      pendingAdvanceAfterCommitRef.current = null;
+      await advanceToNextFilteredSlot(pending.fromSlotNum, pending.activePass);
+    }
     return true;
-  }, [pendingNormalized, existingPlay, gameId, clearDraft, isSlotMode, selectedSlotNum, slotMetaMap]);
+  }, [pendingNormalized, existingPlay, gameId, clearDraft, isSlotMode, selectedSlotNum, slotMetaMap, advanceToNextFilteredSlot]);
 
   const cancelOverwrite = useCallback(() => {
+    // User backed out of overwrite — drop pending advance intent.
+    pendingAdvanceAfterCommitRef.current = null;
     setState("proposal");
     setExistingPlay(null);
     setPendingNormalized(null);
