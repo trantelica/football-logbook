@@ -136,6 +136,13 @@ export async function fetchAiProposal(
      * back to canonical pos* field names before returning.
      */
     positionAliases?: PositionAliasMap | Record<string, string>;
+    /**
+     * Slice A: Active Pass 1 section. When provided, restricts AI-eligible
+     * unresolved fields to this section's `ownedFields` and defensively
+     * drops out-of-section keys from the AI response.
+     * Omit (e.g. cross-section "Suggest Fills") to preserve legacy behavior.
+     */
+    activeSection?: SectionId;
   },
 ): Promise<{ proposal: Record<string, unknown>; error?: string }> {
   // Gate: no observation text = no AI call
