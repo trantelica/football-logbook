@@ -1150,33 +1150,41 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 <div className="pt-1 border-t border-border/40">{proposalActions}</div>
               ) : null}
               <div className="flex flex-wrap gap-2 pt-2 border-t border-border/40">
-                {isProposal && (
+                {isProposal ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1"
+                      onClick={backToEdit}
+                      title="Return proposal to editable candidate mode"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Back to Edit
+                    </Button>
+                    <Button size="sm" className="h-8 gap-1" onClick={() => void handleCommitAndNext()}>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                      Commit & Next
+                      <kbd className="kbd ml-1">N</kbd>
+                    </Button>
+                    <Button size="sm" variant="secondary" className="h-8 gap-1" onClick={handleCommitAndLeave}>
+                      <LogOut className="h-3.5 w-3.5" />
+                      Commit & Leave
+                      <kbd className="kbd ml-1">L</kbd>
+                    </Button>
+                  </>
+                ) : (
                   <Button
                     size="sm"
-                    variant="outline"
                     className="h-8 gap-1"
-                    onClick={backToEdit}
-                    title="Return proposal to editable candidate mode"
+                    onClick={() => void finishDictationEntry()}
+                    title="Assemble unified proposal from section text for review"
                   >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Back to Edit
+                    <Flag className="h-3.5 w-3.5" />
+                    Review Proposal
+                    <kbd className="kbd ml-1">F</kbd>
                   </Button>
                 )}
-                <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => void finishDictationEntry()}>
-                  <Flag className="h-3.5 w-3.5" />
-                  Finish dictation entry
-                  <kbd className="kbd ml-1">F</kbd>
-                </Button>
-                <Button size="sm" className="h-8 gap-1" onClick={() => void handleCommitAndNext()}>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                  Commit & Next
-                  <kbd className="kbd ml-1">N</kbd>
-                </Button>
-                <Button size="sm" variant="secondary" className="h-8 gap-1" onClick={handleCommitAndLeave}>
-                  <LogOut className="h-3.5 w-3.5" />
-                  Commit & Leave
-                  <kbd className="kbd ml-1">L</kbd>
-                </Button>
               </div>
             </div>
           </div>
