@@ -241,7 +241,7 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
                 name: "suggest_fields",
                 description:
                   "Return suggested values for unresolved play fields based on the coach's observation. Omit any field you cannot confidently infer.",
-                parameters: buildSuggestFieldsSchema(unresolvedFields, fieldHints ?? {}),
+                parameters: buildSuggestFieldsSchema(unresolvedFields, fieldHints ?? {}, suspectList),
               },
             },
           ],
