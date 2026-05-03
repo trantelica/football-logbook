@@ -698,5 +698,28 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).toContain("PLAY Door Open");
     });
   });
+
+  describe("Pass 1 natural-language Play Details / Play Results cues", () => {
+    it("rewrites 'run the X Tunnel' (no explicit 'play' word) → PLAY anchor", () => {
+      const out = normalizeTranscriptForParse("and run the X Tunnel");
+      expect(out).toContain("PLAY X Tunnel");
+    });
+    it("does not eat 'run the ball' as a PLAY cue", () => {
+      const out = normalizeTranscriptForParse("we run the ball");
+      expect(out).not.toContain("PLAY");
+    });
+    it("rewrites 'pass goes to number 17' → RECEIVER 17", () => {
+      const out = normalizeTranscriptForParse("the pass goes to number 17");
+      expect(out).toContain("RECEIVER 17");
+    });
+    it("rewrites 'passes to number 17' → RECEIVER 17", () => {
+      const out = normalizeTranscriptForParse("passes to number 17");
+      expect(out).toContain("RECEIVER 17");
+    });
+    it("rewrites 'thrown by number zero' → PASSER 0", () => {
+      const out = normalizeTranscriptForParse("thrown by number zero");
+      expect(out).toContain("PASSER 0");
+    });
+  });
 });
 
