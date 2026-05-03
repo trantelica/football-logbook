@@ -215,6 +215,8 @@ export async function fetchAiProposal(
       // Inform AI of coach-friendly position tokens; AI must still emit
       // canonical pos* field keys, but may reference aliases in reasoning.
       positionAliases,
+      // Slice A: section context for prompt scoping (additive; old function ignores).
+      activeSection: opts?.activeSection,
     },
   });
 
@@ -231,5 +233,15 @@ export async function fetchAiProposal(
   // pos* keys so downstream proposal/commit only ever sees canonical names.
   const rawProposal = (data?.proposal ?? {}) as Record<string, unknown>;
   const { patch: normalized } = normalizePatchKeysToCanonical(rawProposal, positionAliases);
+
+  // Slice A: defensive section drop. Even if the edge function returns
+  // a key outside the active section's owned fields, drop it before it
+  // can enter proposal/collision/governance.
+  if (sectionOwnedSet) {
+    for (const k of Object.keys(normalized)) {
+      if (!sectionOwnedSet.has(k)) delete normalized[k];
+    }
+  }
+
   return { proposal: normalized };
 }
