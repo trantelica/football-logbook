@@ -973,6 +973,9 @@ export function DraftPanel() {
   };
 
   /** Trigger AI enrichment for remaining eligible fields */
+  // Slice A note: this cross-section "Suggest Fills" trigger is not bound to
+  // a single Pass 1 section; activeSection is intentionally omitted so the
+  // call retains its legacy cross-section behavior.
   const handleAiSuggestFills = async () => {
     setIsAiEnriching(true);
     try {
