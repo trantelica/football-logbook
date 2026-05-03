@@ -199,7 +199,13 @@ For NON-governed fields (no governedValues in hints), return a plain value (stri
 ${locationInstructions}${sectionInstruction}
 
 Field hints (types, allowed/governed values, phraseology):
-${JSON.stringify(fieldHints ?? {}, null, 2)}`;
+${JSON.stringify(fieldHints ?? {}, null, 2)}
+${suspectList.length > 0 ? `
+Parser suspicion (Slice D1): The deterministic parser produced potentially-wrong values for these governed fields: ${JSON.stringify(suspectList)}. You MAY include a top-level "corrections" object with proposed replacements ONLY for those fields. Each correction must use the same { value, matchType } shape as governed proposals. OMIT a correction unless the coach's observation strongly contradicts the parser value. Do NOT propose a correction equal to the parser value.
+
+Suspicion evidence:
+${JSON.stringify(suspicionEvidence ?? {}, null, 2)}
+` : ""}`;
 
     const userPrompt = `Coach's observation:
 "${observationText.trim()}"
