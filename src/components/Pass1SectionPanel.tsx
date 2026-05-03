@@ -65,6 +65,7 @@ import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "@/engine/governedValueNormalize";
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { scanKnownLookups } from "@/engine/lookupScanner";
+import { detectParserSuspicion } from "@/engine/parserSuspicion";
 import { playSchema } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
 
