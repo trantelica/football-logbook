@@ -709,6 +709,30 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           });
         }
 
+        // Stale-provenance cleanup: when a system patch supplies a real value
+        // for a field that was previously predicted or carried-forward, the
+        // new source (parse/AI) replaces that prior provenance. Otherwise the
+        // UI shows both badges (e.g. "Pred" + "Parse") which misrepresents the
+        // current source of truth.
+        if (newFields.size > 0) {
+          setPredictedFields((prev) => {
+            let changed = false;
+            const next = new Set(prev);
+            for (const f of newFields) {
+              if (next.has(f)) { next.delete(f); changed = true; }
+            }
+            return changed ? next : prev;
+          });
+          setCarriedForwardFields((prev) => {
+            let changed = false;
+            const next = new Set(prev);
+            for (const f of newFields) {
+              if (next.has(f)) { next.delete(f); changed = true; }
+            }
+            return changed ? next : prev;
+          });
+        }
+
         // Route to correct provenance set based on source
         if (source === "deterministic_parse") {
           setDeterministicParseFields((prev) => {

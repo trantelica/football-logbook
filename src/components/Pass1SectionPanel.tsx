@@ -384,7 +384,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
    */
   const CLARIFICATION_FIELDS_BY_SECTION: Record<SectionId, readonly string[]> = React.useMemo(
     () => ({
-      situation: ["dn", "dist", "yardLn", "hash"],
+      // hash is optional — do not raise clarification when it is the only
+      // missing field in an otherwise valid Situation parse.
+      situation: ["dn", "dist", "yardLn"],
       playDetails: ["offForm", "motion", "offPlay"],
       playResults: ["result", "gainLoss"],
     }),
