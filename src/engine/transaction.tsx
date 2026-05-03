@@ -1598,11 +1598,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     setTdCorrectionPending(null);
     setState("proposal");
+    // TD correction returns to proposal review — the coach must click commit again.
+    // Drop any pending Commit-&-Next intent so we don't auto-advance unexpectedly.
+    pendingAdvanceAfterCommitRef.current = null;
     return true;
   }, [tdCorrectionPending, candidate]);
 
   const cancelTDCorrection = useCallback(() => {
     setTdCorrectionPending(null);
+    pendingAdvanceAfterCommitRef.current = null;
   }, []);
 
   // Phase 6: PAT attempt selection (combined try + outcome)
