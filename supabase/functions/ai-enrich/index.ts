@@ -96,6 +96,8 @@ Deno.serve(async (req) => {
       fieldHints,
       locationMapping,
       activeSection,
+      suspectFields,
+      suspicionEvidence,
     } = await req.json();
 
     if (
