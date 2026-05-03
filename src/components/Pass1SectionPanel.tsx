@@ -310,7 +310,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     // we need the merged value synchronously to seed the next section.
     const liveSnapshot = recording.text;
     const interimSnapshot = recording.interim;
-    if (recording.listening) recording.stopListening();
+    // Discard interim — we've already merged it synchronously into `merged`
+    // below; letting the hook flush it asynchronously would re-inject the
+    // previous section's tail into recording.text and leak it into the next
+    // dictation target before recording.clear() takes effect.
+    if (recording.listening) recording.stopListening({ discardInterim: true });
     let updatedText: string | null = null;
     if (id) {
       // Compose: persistedBase + finalizedLive + interim (if any).

@@ -512,6 +512,17 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // with the bare word "play".
   [/\b(?:we\s+)?(?:run|ran|running)\s+the\s+play\b/gi, "PLAY"],
 
+  // "(we )?run the X" without an explicit "play" word, e.g.
+  //   "and run the X Tunnel"  → "PLAY X Tunnel"
+  //   "we ran the Door Open"  → "PLAY Door Open"
+  // Narrow safeguards:
+  //   - Negative lookahead skips "play"  (handled by the rule above)
+  //   - Negative lookahead skips "ball"  ("run the ball" is generic narration)
+  //   - Negative lookahead skips "clock" ("run the clock" is game-state)
+  // Coach lookup governance will surface a modal if the captured value is
+  // not canonical, so a few false positives are recoverable.
+  [/\b(?:we\s+)?(?:run|ran|running)\s+the\s+(?!play\b|ball\b|clock\b)/gi, "PLAY "],
+
 ];
 
 /**
@@ -594,6 +605,9 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
   [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // "passes to N" / "the pass goes to N" / "pass is to N" / "the pass is to N"
+  [/\b(?:the\s+)?pass(?:es)?\s+(?:goes|going|is|was)\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  [/\bpasses\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   // Sentence-leading "to number N" / "to #N" cue. Narrow: requires the
   // explicit "number" or "#" prefix so this does NOT match plain "to N"
   // (which would collide with phrases like "5 to go" or "ball to the 30").
