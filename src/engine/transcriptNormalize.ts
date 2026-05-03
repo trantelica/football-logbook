@@ -134,10 +134,19 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // "formation is <Name>" / "the formation is <Name>"
   [/\b(?:the\s+)?formation\s+is\s+([A-Za-z0-9][A-Za-z0-9-]*(?:\s+[A-Za-z0-9][A-Za-z0-9-]*){0,2})\b/gi,
     (_m, name: string) => ` FORM ${name}`],
-  // "we are in <Name> formation" / "in <Name> formation" /
-  // "out of <Name> formation" / "from <Name> formation" / "<Name> formation"
-  // The leading-cue group is optional so a bare "<Name> formation" also matches.
-  [/(?:^|\s)(?:we\s+are\s+(?:in|running)|we're\s+(?:in|running)|are\s+(?:in|running)|in|out\s+of|from)?\s*([A-Za-z0-9][A-Za-z0-9-]*(?:\s+[A-Za-z0-9][A-Za-z0-9-]*){0,2})\s+formation\b/gi,
+  // Cue-led formation: leading cue is REQUIRED. Captures the name AFTER the cue
+  // so tokens like "from", "in", "out of", "pass", "the" cannot be absorbed
+  // into the formation name.
+  //   "from Shiny formation"           → FORM Shiny
+  //   "in Purple formation"            → FORM Purple
+  //   "out of Trips Right formation"   → FORM Trips Right
+  //   "we are in Gun Doubles formation"→ FORM Gun Doubles
+  [/\b(?:we\s+are\s+(?:in|running)|we're\s+(?:in|running)|are\s+(?:in|running)|in|out\s+of|from)\s+([A-Za-z0-9][A-Za-z0-9-]*(?:\s+[A-Za-z0-9][A-Za-z0-9-]*){0,2})\s+formation\b/gi,
+    (_m, name: string) => ` FORM ${name}`],
+  // Bare "<Name> formation" without a cue. Forbid common cue/connector tokens
+  // (from, in, out, of, the, pass) inside the captured name so phrases like
+  // "Pass from Shiny formation" are not mis-captured as "Pass From Shiny".
+  [/(?:^|\s)((?!(?:from|in|out|of|the|pass)\b)[A-Za-z0-9][A-Za-z0-9-]*(?:\s+(?!(?:from|in|out|of|the|pass)\b)[A-Za-z0-9][A-Za-z0-9-]*){0,2})\s+formation\b/gi,
     (_m, name: string) => ` FORM ${name}`],
 
   // Fallback: bare "formation" (no surrounding cue) → in-place FORM anchor.
