@@ -298,6 +298,7 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
     const unresolvedSet = new Set(unresolvedFields);
     const filtered: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(proposal)) {
+      if (k === "corrections") continue; // Slice D1: extracted separately below
       if (!unresolvedSet.has(k)) continue;
       // Governed field shape: { value: "...", matchType: "..." } — pass through as-is
       if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
@@ -311,8 +312,33 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
       }
     }
 
+    // Slice D1: extract corrections (defensive: only fields in suspectList).
+    let correctionsOut: Record<string, unknown> | undefined;
+    if (suspectList.length > 0) {
+      const rawCorr = (proposal as Record<string, unknown>).corrections;
+      if (rawCorr && typeof rawCorr === "object" && !Array.isArray(rawCorr)) {
+        const suspectSet = new Set(suspectList);
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(rawCorr as Record<string, unknown>)) {
+          if (!suspectSet.has(k)) continue;
+          if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+          const obj = v as Record<string, unknown>;
+          const val = obj.value;
+          const mt = obj.matchType;
+          if (typeof val !== "string" || !val.trim()) continue;
+          if (mt !== "exact" && mt !== "fuzzy" && mt !== "candidate_new") continue;
+          out[k] = {
+            value: val,
+            matchType: mt,
+            ...(typeof obj.reasonCode === "string" ? { reasonCode: obj.reasonCode } : {}),
+          };
+        }
+        if (Object.keys(out).length > 0) correctionsOut = out;
+      }
+    }
+
     return new Response(
-      JSON.stringify({ proposal: filtered }),
+      JSON.stringify(correctionsOut ? { proposal: filtered, corrections: correctionsOut } : { proposal: filtered }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
