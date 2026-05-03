@@ -95,6 +95,7 @@ Deno.serve(async (req) => {
       unresolvedFields,
       fieldHints,
       locationMapping,
+      activeSection,
     } = await req.json();
 
     if (
