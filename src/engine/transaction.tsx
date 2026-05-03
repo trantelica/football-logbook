@@ -230,6 +230,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   const [state, setState] = useState<TransactionState>("idle");
   const [candidate, setCandidate] = useState<CandidateData>(emptyCandidate(gameId));
+  // Mirror of candidate in a ref so synchronous callers (governance rebuild
+  // invoked across multiple section updates within a single tick) see the
+  // freshly-applied patches rather than a stale React closure snapshot.
+  const candidateRef = useRef<CandidateData>(candidate);
+  useEffect(() => { candidateRef.current = candidate; }, [candidate]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
   const [inlineErrors, setInlineErrors] = useState<ValidationErrors>({});
   const [commitErrors, setCommitErrors] = useState<ValidationErrors>({});
@@ -391,15 +396,36 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   );
   const rebuildLookupGovernanceQueue = useCallback(
     (candidateOverride?: Record<string, unknown>) => {
-      if (lookupGovernanceState.pending || lookupAppendInProgress) {
+      if (lookupAppendInProgress) {
         return !!lookupGovernanceState.pending || lookupGovernanceState.queue.length > 0;
       }
-      const snapshot = candidateOverride ?? (candidate as Record<string, unknown>);
-      const nextQueue = buildLookupGovernanceQueue(snapshot, getLookupMap(), aiProposedFields);
-      setLookupGovernanceState({ queue: nextQueue, pending: nextQueue[0] ?? null });
-      return nextQueue.length > 0;
+      // Prefer the explicit override; otherwise read the live ref so that
+      // sequential per-section calls within one tick see the latest applied
+      // patches (React state from prior setCandidate hasn't flushed yet).
+      const snapshot =
+        candidateOverride ?? (candidateRef.current as Record<string, unknown>);
+      const freshQueue = buildLookupGovernanceQueue(snapshot, getLookupMap(), aiProposedFields);
+      setLookupGovernanceState((prev) => {
+        // Merge: keep any already-pending item, append any new governed items
+        // not already represented in the existing queue. This preserves
+        // governance opened earlier in the same finishDictationEntry sweep
+        // while still surfacing newly-introduced unknowns.
+        const seen = new Set<string>();
+        const merged: LookupGovernanceItem[] = [];
+        const push = (item: LookupGovernanceItem) => {
+          const key = `${item.fieldName}::${item.value.toLowerCase()}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged.push(item);
+        };
+        if (prev.pending) push(prev.pending);
+        for (const it of prev.queue) push(it);
+        for (const it of freshQueue) push(it);
+        return { queue: merged, pending: merged[0] ?? null };
+      });
+      return freshQueue.length > 0 || !!lookupGovernanceState.pending || lookupGovernanceState.queue.length > 0;
     },
-    [lookupGovernanceState, lookupAppendInProgress, candidate, getLookupMap, aiProposedFields],
+    [lookupGovernanceState, lookupAppendInProgress, getLookupMap, aiProposedFields],
   );
   const advanceLookupGovernanceQueue = useCallback(() => {
     setLookupGovernanceState((prev) => {
