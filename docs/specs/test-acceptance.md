@@ -733,6 +733,9 @@ Do not rename canonical fields.
 | TEST-004 | Need Pass 2 seeding regression test | High priority |
 | TEST-005 | Need off-roster preservation regression test | High priority |
 | TEST-006 | Need Pass 3 `Y1` and `go to` regression tests | Medium/high priority |
+| TEST-007 | Need deterministic tests for AI crosscheck using mocked AI output | Add before implementation where practical |
+| TEST-008 | Need fixtures for section-aware lookup scanning | Add exact-match and section-scope tests |
+| TEST-009 | Need regression case for "39 Reverse Pass from Shiny formation" | Add as parser/AI crosscheck fixture |
 
 ---
 
