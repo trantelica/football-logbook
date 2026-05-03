@@ -735,12 +735,51 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             correctionPatch[k] = { value: c.value, matchType: c.matchType };
           }
           if (Object.keys(correctionPatch).length > 0) {
-            const correctionCollisions = requestAiEnrichment(correctionPatch);
-            if (correctionCollisions.length > 0) {
-              const labels = correctionCollisions
-                .map((c) => FIELD_LABELS[c.fieldName] ?? c.fieldName)
+            // Build display-only collision rows for the existing dialog.
+            // We do NOT call requestAiEnrichment (which is fillOnly and would
+            // discard collisions silently). Instead, surface every correction
+            // as a row tagged source:"ai_correction" so the coach can choose
+            // which to apply. Selected rows are committed to the proposal via
+            // applySystemPatch (fillOnly:false, source:"ai_proposed"), keeping
+            // governance/candidate_new behavior intact.
+            const correctionRows: Collision[] = [];
+            const candidateMap = candidate as Record<string, unknown>;
+            for (const [k, c] of Object.entries(corrections)) {
+              if (!ownedSet.has(k)) continue;
+              if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
+              correctionRows.push({
+                fieldName: k,
+                currentValue: candidateMap[k] ?? null,
+                proposedValue: c.value,
+                source: "ai_correction",
+                note: "AI suggests this fits the transcript better.",
+              });
+            }
+            if (correctionRows.length > 0) {
+              const labels = correctionRows
+                .map((r) => FIELD_LABELS[r.fieldName] ?? r.fieldName)
                 .join(", ");
-              toast.info(`${section.title}: AI suggested correction for ${labels} (review).`);
+              toast.info(`${section.title}: AI suggested correction for ${labels} — review suggested updates.`);
+              setOverwriteState({
+                section: id,
+                collisions: correctionRows,
+                onConfirm: (selectedFields) => {
+                  const accepted: Record<string, unknown> = {};
+                  for (const k of Object.keys(correctionPatch)) {
+                    if (selectedFields.has(k)) accepted[k] = correctionPatch[k];
+                  }
+                  if (Object.keys(accepted).length > 0) {
+                    // fillOnly:false so the correction overwrites the parser
+                    // value on the proposal. Governance still fires for
+                    // candidate_new via applySystemPatch's normal path.
+                    applySystemPatch(accepted, {
+                      fillOnly: false,
+                      source: "ai_proposed",
+                    });
+                  }
+                  setOverwriteState(null);
+                },
+              });
             }
           }
         }
