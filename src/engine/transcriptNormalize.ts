@@ -512,6 +512,17 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // with the bare word "play".
   [/\b(?:we\s+)?(?:run|ran|running)\s+the\s+play\b/gi, "PLAY"],
 
+  // "(we )?run the X" without an explicit "play" word, e.g.
+  //   "and run the X Tunnel"  → "PLAY X Tunnel"
+  //   "we ran the Door Open"  → "PLAY Door Open"
+  // Narrow safeguards:
+  //   - Negative lookahead skips "play"  (handled by the rule above)
+  //   - Negative lookahead skips "ball"  ("run the ball" is generic narration)
+  //   - Negative lookahead skips "clock" ("run the clock" is game-state)
+  // Coach lookup governance will surface a modal if the captured value is
+  // not canonical, so a few false positives are recoverable.
+  [/\b(?:we\s+)?(?:run|ran|running)\s+the\s+(?!play\b|ball\b|clock\b)/gi, "PLAY "],
+
 ];
 
 /**
