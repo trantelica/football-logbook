@@ -163,7 +163,7 @@ For these fields, follow this priority cascade:
 4. If uncertain, OMIT the field entirely.
 
 For NON-governed fields (no governedValues in hints), return a plain value (string or number).
-${locationInstructions}
+${locationInstructions}${sectionInstruction}
 
 Field hints (types, allowed/governed values, phraseology):
 ${JSON.stringify(fieldHints ?? {}, null, 2)}`;
