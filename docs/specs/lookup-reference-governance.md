@@ -763,6 +763,17 @@ The system passes if:
 4. aliases do not create schema keys
 5. display changes do not mutate committed rows
 
+### 21.5 Season Scoping
+
+The system passes if:
+
+1. Creating a new session within an existing season reuses that season's lookup/reference store (formations, plays, motions, synonyms, roster).
+2. Creating a new season starts with an empty lookup/reference store, or one explicitly initialized by the coach.
+3. Prior-season canonical values, synonyms, and roster jerseys do not resolve in the new season unless explicitly imported.
+4. Importing prior-season lookup/reference data into a new season is an explicit, reviewable, coach-initiated action.
+5. Import into the destination season produces audit events and does not mutate the source season's store.
+6. Session metadata records the active season lookup store identity and version used during the session.
+
 ---
 
 ## 22. Open Issues / Review Items
