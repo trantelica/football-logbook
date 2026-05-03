@@ -166,7 +166,7 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     }
   }, []);
 
-  const stopListening = useCallback(() => {
+  const stopListening = useCallback((opts?: { discardInterim?: boolean }) => {
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     if (recognition) {
@@ -179,6 +179,14 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       try { recognition.abort(); } catch { /* ignore */ }
     }
     setListening(false);
+    if (opts?.discardInterim) {
+      // Caller has already snapshotted any in-flight interim and merged it
+      // into its own destination buffer. Drop interim WITHOUT flushing it
+      // back into `text` — otherwise the flushed text would race against the
+      // caller's subsequent clear() and leak into the next dictation target.
+      setInterim("");
+      return;
+    }
     // Flush remaining interim to text
     setInterim((prev) => {
       if (prev.trim()) {
