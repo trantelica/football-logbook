@@ -246,6 +246,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   // Tracks intent to advance to next slot after a deferred commit (overwrite-review or TD correction).
   // Cleared when the deferred flow resolves, or when the user cancels.
   const pendingAdvanceAfterCommitRef = useRef<{ fromSlotNum: number; activePass: number } | null>(null);
+  // Forward ref for advanceToNextFilteredSlot — defined later but referenced earlier in confirm handlers.
+  const advanceToNextFilteredSlotRef = useRef<((fromSlotNum: number, fromActivePass: number) => Promise<{ hasNext: boolean }>) | null>(null);
   
   // Adjustment tracking: coach-facing messages for review normalization
   const [adjustments, setAdjustments] = useState<string[]>([]);
