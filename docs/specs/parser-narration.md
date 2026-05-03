@@ -862,6 +862,264 @@ Implementation should inspect and decide:
 
 ---
 
+### 17A.14 Pass 2 and Pass 3 AI Interpretation Scope
+
+AI-assisted interpretation applies to all narrated passes, but the scope narrows by pass.
+
+The system must remain section- and pass-aware:
+
+```text
+Pass 1 = play metadata, outcome, actors, governed playbook values
+Pass 2 = personnel assignment only
+Pass 3 = blocking grades only
+```
+
+AI must not use Pass 2 or Pass 3 narration to mutate Pass 1 fields unless an explicit cross-pass correction flow exists.
+
+#### 17A.14.1 Pass 2 AI-Assisted Personnel Interpretation
+
+Pass 2 narration is primarily structured personnel assignment.
+
+AI may assist with:
+
+- recognizing position aliases
+- resolving spoken slot labels to canonical personnel fields
+- handling speech-to-text errors in position names
+- preserving jersey-to-slot assignment context
+- identifying ambiguity before proposal
+- detecting off-roster jersey references without losing assignment context
+
+Canonical Pass 2 fields:
+
+```text
+posLT, posLG, posC, posRG, posRT, posY, posX, pos1, pos2, pos3, pos4
+```
+
+Examples AI may help interpret:
+
+```text
+LT is 72, left guard is 55, center is 60
+Y is 84, X is 11, one is 3, two is 4
+Z is 11
+```
+
+If aliases exist, AI should respect the active season alias map.
+
+Example:
+
+```text
+Z is 11
+```
+
+If season alias says:
+
+```text
+Z → 1
+```
+
+Then proposal should use:
+
+```text
+pos1 = 11
+```
+
+Not:
+
+```text
+posZ
+```
+
+because `posZ` is not a canonical field.
+
+Pass 2 AI must not:
+
+- create new personnel slot fields
+- change Pass 1 play metadata
+- silently add roster players
+- silently resolve duplicate jerseys
+- rewrite committed personnel
+- change export labels
+
+Off-roster handling:
+
+If AI or parser detects:
+
+```text
+Y is 84
+```
+
+and #84 is not on the roster, the proposal should preserve:
+
+```text
+posY = 84
+```
+
+and surface the off-roster workflow.
+
+It must not drop the assignment because the player is off-roster.
+
+#### 17A.14.2 Pass 2 AI Crosscheck Examples
+
+AI may challenge suspicious parser output.
+
+Example:
+
+```text
+left tackle is seventy two, left guard is fifty five
+```
+
+If parser produces:
+
+```text
+posLT = 72
+posLG = null
+```
+
+AI may propose:
+
+```text
+posLG = 55
+```
+
+Example speech-to-text issue:
+
+```text
+why is eighty four
+```
+
+In Pass 2 context, if the section is personnel assignment, AI may interpret this as:
+
+```text
+Y is 84
+```
+
+But only as proposal evidence, not committed data.
+
+#### 17A.14.3 Pass 3 AI-Assisted Grade Interpretation
+
+Pass 3 narration is primarily blocking-grade assignment.
+
+AI may assist with:
+
+- mapping spoken blocker labels to canonical grade fields
+- interpreting grade language
+- handling speech-to-text errors
+- recognizing compact grade tokens
+- identifying ambiguity before proposal
+
+Canonical Pass 3 fields:
+
+```text
+gradeLT, gradeLG, gradeC, gradeRG, gradeRT, gradeX, gradeY, grade1, grade2, grade3, grade4
+```
+
+Allowed grade values:
+
+```text
+-3, -2, -1, 0, 1, 2, 3
+```
+
+Examples AI may help interpret:
+
+```text
+LT plus one
+left guard minus one
+center zero
+Y got a one
+X got negative two
+one got a three
+Y1
+LT2
+RG minus two
+```
+
+Pass 3 AI must not:
+
+- update Pass 1 play metadata
+- update Pass 2 personnel assignments
+- create non-canonical grade fields
+- accept out-of-range grades without validation
+- silently overwrite committed grades
+- infer grades from vague praise without explicit grade evidence
+
+Example of insufficient evidence:
+
+```text
+Y had a good block
+```
+
+Expected:
+
+```text
+do not set gradeY silently
+```
+
+Example of clear evidence:
+
+```text
+Y got a one
+```
+
+Expected:
+
+```text
+gradeY = 1
+```
+
+#### 17A.14.4 Pass 3 Speech-to-Text Confusion Context
+
+AI should know common Pass 3 dictation problems:
+
+| Intended | Possible STT Output |
+|---|---|
+| Y got a one | Y go to one |
+| X got a negative two | X got negative too |
+| LT plus one | LT plus won |
+| center zero | center 0 |
+| right guard minus one | right guard -1 |
+| Y1 | why one |
+
+AI may use these as interpretation hints only in Pass 3 grading context.
+
+The phrase:
+
+```text
+Y go to one
+```
+
+may normalize to:
+
+```text
+gradeY = 1
+```
+
+in Pass 3.
+
+The same phrase should not affect Pass 1 or Pass 2.
+
+#### 17A.14.5 Pass 2 / Pass 3 AI Output Must Use Same Governance Model
+
+AI output in Pass 2 and Pass 3 remains proposal evidence only.
+
+It must flow through:
+
+```text
+candidate → proposal → validate → commit
+```
+
+Rules:
+
+- AI may propose personnel or grade values.
+- AI may challenge parser assignments.
+- AI must not commit.
+- AI must not silently overwrite committed fields.
+- AI must not create schema keys.
+- AI must respect pass boundaries.
+- AI must preserve provenance where useful.
+- AI must use collision/overwrite review for non-empty conflicting fields.
+
+---
+
 ## 18. Guided Session Narration
 
 North-star flow:
