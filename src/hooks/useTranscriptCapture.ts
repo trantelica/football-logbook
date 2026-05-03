@@ -59,8 +59,10 @@ export interface TranscriptCaptureState {
   appendText: (addition: string) => void;
   /** Start speech recognition */
   startListening: () => void;
-  /** Stop speech recognition */
-  stopListening: () => void;
+  /** Stop speech recognition. Pass { discardInterim: true } to skip flushing
+   *  interim into text — used when the caller has already snapshotted the
+   *  in-flight interim and is about to switch the recording target. */
+  stopListening: (opts?: { discardInterim?: boolean }) => void;
   /** Toggle listening on/off */
   toggleListening: () => void;
   /** Clear all captured transcript */
