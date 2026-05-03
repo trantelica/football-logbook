@@ -605,6 +605,9 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "(pass was) thrown to N" / "throw to N" / "to number N" (after "thrown"/"pass to")
   [/\b(?:pass(?:\s+was)?\s+)?thrown\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   [/\bpass(?:\s+was)?\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  // "passes to N" / "the pass goes to N" / "pass is to N" / "the pass is to N"
+  [/\b(?:the\s+)?pass(?:es)?\s+(?:goes|going|is|was)\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
+  [/\bpasses\s+to\s+(?:#|number\s+)?(\d+)/gi, "RECEIVER $1"],
   // Sentence-leading "to number N" / "to #N" cue. Narrow: requires the
   // explicit "number" or "#" prefix so this does NOT match plain "to N"
   // (which would collide with phrases like "5 to go" or "ball to the 30").
