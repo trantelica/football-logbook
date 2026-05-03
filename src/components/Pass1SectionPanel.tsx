@@ -518,7 +518,34 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           });
         }
 
-        // If overwrite review needed, surface scoped review BEFORE running AI for those fields.
+        // ── Step 1b: Section-aware known lookup scanner (Slice B) ──
+        // Narrow guardrail: only known canonical lookup values for fields
+        // owned by this section. Scanner cannot invent values, cannot fuzzy
+        // match, cannot bypass governance, and cannot write derived fields.
+        // Parser-explicit values win — skip any field already in scopedParsePatch
+        // (whether it landed in fillablePatch or surfaced as a manual collision).
+        const scanResult = scanKnownLookups(normalized, lookupMapEarly, section.ownedFields);
+        const scannerFillable: Record<string, unknown> = {};
+        for (const field of Object.keys(scanResult.perField)) {
+          const hit = scanResult.perField[field as keyof typeof scanResult.perField];
+          if (!hit) continue;
+          if (field in scopedParsePatch) continue;
+          const current = (candidate as Record<string, unknown>)[field];
+          if (current !== null && current !== undefined && current !== "") continue;
+          scannerFillable[field] = hit.canonical;
+        }
+        if (Object.keys(scannerFillable).length > 0) {
+          // Reuse deterministic_parse provenance (Parse badge) — see Slice B
+          // notes: a known-canonical lookup hit is a deterministic extraction.
+          applySystemPatch(scannerFillable, {
+            fillOnly: true,
+            evidence: Object.fromEntries(
+              Object.keys(scannerFillable).map((k) => [k, { snippet: text.slice(0, 80) }]),
+            ),
+            source: "deterministic_parse",
+          });
+        }
+
         if (manualCollisions.length > 0 && !opts.allowOverwrite) {
           setOverwriteState({
             section: id,
