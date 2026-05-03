@@ -168,7 +168,17 @@ export async function fetchAiProposal(
   });
 
   // Intersect with AI-eligible field set — only Bucket B fields
-  const aiEligibleUnresolved = unresolvedFields.filter((f) => AI_ELIGIBLE_FIELDS.has(f));
+  let aiEligibleUnresolved = unresolvedFields.filter((f) => AI_ELIGIBLE_FIELDS.has(f));
+
+  // Slice A: section-aware scoping for Pass 1. When activeSection is set,
+  // further intersect with the section's ownedFields so AI cannot propose
+  // values for fields outside the active section.
+  const sectionOwnedSet = opts?.activeSection
+    ? new Set<string>(getSection(opts.activeSection).ownedFields)
+    : null;
+  if (sectionOwnedSet) {
+    aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => sectionOwnedSet.has(f));
+  }
 
   if (aiEligibleUnresolved.length === 0) {
     return { proposal: {}, error: "All AI-eligible fields are already resolved" };
