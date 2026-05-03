@@ -518,6 +518,350 @@ AI should produce candidate evidence or candidate patches, not committed rows.
 
 ---
 
+## 17A. AI-Assisted Section Interpretation and Parser Crosscheck
+
+### 17A.1 Purpose
+
+The deterministic parser should not be responsible for understanding every possible form of natural coach narration.
+
+The intended interpretation model is:
+
+```text
+raw section text
+  → speech-to-text normalization
+  → deterministic parser for hard evidence
+  → section-aware lookup scanner
+  → AI interpretation and parser crosscheck
+  → governed proposal patch
+  → validation
+  → coach review
+  → commit
+```
+
+The parser extracts high-confidence structured evidence.
+The lookup scanner identifies known governed values that appear in the correct section.
+The AI reviews the whole utterance, parser patch, section intent, and lookup evidence.
+The deterministic engine, lookup governance, and coach remain the final gates.
+
+AI is an interpreter and critic, not the source of committed truth.
+
+### 17A.2 Layer Responsibilities
+
+| Layer | Responsibility | Must Not Do |
+|---|---|---|
+| Speech-to-text normalization | Correct common dictation artifacts before parsing | Mutate coach-visible raw transcript |
+| Deterministic parser | Extract high-confidence explicit values | Pretend confidence when phrase structure is ambiguous |
+| Section lookup scanner | Detect known lookup values in section-owned fields | Apply lookup values outside section scope |
+| AI interpretation | Propose missing values, flag suspicious parser assignments, explain ambiguity | Commit, silently overwrite, silently append lookup values |
+| Lookup governance | Validate governed values and collect dependents | Invent values |
+| Coach review | Accept, correct, add, reject, or leave unresolved | Be bypassed |
+
+### 17A.3 Section Intent Awareness
+
+AI and lookup scanning must be section-aware.
+
+Each Pass 1 section has a different interpretation intent:
+
+| Section | Primary Intent | AI / Lookup Scan Focus |
+|---|---|---|
+| Situation | down, distance, yard line, hash | `dn`, `dist`, `yardLn`, `hash`; do not treat playbook words as governed values unless explicitly relevant |
+| Play Details | formation, play, motion | `offForm`, `offPlay`, `motion`; governed lookup values are highly relevant |
+| Play Results | result, gain/loss, actors, penalty | `result`, `gainLoss`, `rusher`, `passer`, `receiver`, `penalty` |
+
+Example:
+
+```text
+Trips
+```
+
+In Play Details, `Trips` may be strong evidence for `offForm` if it exists in the formation lookup.
+
+In Situation, `Trips` should not be treated as a formation candidate merely because the word appears.
+
+### 17A.4 Section-Aware Lookup Scanner
+
+Before AI interpretation, the system should scan section text for known lookup values relevant to that section.
+
+For Play Details, scan:
+
+```text
+offForm lookup values
+offPlay lookup values
+motion lookup values
+```
+
+The scanner should produce evidence, not committed data.
+
+Conceptual shape:
+
+```ts
+type SectionLookupEvidence = {
+  sectionId: "situation" | "playDetails" | "playResults";
+  fieldKey: "offForm" | "offPlay" | "motion" | "penalty";
+  matchedValue: string;
+  matchType: "exact" | "case_insensitive" | "fuzzy";
+  sourceText: string;
+  confidence: "high" | "medium" | "low";
+};
+```
+
+Lookup evidence should be passed to AI and proposal assembly.
+
+Rules:
+
+- Exact lookup matches in the correct section are strong evidence.
+- Fuzzy lookup matches may be proposed but should remain reviewable.
+- Lookup evidence must respect section ownership.
+- Lookup evidence must not silently update committed rows.
+- Unknown governed values still require lookup governance before commit validity.
+
+### 17A.5 AI Crosscheck Role
+
+AI should review the full section context, not only unresolved fields.
+
+AI should receive:
+
+```text
+section id
+section-owned fields
+raw section text
+normalized text
+deterministic parser patch
+parser evidence, if available
+section lookup evidence
+current candidate values
+currently unresolved fields
+known lookup values for governed fields
+known speech-to-text confusions
+active pass
+```
+
+AI may return:
+
+- proposals for unresolved fields
+- candidate corrections for parser-filled fields
+- warnings about suspicious parser output
+- "no evidence" findings for fields the parser or AI should not fill
+- ambiguity notes
+
+AI must not:
+
+- commit data
+- silently overwrite parser, coach, predicted, or committed values
+- silently append lookup values
+- bypass lookup governance
+- create schema keys
+- mutate committed rows
+- invent values when evidence is weak
+
+### 17A.6 Parser Challenge Behavior
+
+If deterministic parsing produces a value that appears inconsistent with the utterance, AI may challenge it.
+
+Example:
+
+```text
+The play is 39 Reverse Pass from Shiny formation.
+```
+
+Bad parser output:
+
+```text
+offPlay = "39 Reverse"
+offForm = "Pass From Shiny"
+motion = null
+```
+
+AI crosscheck should be allowed to report:
+
+```text
+offPlay appears truncated; likely intended value is "39 Reverse Pass"
+offForm appears over-captured; likely intended value is "Shiny"
+motion was not mentioned
+```
+
+AI may propose a correction patch:
+
+```json
+{
+  "corrections": {
+    "offPlay": {
+      "currentValue": "39 Reverse",
+      "proposedValue": "39 Reverse Pass",
+      "confidence": "high",
+      "reason": "Phrase 'The play is 39 Reverse Pass' directly names the play."
+    },
+    "offForm": {
+      "currentValue": "Pass From Shiny",
+      "proposedValue": "Shiny",
+      "confidence": "high",
+      "reason": "Phrase 'from Shiny formation' directly names the formation."
+    }
+  },
+  "noEvidenceFor": ["motion"]
+}
+```
+
+Correction proposals must flow through the same collision, overwrite, proposal, and lookup governance paths as any other system patch.
+
+### 17A.7 AI Output Shape
+
+Recommended AI interpretation response:
+
+```ts
+type AISectionInterpretation = {
+  proposals?: Record<string, {
+    value: unknown;
+    confidence: "high" | "medium" | "low";
+    basis: string;
+    matchType?: "exact_lookup" | "fuzzy_lookup" | "candidate_new" | "parser_supported";
+  }>;
+
+  corrections?: Record<string, {
+    currentValue: unknown;
+    proposedValue: unknown;
+    confidence: "high" | "medium" | "low";
+    reason: string;
+    basis: string;
+  }>;
+
+  warnings?: Array<{
+    fieldKey?: string;
+    severity: "info" | "warning" | "blocker";
+    message: string;
+    basis?: string;
+  }>;
+
+  noEvidenceFor?: string[];
+};
+```
+
+Only canonical field keys may appear.
+
+If the response includes governed values for `offForm`, `offPlay`, or `motion`, those values must still route through lookup governance.
+
+### 17A.8 Confidence and Merge Policy
+
+AI output should not be merged blindly.
+
+Recommended policy:
+
+| AI Finding | Merge Behavior |
+|---|---|
+| High-confidence fill for empty field | May enter proposal as AI-derived candidate |
+| Exact lookup match in section-owned field | May enter proposal as lookup-supported candidate |
+| Fuzzy lookup match | Proposal candidate with visible review |
+| Candidate new governed value | Proposal candidate, then lookup governance |
+| Correction to parser-filled empty-slot field | Collision/overwrite review if value differs |
+| Correction to coach-touched field | Must not overwrite silently |
+| Low-confidence proposal | Warning or clarification, not direct field fill |
+| No evidence for field | Suppress hallucinated fill for that field |
+
+### 17A.9 Speech-to-Text Confusion Context
+
+AI should be instructed that coach narration may include dictation artifacts.
+
+Examples:
+
+| Intended | Possible STT Output |
+|---|---|
+| first and ten | first in ten |
+| rusher | Russia |
+| passer | pastor |
+| hash | hatch or unrelated junk |
+| X | ex |
+| Y | why |
+| complete to | completed two |
+| ball carrier | bulk area / ball care |
+
+AI may use these as interpretation hints, but must still produce reviewable candidates rather than committed data.
+
+### 17A.10 Football Context
+
+AI should be told it is interpreting American football play logging, not generic prose.
+
+Minimum AI context:
+
+```text
+You are interpreting American football coach narration for a structured play log.
+The coach may dictate Situation, Play Details, and Play Results separately.
+Use only canonical field keys.
+Respect section-owned fields.
+Prefer explicit evidence and exact lookup matches.
+Flag likely parser mistakes.
+Do not commit.
+Do not add lookup values.
+Do not create schema fields.
+```
+
+Useful football assumptions:
+
+- Formation names are usually short labels, commonly 1–3 words.
+- Play names are usually short labels, commonly 1–4 words.
+- Motion names are usually short labels and often include the word "motion" or match an existing motion lookup.
+- "from X formation" usually indicates `offForm = X`.
+- "play is X," "run X," "running X," or "called X" usually indicates `offPlay = X`.
+- Do not infer motion unless motion is explicitly mentioned or matches an existing motion lookup with strong section evidence.
+
+### 17A.11 Governance Preservation
+
+AI crosscheck must preserve the governing architecture:
+
+```text
+candidate → proposal → validate → commit → audit → export
+```
+
+Rules:
+
+- AI output is candidate/proposal evidence only.
+- AI corrections must not mutate committed rows.
+- AI corrections to non-empty fields must use collision/overwrite review.
+- Governed values must route through lookup governance.
+- New lookup values must not be silently appended.
+- Coach review remains required before commit.
+- Hudl export schema must not change.
+
+### 17A.12 When to Prefer Parser vs AI
+
+Use deterministic parser when:
+
+- exact anchors exist
+- phrase is stable and low-risk
+- value is numeric or enum-simple
+- false positives can be tightly controlled
+
+Use AI interpretation when:
+
+- natural phrasing varies
+- parser output appears contradictory
+- lookup values appear in section text without clean anchors
+- phrase order is flexible
+- speech-to-text corruption is likely
+- parser fills a governed value that looks unusually long or sentence-like
+
+For governed playbook values, parser output longer than normal lookup-label shape should be treated with suspicion.
+
+Examples of suspicious governed candidates:
+
+```text
+Pass From Shiny
+The Ball Carrier
+Run The Play Door Open And
+```
+
+### 17A.13 Open Design Questions
+
+Implementation should inspect and decide:
+
+- whether AI crosscheck runs every time a section proposal is updated
+- whether AI crosscheck runs only when governed fields are missing, suspicious, or conflicting
+- how to cap token/cost use
+- how to present AI correction warnings without slowing the coach
+- how to test AI behavior deterministically where possible
+- whether AI output should be mocked in tests
+
+---
+
 ## 18. Guided Session Narration
 
 North-star flow:
@@ -700,12 +1044,16 @@ Pass 3 parser passes if:
 
 | ID | Issue | Recommendation |
 |---|---|---|
-| PN-001 | Confirm current parser support for “number three was the ball carrier” | Likely targeted patch candidate |
+| PN-001 | Confirm current parser support for "number three was the ball carrier" | Likely targeted patch candidate |
 | PN-002 | Confirm current handling of multiple unknown governed values in one narration | Keep as lookup/parser regression case |
 | PN-003 | Confirm current Pass 2 parser cannot unintentionally mutate Pass 1 fields | Inspect before further Pass 2 work |
-| PN-004 | Confirm current Pass 3 handling of “go to” vs “got a” | Likely targeted normalization patch |
+| PN-004 | Confirm current Pass 3 handling of "go to" vs "got a" | Likely targeted normalization patch |
 | PN-005 | Define how much transcript evidence is visible in normal coach UI | Defer to UX spec |
 | PN-006 | Define future AI candidate evidence shape | Defer to AI-specific implementation plan |
+| PN-007 | AI currently appears to fill unresolved fields only and may not challenge bad deterministic parser output | Inspect AI prompt and add section-aware crosscheck design |
+| PN-008 | Need section-aware lookup scanner for known values in coach text | Design before implementation |
+| PN-009 | Need merge policy for AI corrections to parser-filled fields | Use collision/overwrite + lookup governance |
+| PN-010 | Need token/cost guardrail for AI crosscheck | Run only on section update / review proposal, not every keystroke |
 
 ---
 
