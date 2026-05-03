@@ -1044,12 +1044,16 @@ Pass 3 parser passes if:
 
 | ID | Issue | Recommendation |
 |---|---|---|
-| PN-001 | Confirm current parser support for “number three was the ball carrier” | Likely targeted patch candidate |
+| PN-001 | Confirm current parser support for "number three was the ball carrier" | Likely targeted patch candidate |
 | PN-002 | Confirm current handling of multiple unknown governed values in one narration | Keep as lookup/parser regression case |
 | PN-003 | Confirm current Pass 2 parser cannot unintentionally mutate Pass 1 fields | Inspect before further Pass 2 work |
-| PN-004 | Confirm current Pass 3 handling of “go to” vs “got a” | Likely targeted normalization patch |
+| PN-004 | Confirm current Pass 3 handling of "go to" vs "got a" | Likely targeted normalization patch |
 | PN-005 | Define how much transcript evidence is visible in normal coach UI | Defer to UX spec |
 | PN-006 | Define future AI candidate evidence shape | Defer to AI-specific implementation plan |
+| PN-007 | AI currently appears to fill unresolved fields only and may not challenge bad deterministic parser output | Inspect AI prompt and add section-aware crosscheck design |
+| PN-008 | Need section-aware lookup scanner for known values in coach text | Design before implementation |
+| PN-009 | Need merge policy for AI corrections to parser-filled fields | Use collision/overwrite + lookup governance |
+| PN-010 | Need token/cost guardrail for AI crosscheck | Run only on section update / review proposal, not every keystroke |
 
 ---
 
