@@ -717,6 +717,34 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         if (Object.keys(ownedAiProposal).length > 0) {
           aiCollisions = requestAiEnrichment(ownedAiProposal);
         }
+
+        // ── Slice D1: AI parser-crosscheck corrections ──
+        // Process returned corrections separately from the base AI fill patch.
+        // requestAiEnrichment is a LOCAL proposal/collision/governance pass —
+        // it does NOT make a second AI/edge-function call. Parser-filled fields
+        // are "resolved" in transaction state, so corrections targeting them
+        // surface as collisions rather than silent overwrites. Governed values
+        // (including matchType:'candidate_new') retain the existing lookup
+        // governance interrupt path because the shape is identical.
+        const corrections = aiResult.corrections;
+        if (corrections && id === "playDetails") {
+          const correctionPatch: Record<string, unknown> = {};
+          for (const [k, c] of Object.entries(corrections)) {
+            if (!ownedSet.has(k)) continue;
+            if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
+            correctionPatch[k] = { value: c.value, matchType: c.matchType };
+          }
+          if (Object.keys(correctionPatch).length > 0) {
+            const correctionCollisions = requestAiEnrichment(correctionPatch);
+            if (correctionCollisions.length > 0) {
+              const labels = correctionCollisions
+                .map((c) => FIELD_LABELS[c.fieldName] ?? c.fieldName)
+                .join(", ");
+              toast.info(`${section.title}: AI suggested correction for ${labels} (review).`);
+            }
+          }
+        }
+
         if (droppedGovernedFields.length > 0) {
           // Surface lightly so coach knows AI couldn't pull a clean candidate.
           const labels = droppedGovernedFields.map((f) => FIELD_LABELS[f] ?? f).join(", ");
