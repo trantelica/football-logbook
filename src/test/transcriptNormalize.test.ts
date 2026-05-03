@@ -99,6 +99,22 @@ describe("normalizeTranscriptForParse", () => {
     expect(out).not.toContain("HASH");
   });
 
+  it("parses 'down in N yards to go' (STT and→in) variants", () => {
+    expect(normalizeTranscriptForParse("first down in 10 yards to go")).toContain("DN 1 DIST 10");
+    expect(normalizeTranscriptForParse("second down in 7 yards to go")).toContain("DN 2 DIST 7");
+    expect(normalizeTranscriptForParse("third down in 4 yards to go")).toContain("DN 3 DIST 4");
+    expect(normalizeTranscriptForParse("fourth down in 1 yard to go")).toContain("DN 4 DIST 1");
+    expect(normalizeTranscriptForParse("first down and 10 yards to go")).toContain("DN 1 DIST 10");
+  });
+
+  it("parses combined yardline + down/dist phrasing", () => {
+    const out = normalizeTranscriptForParse("We are on the -39 yard line is first down in 10 yards to go");
+    expect(out).toContain("YARD -39");
+    expect(out).toContain("DN 1");
+    expect(out).toContain("DIST 10");
+    expect(out).not.toContain("HASH");
+  });
+
   it("normalizes scaffold acceptance example 1", () => {
     const input = "Down 3 DIST 2 Yard Line -28 Form Trips Play Curly Chair Max GN 12 Passer 1 Receiver 3";
     const out = normalizeTranscriptForParse(input);

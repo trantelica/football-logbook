@@ -59,6 +59,12 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // Run BEFORE the bare ordinal-down rules so we capture both DN and DIST in one pass.
   // Also accept STT variant "in" instead of "and" (common mis-recognition):
   // "first in 10" → DN 1 DIST 10, "second in 14" → DN 2 DIST 14.
+  // Also handle the explicit "down" word: "first down in 10 yards to go",
+  // "third down and 4 yards to go" → DN N DIST M.
+  [/\b(1st|first)\s+down\s+(?:and|in)\s+(\d+)(?:\s+yards?(?:\s+to\s+go)?)?\b/gi, "DN 1 DIST $2"],
+  [/\b(2nd|second)\s+down\s+(?:and|in)\s+(\d+)(?:\s+yards?(?:\s+to\s+go)?)?\b/gi, "DN 2 DIST $2"],
+  [/\b(3rd|third)\s+down\s+(?:and|in)\s+(\d+)(?:\s+yards?(?:\s+to\s+go)?)?\b/gi, "DN 3 DIST $2"],
+  [/\b(4th|fourth)\s+down\s+(?:and|in)\s+(\d+)(?:\s+yards?(?:\s+to\s+go)?)?\b/gi, "DN 4 DIST $2"],
   [/\b(1st|first)\s+(?:and|in)\s+(\d+)\b/gi, "DN 1 DIST $2"],
   [/\b(2nd|second)\s+(?:and|in)\s+(\d+)\b/gi, "DN 2 DIST $2"],
   [/\b(3rd|third)\s+(?:and|in)\s+(\d+)\b/gi, "DN 3 DIST $2"],
