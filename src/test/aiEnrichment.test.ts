@@ -1,7 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getUnresolvedFields, filterAiProposal, isGovernedProposal } from "../engine/aiEnrichment";
 import { AI_ELIGIBLE_FIELDS } from "../engine/aiEligibility";
 import type { CandidateData } from "../engine/types";
+
+// Slice A: mock the supabase client so we can capture invoke bodies and
+// stub AI responses for section-aware scoping tests.
+const invokeMock = vi.fn();
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    functions: {
+      invoke: (...args: unknown[]) => invokeMock(...args),
+    },
+  },
+}));
 
 function makeCandidate(overrides: Record<string, unknown> = {}): CandidateData {
   return { gameId: "g1", ...overrides } as CandidateData;
