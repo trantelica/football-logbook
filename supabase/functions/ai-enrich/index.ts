@@ -129,10 +129,12 @@ Deno.serve(async (req) => {
       suspicionEvidence,
     } = await req.json();
 
+    const suspectList: string[] = Array.isArray(suspectFields) ? suspectFields : [];
+
     if (
       !candidate ||
       !Array.isArray(unresolvedFields) ||
-      unresolvedFields.length === 0
+      (unresolvedFields.length === 0 && suspectList.length === 0)
     ) {
       return new Response(
         JSON.stringify({ proposal: {} }),
