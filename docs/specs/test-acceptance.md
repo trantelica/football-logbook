@@ -599,6 +599,132 @@ We Are In Trips
 **Then** the prompt/context must identify the task as American football play logging  
 **And** include section intent, owned fields, current candidate values, deterministic parser patch, lookup evidence, and known speech-to-text confusions.
 
+### PARSER-013 — Pass 2 AI Respects Personnel Scope
+
+**Given** Pass 2 narration:
+
+```text
+Y is 84, X is 11, one is 3
+```
+
+**Then** AI/parser proposal may include:
+
+```text
+posY = 84
+posX = 11
+pos1 = 3
+```
+
+**And** must not update Pass 1 fields.
+
+### PARSER-014 — Pass 2 AI Respects Alias Map
+
+**Given** active season alias:
+
+```text
+Z → 1
+```
+
+**And** Pass 2 narration:
+
+```text
+Z is 11
+```
+
+**Then** proposal must use:
+
+```text
+pos1 = 11
+```
+
+**And** must not create `posZ`.
+
+### PARSER-015 — Pass 2 Off-Roster Assignment Preserved
+
+**Given** Pass 2 narration:
+
+```text
+Y is 84
+```
+
+**And** #84 is not on the roster  
+**Then** proposal should preserve:
+
+```text
+posY = 84
+```
+
+**And** surface off-roster resolution.
+
+**And** must not silently add #84 to the roster.
+
+### PARSER-016 — Pass 3 AI Respects Grade Scope
+
+**Given** Pass 3 narration:
+
+```text
+LT plus one, Y got a one, X got negative two
+```
+
+**Then** proposal may include:
+
+```text
+gradeLT = 1
+gradeY = 1
+gradeX = -2
+```
+
+**And** must not update Pass 1 or Pass 2 fields.
+
+### PARSER-017 — Pass 3 STT Correction Is Context-Bound
+
+**Given** Pass 3 narration:
+
+```text
+Y go to one
+```
+
+**Then** system may interpret:
+
+```text
+gradeY = 1
+```
+
+**Given** the same phrase appears in Pass 1  
+**Then** system must not set `gradeY`.
+
+### PARSER-018 — Pass 3 Vague Praise Does Not Set Grade
+
+**Given** Pass 3 narration:
+
+```text
+Y had a good block
+```
+
+**Then** system must not silently set:
+
+```text
+gradeY = 1
+```
+
+unless the coach provides explicit grade evidence.
+
+### PARSER-019 — Pass 3 Out-of-Range Grade Blocks or Flags
+
+**Given** AI or parser proposes:
+
+```text
+gradeY = 4
+```
+
+**Then** validation must block or flag the value before commit.
+
+### PARSER-020 — AI Crosscheck Preserves Pass Boundaries
+
+**Given** AI section interpretation runs in Pass 2 or Pass 3  
+**Then** AI may only propose fields owned by the active pass/section  
+**Unless** an explicit cross-pass correction flow exists.
+
 ---
 
 ## 14. UX Acceptance Tests
