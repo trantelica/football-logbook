@@ -790,6 +790,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   );
 
   const clearDraft = useCallback(() => {
+    pendingAdvanceAfterCommitRef.current = null;
     setCandidate(emptyCandidate(gameId));
     setTouchedFields(new Set());
     setPredictedFields(new Set());
