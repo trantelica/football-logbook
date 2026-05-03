@@ -218,7 +218,26 @@ export async function fetchAiProposal(
     aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => sectionOwnedSet.has(f));
   }
 
-  if (aiEligibleUnresolved.length === 0) {
+
+  // Slice D1: derive suspectFields (the AI-correction allowlist scoped by
+  // section + suspicion + parser presence). Pure local filter — no AI yet.
+  const suspectFields: string[] = [];
+  const parserPatch = opts?.parserPatch ?? {};
+  if (
+    opts?.activeSection === CORRECTION_ELIGIBLE_SECTION &&
+    opts?.parserSuspicion &&
+    sectionOwnedSet
+  ) {
+    for (const field of Object.keys(opts.parserSuspicion.perField)) {
+      if (!CORRECTION_ALLOWED_FIELDS.has(field)) continue;
+      if (!sectionOwnedSet.has(field)) continue;
+      const pv = parserPatch[field];
+      if (typeof pv !== "string" || !pv.trim()) continue;
+      suspectFields.push(field);
+    }
+  }
+
+  if (aiEligibleUnresolved.length === 0 && suspectFields.length === 0) {
     return { proposal: {}, error: "All AI-eligible fields are already resolved" };
   }
 
@@ -242,6 +261,24 @@ export async function fetchAiProposal(
 
   const positionAliases = (opts?.positionAliases ?? {}) as PositionAliasMap;
 
+  // Slice D1: build a slim, deterministic suspicion evidence packet for the
+  // edge function (only fields that survived the suspectFields gate).
+  let suspicionEvidence:
+    | Record<string, { observedValue: string; codes: string[]; scannerCanonical?: string }>
+    | undefined;
+  if (suspectFields.length > 0 && opts?.parserSuspicion) {
+    suspicionEvidence = {};
+    for (const f of suspectFields) {
+      const sig = opts.parserSuspicion.perField[f as "offForm" | "offPlay" | "motion"];
+      if (!sig) continue;
+      suspicionEvidence[f] = {
+        observedValue: sig.observedValue,
+        codes: [...sig.codes],
+        ...(sig.scannerCanonical ? { scannerCanonical: sig.scannerCanonical } : {}),
+      };
+    }
+  }
+
   const { data, error } = await supabase.functions.invoke("ai-enrich", {
     body: {
       observationText,
@@ -255,6 +292,8 @@ export async function fetchAiProposal(
       positionAliases,
       // Slice A: section context for prompt scoping (additive; old function ignores).
       activeSection: opts?.activeSection,
+      // Slice D1: AI parser-crosscheck (additive; absent when no suspicion).
+      ...(suspectFields.length > 0 ? { suspectFields, suspicionEvidence } : {}),
     },
   });
 
