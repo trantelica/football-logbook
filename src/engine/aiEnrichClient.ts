@@ -20,6 +20,7 @@ import {
   normalizePatchKeysToCanonical,
   type PositionAliasMap,
 } from "./positionAliases";
+import { getSection, type SectionId } from "./sectionOwnership";
 import type { CandidateData } from "./types";
 import type { FieldSize } from "./prediction";
 
