@@ -1314,12 +1314,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     const plays = await getPlaysByGame(gameId);
     setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
+
+    // Capture pending advance before clearDraft (which resets the ref).
+    const pending = pendingAdvanceAfterCommitRef.current;
     clearDraft();
 
-    // Resume "Commit & Next" navigation if it was interrupted by overwrite review.
-    const pending = pendingAdvanceAfterCommitRef.current;
     if (pending && advanceToNextFilteredSlotRef.current) {
-      pendingAdvanceAfterCommitRef.current = null;
       await advanceToNextFilteredSlotRef.current(pending.fromSlotNum, pending.activePass);
     }
     return true;
