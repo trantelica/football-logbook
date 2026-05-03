@@ -136,6 +136,12 @@ ${locationMapping.predictionActive ? `- IMPORTANT: Prediction engine already res
 - Do NOT invent your own location interpretation model.`;
     }
 
+    // Slice A: section context note for prompt scoping. The client is the
+    // authoritative gate; this is informational only.
+    const sectionInstruction = typeof activeSection === "string" && activeSection
+      ? `\nActive Pass 1 section: ${activeSection}. Only propose values for fields listed in the unresolved fields list (already scoped to this section's owned fields).`
+      : "";
+
     // Build a focused system prompt
     const systemPrompt = `You are a football play-by-play data assistant. A coach has dictated observations about a play. A deterministic parser has already extracted some structured fields. Your job is to infer values ONLY for the remaining unresolved fields based on what the coach said.
 
