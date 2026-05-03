@@ -743,6 +743,19 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       const out = normalizeTranscriptForParse("thrown by number zero");
       expect(out).toContain("PASSER 0");
     });
+    it("rewrites 'number zero is the passer' → PASSER 0", () => {
+      const out = normalizeTranscriptForParse("The pass was incomplete number zero is the passer");
+      expect(out).toContain("PASSER 0");
+      expect(out).toContain("RESULT Incomplete");
+    });
+    it("rewrites '#0 is the passer' → PASSER 0", () => {
+      const out = normalizeTranscriptForParse("#0 is the passer");
+      expect(out).toContain("PASSER 0");
+    });
+    it("rewrites 'passer is 0' → PASSER 0", () => {
+      const out = normalizeTranscriptForParse("the passer is 0");
+      expect(out).toContain("PASSER 0");
+    });
   });
 });
 
