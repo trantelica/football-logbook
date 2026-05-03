@@ -506,6 +506,99 @@ Narration with down, distance, formation, motion, play, actor, and gain/loss pro
 
 **Then** parser does not silently set `receiver = 84`.
 
+### PARSER-005 — AI May Challenge Parser-Filled Governed Values
+
+**Given** Play Details narration:
+
+```text
+The play is 39 Reverse Pass from Shiny formation.
+```
+
+**And** deterministic parsing incorrectly proposes:
+
+```text
+offPlay = 39 Reverse
+offForm = Pass From Shiny
+```
+
+**Then** AI crosscheck may flag both assignments as suspicious  
+**And** may propose:
+
+```text
+offPlay = 39 Reverse Pass
+offForm = Shiny
+```
+
+**And** must not infer motion.
+
+**And** any correction must enter proposal/collision/governance flow before commit.
+
+### PARSER-006 — AI Receives Section Intent
+
+**Given** the word `Trips` appears in Play Details  
+**And** `Trips` exists in the `offForm` lookup  
+**Then** the system may treat it as strong `offForm` evidence.
+
+**Given** the word `Trips` appears in Situation  
+**Then** the system must not treat it as `offForm` evidence merely because it exists in lookup.
+
+### PARSER-007 — Exact Lookup Match Beats Fuzzy Novel Creation
+
+**Given** Play Details narration contains a known lookup value  
+**When** AI interpretation runs  
+**Then** exact lookup evidence should be preferred over fuzzy matching or novel value creation.
+
+**And** the value must still remain proposal data until commit.
+
+### PARSER-008 — AI Cannot Bypass Lookup Governance
+
+**Given** AI proposes a new governed value:
+
+```text
+offForm = Shiny
+```
+
+**And** `Shiny` is not in the active season lookup store  
+**Then** lookup governance must block commit until the coach adds, maps, corrects, clears, or rejects the value.
+
+### PARSER-009 — AI No-Evidence Suppresses Hallucinated Motion
+
+**Given** Play Details narration:
+
+```text
+The play is 39 Reverse Pass from Shiny formation.
+```
+
+**Then** AI should return no motion proposal unless motion is explicitly mentioned or strongly matched from motion lookup evidence.
+
+**And** no motion governance modal should appear for this narration.
+
+### PARSER-010 — Parser Suspicion for Overlong Governed Values
+
+**Given** parser proposes a governed lookup value with cue words or sentence fragments, such as:
+
+```text
+Pass From Shiny
+Door Open And
+We Are In Trips
+```
+
+**Then** the system should flag the value as suspicious  
+**And** either normalize it, ask AI to crosscheck it, or surface a review warning before lookup append.
+
+### PARSER-011 — AI Corrections Use Collision / Overwrite Path
+
+**Given** a field already has a non-empty value  
+**And** AI proposes a different value for the same field  
+**Then** the system must use the existing collision/overwrite review path  
+**And** must not silently replace the value.
+
+### PARSER-012 — AI Context Includes Football and STT Guidance
+
+**Given** AI section interpretation is invoked  
+**Then** the prompt/context must identify the task as American football play logging  
+**And** include section intent, owned fields, current candidate values, deterministic parser patch, lookup evidence, and known speech-to-text confusions.
+
 ---
 
 ## 14. UX Acceptance Tests
