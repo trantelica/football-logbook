@@ -1694,48 +1694,29 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     return false;
   }, [gameId, selectedSlotNum, odkFilter, selectSlot]);
 
-  // Phase 4: Commit & Next — advances to next slot in filtered scaffold list
-  const commitAndNext = useCallback(async (): Promise<{ committed: boolean; hasNext: boolean }> => {
-    if (state !== "proposal") {
-      return { committed: false, hasNext: false };
-    }
-
-    // Snapshot current state before commit (clearDraft resets selectedSlotNum)
-    const currentSlotNum = selectedSlotNum;
-    const currentActivePass = activePass;
-
-    const success = await commitProposal();
-    if (!success) {
-      return { committed: false, hasNext: false };
-    }
-
-    // Track last Pass 2 commit for +1 exception
-    if (currentActivePass === 2 && currentSlotNum !== null) {
-      setLastPass2CommitPlayNum(currentSlotNum);
-    }
-
-    // Refresh committedPlays from DB before selecting next slot
+  // Helper: advance to next filtered slot after a successful commit. Extracted so deferred
+  // commit flows (overwrite-review confirm, TD correction confirm) can resume navigation.
+  const advanceToNextFilteredSlot = useCallback(async (
+    fromSlotNum: number,
+    fromActivePass: number,
+  ): Promise<{ hasNext: boolean }> => {
     await refreshCommittedPlays();
 
-    // Re-read fresh plays for filtered list
     const freshPlays = await getPlaysByGame(gameId);
     const sortedPlays = freshPlays.sort((a, b) => a.playNum - b.playNum);
 
     const filteredList = odkFilter === "ALL"
       ? sortedPlays
       : sortedPlays.filter((p) => p.odk === odkFilter);
-    
-    const currentIdx = filteredList.findIndex((p) => p.playNum === currentSlotNum);
+
+    const currentIdx = filteredList.findIndex((p) => p.playNum === fromSlotNum);
     if (currentIdx >= 0 && currentIdx < filteredList.length - 1) {
       const nextPlay = filteredList[currentIdx + 1];
 
       // Pass 2 carry-forward: seed personnel into next slot if ODK=O.
-      // Use the broader "most recent prior Pass 2-complete offensive play" rule
-      // so seeding stays consistent with manual slot-open behavior.
-      if (currentActivePass === 2 && nextPlay.odk === "O") {
+      if (fromActivePass === 2 && nextPlay.odk === "O") {
         const nextSlot = sortedPlays.find((p) => p.playNum === nextPlay.playNum);
         if (nextSlot) {
-          // Fresh meta map (post-commit) so isPass2Complete sees just-committed fields.
           const freshMetas = await getAllSlotMetaForGame(gameId);
           const freshMetaMap = new Map(freshMetas.map((m) => [m.playNum, m]));
           const nextMeta = freshMetaMap.get(nextPlay.playNum);
@@ -1758,7 +1739,6 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
                 }
               }
 
-              // Set state directly instead of calling selectSlot to avoid clearing seeded values
               setCandidate(seededCandidate);
               setSelectedSlotNum(nextPlay.playNum);
               setTouchedFields(new Set());
@@ -1782,19 +1762,60 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
               setAiEvidenceByField({});
               setLookupDerivedFields(new Set());
               setState("candidate");
-              return { committed: true, hasNext: true };
+              return { hasNext: true };
             }
           }
         }
       }
 
       await selectSlot(nextPlay.playNum);
-      return { committed: true, hasNext: true };
+      return { hasNext: true };
     }
 
-    // No next slot — already deselected by clearDraft
-    return { committed: true, hasNext: false };
-  }, [state, selectedSlotNum, committedPlays, odkFilter, commitProposal, selectSlot, refreshCommittedPlays, gameId, activePass]);
+    return { hasNext: false };
+  }, [gameId, odkFilter, refreshCommittedPlays, selectSlot]);
+
+  // Phase 4: Commit & Next — advances to next slot in filtered scaffold list
+  const commitAndNext = useCallback(async (): Promise<{ committed: boolean; hasNext: boolean }> => {
+    if (state !== "proposal") {
+      return { committed: false, hasNext: false };
+    }
+
+    // Snapshot current state before commit (clearDraft resets selectedSlotNum)
+    const currentSlotNum = selectedSlotNum;
+    const currentActivePass = activePass;
+
+    // Mark intent to advance — used by deferred flows (overwrite-review, TD correction)
+    // that interrupt commitProposal() and complete asynchronously.
+    if (currentSlotNum !== null) {
+      pendingAdvanceAfterCommitRef.current = {
+        fromSlotNum: currentSlotNum,
+        activePass: currentActivePass,
+      };
+    }
+
+    const success = await commitProposal();
+    if (!success) {
+      // Either validation failed, or commit was deferred to a review dialog.
+      // Leave the pendingAdvance flag in place so confirm handlers can resume.
+      return { committed: false, hasNext: false };
+    }
+
+    // Synchronous commit succeeded — clear flag and advance directly.
+    pendingAdvanceAfterCommitRef.current = null;
+
+    // Track last Pass 2 commit for +1 exception
+    if (currentActivePass === 2 && currentSlotNum !== null) {
+      setLastPass2CommitPlayNum(currentSlotNum);
+    }
+
+    if (currentSlotNum === null) {
+      return { committed: true, hasNext: false };
+    }
+
+    const { hasNext } = await advanceToNextFilteredSlot(currentSlotNum, currentActivePass);
+    return { committed: true, hasNext };
+  }, [state, selectedSlotNum, activePass, commitProposal, advanceToNextFilteredSlot]);
 
   // Structured validation reasons for proposal metadata
   const validationReasons = useMemo(() => {
