@@ -320,5 +320,46 @@ export async function fetchAiProposal(
     }
   }
 
-  return { proposal: normalized };
+  // ── Slice D1: filter and return AI corrections (separate from proposal) ──
+  const correctionsRaw = (data?.corrections ?? {}) as Record<string, unknown>;
+  let corrections: AiCorrectionsByField | undefined;
+  if (suspectFields.length > 0 && correctionsRaw && typeof correctionsRaw === "object") {
+    const suspectSet = new Set(suspectFields);
+    const out: AiCorrectionsByField = {};
+    for (const [k, v] of Object.entries(correctionsRaw)) {
+      // Gate 1: canonical key + allowlist + still in suspectFields
+      if (!CORRECTION_ALLOWED_FIELDS.has(k)) continue;
+      if (!suspectSet.has(k)) continue;
+      // Gate 2: section ownership
+      if (sectionOwnedSet && !sectionOwnedSet.has(k)) continue;
+      // Gate 3: governed value shape
+      if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+      const obj = v as Record<string, unknown>;
+      const value = obj.value;
+      const matchType = obj.matchType;
+      if (typeof value !== "string" || !value.trim()) continue;
+      if (matchType !== "exact" && matchType !== "fuzzy" && matchType !== "candidate_new") continue;
+      // Gate 4: must differ from parser value (case-insensitive, ws-normalized)
+      const parserVal = parserPatch[k];
+      if (typeof parserVal === "string") {
+        const a = parserVal.trim().toLowerCase().replace(/\s+/g, " ");
+        const b = value.trim().toLowerCase().replace(/\s+/g, " ");
+        if (a === b) continue;
+      }
+      const correction: AiCorrection = {
+        value: value.trim(),
+        matchType: matchType as AiCorrection["matchType"],
+        ...(typeof parserVal === "string" ? { replaces: parserVal } : {}),
+        ...(Array.isArray(obj.reasonCodes)
+          ? { reasonCodes: (obj.reasonCodes as unknown[]).filter((x) => typeof x === "string") as string[] }
+          : typeof obj.reasonCode === "string"
+            ? { reasonCodes: [obj.reasonCode as string] }
+            : {}),
+      };
+      out[k as "offForm" | "offPlay" | "motion"] = correction;
+    }
+    if (Object.keys(out).length > 0) corrections = out;
+  }
+
+  return corrections ? { proposal: normalized, corrections } : { proposal: normalized };
 }
