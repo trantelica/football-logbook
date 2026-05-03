@@ -230,6 +230,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   const [state, setState] = useState<TransactionState>("idle");
   const [candidate, setCandidate] = useState<CandidateData>(emptyCandidate(gameId));
+  // Mirror of candidate in a ref so synchronous callers (governance rebuild
+  // invoked across multiple section updates within a single tick) see the
+  // freshly-applied patches rather than a stale React closure snapshot.
+  const candidateRef = useRef<CandidateData>(candidate);
+  useEffect(() => { candidateRef.current = candidate; }, [candidate]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
   const [inlineErrors, setInlineErrors] = useState<ValidationErrors>({});
   const [commitErrors, setCommitErrors] = useState<ValidationErrors>({});
