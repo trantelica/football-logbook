@@ -145,7 +145,13 @@ function detectSignals(
   // Single-token case
   for (const ct of cueTokens) {
     if (!nonTrivial(ct)) continue;
-    if (canonTokens[0].startsWith(ct) && ct.length >= 2 && ct !== canonTokens[0]) {
+    if (ct.length < 2) continue;
+    // strict prefix of first token, OR equals first token of multi-token canonical
+    if (canonTokens[0].startsWith(ct) && ct !== canonTokens[0]) {
+      signals.add("prefix");
+      break;
+    }
+    if (ct === canonTokens[0] && canonTokens.length > 1) {
       signals.add("prefix");
       break;
     }
