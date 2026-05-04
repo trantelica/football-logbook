@@ -119,7 +119,7 @@ function AssistHarness({
 describe("Slice F2.a — Lookup Assist integration", () => {
   it("multi-field input opens grouped dialog with Formation, Play, Motion groups", () => {
     const apply = vi.fn();
-    render(<AssistHarness text="Vader formation, Fake 26 Punch, Z acros motion" applySystemPatch={apply} />);
+    render(<AssistHarness text="Vader formation, 26 cue, Z acros motion" applySystemPatch={apply} />);
     expect(screen.getByText("Pick known values")).toBeInTheDocument();
     // Each governed group surfaces at least one canonical option.
     expect(screen.getByText("Vader Tight")).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("Slice F2.a — Lookup Assist integration", () => {
 
   it("Apply selected calls applySystemPatch once with selected canonicals, fillOnly:false, source:'deterministic_parse'", () => {
     const apply = vi.fn();
-    render(<AssistHarness text="Vader formation, Fake 26 Punch, Z acros motion" applySystemPatch={apply} />);
+    render(<AssistHarness text="Vader formation, 26 cue, Z acros motion" applySystemPatch={apply} />);
     // Select first option in each visible group via row text.
     fireEvent.click(screen.getByText("Vader Tight").closest("label")!);
     fireEvent.click(screen.getByText("26 Punch Fake").closest("label")!);
@@ -148,7 +148,7 @@ describe("Slice F2.a — Lookup Assist integration", () => {
 
   it("Skip applies nothing", () => {
     const apply = vi.fn();
-    render(<AssistHarness text="Vader formation, Fake 26 Punch" applySystemPatch={apply} />);
+    render(<AssistHarness text="Vader formation, 26 cue" applySystemPatch={apply} />);
     fireEvent.click(screen.getByRole("button", { name: /^Skip$/ }));
     expect(apply).not.toHaveBeenCalled();
   });
