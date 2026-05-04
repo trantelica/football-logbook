@@ -199,21 +199,23 @@ export function RawInputCollisionDialog({
         </DialogHeader>
 
         <div className="space-y-3 max-h-72 overflow-y-auto">
-          {groupOrder.map((g) => (
-            <div key={g} className="space-y-1">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
-                {getLabel(g)}
-                {groups.get(g)!.[0]?.currentValue != null && groups.get(g)!.[0]?.currentValue !== "" && (
-                  <span className="ml-2 normal-case font-normal text-muted-foreground/70">
-                    Current: {formatValue(groups.get(g)![0].currentValue)}
-                  </span>
-                )}
-              </p>
-              <div className="space-y-1">
-                {groups.get(g)!.map(renderRow)}
+          {groupOrder.map((g) => {
+            const rows = groups.get(g)!;
+            const cur = rows[0]?.currentValue;
+            return (
+              <div key={g} className="space-y-1">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+                  {getLabel(g)}
+                  {cur != null && cur !== "" && (
+                    <span className="ml-2 normal-case font-normal text-muted-foreground/70">
+                      Current: {formatValue(cur)}
+                    </span>
+                  )}
+                </p>
+                <div className="space-y-1">{rows.map(renderRow)}</div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {otherRows.length > 0 && (
             <div className="space-y-1">
               {otherRows.map(renderRow)}
