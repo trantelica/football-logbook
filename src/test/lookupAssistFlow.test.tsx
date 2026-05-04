@@ -131,10 +131,10 @@ describe("Slice F2.a — Lookup Assist integration", () => {
   it("Apply selected calls applySystemPatch once with selected canonicals, fillOnly:false, source:'deterministic_parse'", () => {
     const apply = vi.fn();
     render(<AssistHarness text="Vader formation, Fake 26 Punch, Z acros motion" applySystemPatch={apply} />);
-    // Select first option in each visible group.
-    fireEvent.click(screen.getByLabelText(/Vader Tight/));
-    fireEvent.click(screen.getByLabelText(/26 Punch Fake/));
-    fireEvent.click(screen.getByLabelText(/Z Across/));
+    // Select first option in each visible group via row text.
+    fireEvent.click(screen.getByText("Vader Tight").closest("label")!);
+    fireEvent.click(screen.getByText("26 Punch Fake").closest("label")!);
+    fireEvent.click(screen.getByText("Z Across").closest("label")!);
     fireEvent.click(screen.getByRole("button", { name: /Apply selected \(3\)/ }));
     expect(apply).toHaveBeenCalledTimes(1);
     const [patch, opts] = apply.mock.calls[0];
