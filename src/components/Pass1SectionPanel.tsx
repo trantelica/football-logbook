@@ -68,6 +68,7 @@ import { scanKnownLookups } from "@/engine/lookupScanner";
 import { detectParserSuspicion } from "@/engine/parserSuspicion";
 import { playSchema } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
+import { collectAssistCandidates, type AssistSignal } from "@/engine/lookupAssist";
 
 interface Pass1SectionPanelProps {
   /** The right-column Unified Proposal Candidate slot (existing field grid). */
@@ -727,61 +728,128 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         // (including matchType:'candidate_new') retain the existing lookup
         // governance interrupt path because the shape is identical.
         const corrections = aiResult.corrections;
+        const correctionRows: Collision[] = [];
+        const correctionPatch: Record<string, unknown> = {};
         if (corrections && id === "playDetails") {
-          const correctionPatch: Record<string, unknown> = {};
           for (const [k, c] of Object.entries(corrections)) {
             if (!ownedSet.has(k)) continue;
             if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
             correctionPatch[k] = { value: c.value, matchType: c.matchType };
           }
-          if (Object.keys(correctionPatch).length > 0) {
-            // Build display-only collision rows for the existing dialog.
-            // We do NOT call requestAiEnrichment (which is fillOnly and would
-            // discard collisions silently). Instead, surface every correction
-            // as a row tagged source:"ai_correction" so the coach can choose
-            // which to apply. Selected rows are committed to the proposal via
-            // applySystemPatch (fillOnly:false, source:"ai_proposed"), keeping
-            // governance/candidate_new behavior intact.
-            const correctionRows: Collision[] = [];
-            const candidateMap = candidate as Record<string, unknown>;
-            for (const [k, c] of Object.entries(corrections)) {
-              if (!ownedSet.has(k)) continue;
-              if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
-              correctionRows.push({
-                fieldName: k,
-                currentValue: candidateMap[k] ?? null,
-                proposedValue: c.value,
-                source: "ai_correction",
-                note: "AI suggests this fits the transcript better.",
+          const candidateMap = candidate as Record<string, unknown>;
+          for (const [k, c] of Object.entries(corrections)) {
+            if (!ownedSet.has(k)) continue;
+            if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
+            correctionRows.push({
+              fieldName: k,
+              currentValue: candidateMap[k] ?? null,
+              proposedValue: c.value,
+              source: "ai_correction",
+              note: "AI suggests this fits the transcript better.",
+            });
+          }
+        }
+
+        // ── Slice F2.a: Lookup Assist (deterministic) for Play Details ──
+        // Surface bounded known-canonical options when the coach's text
+        // contains partial / STT-corrupted cues for offForm/offPlay/motion.
+        // Skipped fields: scanner whole-canonical winners, already-touched,
+        // and fields already filled (per `candidate`).
+        const assistRows: Collision[] = [];
+        const assistPatchByRow = new Map<string, { field: string; canonical: string }>();
+        if (id === "playDetails") {
+          const candidateMap = candidate as Record<string, unknown>;
+          const filledFields = new Set<string>();
+          for (const f of ["offForm", "offPlay", "motion"] as const) {
+            const v = candidateMap[f];
+            if (v !== null && v !== undefined && v !== "") filledFields.add(f);
+            // Treat fields the coach explicitly touched OR that AI corrections
+            // are already proposing as resolved for the purposes of Assist —
+            // avoids competing rows in the same dialog for the same field.
+            if (correctionPatch[f]) filledFields.add(f);
+          }
+          const assistReport = collectAssistCandidates({
+            sectionText: normalized,
+            parserPatch: scopedParsePatch,
+            scannerResult: scanResult,
+            lookupMap,
+            touchedFields,
+            filledFields,
+          });
+          const SIGNAL_LABEL: Record<AssistSignal, string> = {
+            numeric: "Number match",
+            prefix: "Starts with",
+            contains: "Contains",
+            stt_edit: "Sounds like",
+            synonym: "Phrasing match",
+            exact: "Exact",
+            overlap: "Related",
+          };
+          for (const [field, res] of Object.entries(assistReport.perField)) {
+            if (!res || res.kind !== "options") continue;
+            for (const opt of res.knownOptions) {
+              const rowId = `assist::${field}::${opt.canonical}`;
+              const strongest = opt.signals[0];
+              assistRows.push({
+                fieldName: rowId,
+                currentValue: candidateMap[field] ?? null,
+                proposedValue: opt.canonical,
+                source: "lookup_assist",
+                groupKey: field,
+                signalLabel: strongest ? SIGNAL_LABEL[strongest] : undefined,
               });
-            }
-            if (correctionRows.length > 0) {
-              const labels = correctionRows
-                .map((r) => FIELD_LABELS[r.fieldName] ?? r.fieldName)
-                .join(", ");
-              toast.info(`${section.title}: AI suggested correction for ${labels} — review suggested updates.`);
-              setOverwriteState({
-                section: id,
-                collisions: correctionRows,
-                onConfirm: (selectedFields) => {
-                  const accepted: Record<string, unknown> = {};
-                  for (const k of Object.keys(correctionPatch)) {
-                    if (selectedFields.has(k)) accepted[k] = correctionPatch[k];
-                  }
-                  if (Object.keys(accepted).length > 0) {
-                    // fillOnly:false so the correction overwrites the parser
-                    // value on the proposal. Governance still fires for
-                    // candidate_new via applySystemPatch's normal path.
-                    applySystemPatch(accepted, {
-                      fillOnly: false,
-                      source: "ai_proposed",
-                    });
-                  }
-                  setOverwriteState(null);
-                },
-              });
+              assistPatchByRow.set(rowId, { field, canonical: opt.canonical });
             }
           }
+        }
+
+        if (correctionRows.length > 0 || assistRows.length > 0) {
+          const allRows = [...correctionRows, ...assistRows];
+          if (correctionRows.length > 0) {
+            const labels = correctionRows
+              .map((r) => FIELD_LABELS[r.fieldName] ?? r.fieldName)
+              .join(", ");
+            toast.info(`${section.title}: AI suggested correction for ${labels} — review suggested updates.`);
+          } else if (assistRows.length > 0) {
+            toast.info(`${section.title}: pick known values from the suggestions.`);
+          }
+          setOverwriteState({
+            section: id,
+            collisions: allRows,
+            onConfirm: (selectedFields) => {
+              // 1) AI corrections → ai_proposed
+              const acceptedAi: Record<string, unknown> = {};
+              for (const k of Object.keys(correctionPatch)) {
+                if (selectedFields.has(k)) acceptedAi[k] = correctionPatch[k];
+              }
+              if (Object.keys(acceptedAi).length > 0) {
+                applySystemPatch(acceptedAi, {
+                  fillOnly: false,
+                  source: "ai_proposed",
+                });
+              }
+              // 2) Lookup Assist selections → deterministic_parse, one per group
+              const acceptedAssist: Record<string, unknown> = {};
+              const claimedFields = new Set<string>();
+              for (const rowId of selectedFields) {
+                const entry = assistPatchByRow.get(rowId);
+                if (!entry) continue;
+                if (claimedFields.has(entry.field)) continue;
+                claimedFields.add(entry.field);
+                acceptedAssist[entry.field] = {
+                  value: entry.canonical,
+                  matchType: "exact",
+                };
+              }
+              if (Object.keys(acceptedAssist).length > 0) {
+                applySystemPatch(acceptedAssist, {
+                  fillOnly: false,
+                  source: "deterministic_parse",
+                });
+              }
+              setOverwriteState(null);
+            },
+          });
         }
 
         if (droppedGovernedFields.length > 0) {

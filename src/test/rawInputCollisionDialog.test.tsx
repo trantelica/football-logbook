@@ -111,3 +111,79 @@ describe("RawInputCollisionDialog — Slice E AI correction display", () => {
     expect(onCancel).not.toHaveBeenCalled();
   });
 });
+
+describe("RawInputCollisionDialog — Slice F2.a Lookup Assist grouped rows", () => {
+  const assistRows: Collision[] = [
+    {
+      fieldName: "assist::offForm::Invader",
+      currentValue: null,
+      proposedValue: "Invader",
+      source: "lookup_assist",
+      groupKey: "offForm",
+      signalLabel: "Sounds like",
+    },
+    {
+      fieldName: "assist::offForm::Vader Tight",
+      currentValue: null,
+      proposedValue: "Vader Tight",
+      source: "lookup_assist",
+      groupKey: "offForm",
+      signalLabel: "Contains",
+    },
+    {
+      fieldName: "assist::offPlay::26 Punch",
+      currentValue: null,
+      proposedValue: "26 Punch",
+      source: "lookup_assist",
+      groupKey: "offPlay",
+      signalLabel: "Number match",
+    },
+  ];
+
+  it("renders 'Pick known values' title, signal labels, and starts unselected", () => {
+    const { onConfirm } = setup(assistRows);
+    expect(screen.getByText("Pick known values")).toBeInTheDocument();
+    expect(screen.getByText(/Tap one per group/i)).toBeInTheDocument();
+    expect(screen.getByText("Sounds like")).toBeInTheDocument();
+    expect(screen.getByText("Contains")).toBeInTheDocument();
+    expect(screen.getByText("Number match")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Apply selected \(0\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Skip$/ })).toBeInTheDocument();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("enforces single-select per group: sibling click deselects prior", () => {
+    const { onConfirm } = setup(assistRows);
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[0]); // Invader
+    fireEvent.click(checkboxes[1]); // Vader Tight (same group → deselects Invader)
+    fireEvent.click(checkboxes[2]); // 26 Punch (different group → independent)
+    fireEvent.click(screen.getByRole("button", { name: /Apply selected \(2\)/ }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    const selected = onConfirm.mock.calls[0][0] as Set<string>;
+    expect(selected.has("assist::offForm::Vader Tight")).toBe(true);
+    expect(selected.has("assist::offForm::Invader")).toBe(false);
+    expect(selected.has("assist::offPlay::26 Punch")).toBe(true);
+  });
+
+  it("Skip calls onCancel and never onConfirm", () => {
+    const { onCancel, onConfirm } = setup(assistRows);
+    fireEvent.click(screen.getByRole("button", { name: /^Skip$/ }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("mixed assist + AI rows: AI title wins, AI chip still rendered", () => {
+    setup([
+      ...assistRows,
+      {
+        fieldName: "offPlay",
+        currentValue: "Reverse",
+        proposedValue: "39 Reverse Pass",
+        source: "ai_correction",
+      },
+    ]);
+    expect(screen.getByText("Review suggested updates")).toBeInTheDocument();
+    expect(screen.getByText("AI suggestion")).toBeInTheDocument();
+  });
+});
