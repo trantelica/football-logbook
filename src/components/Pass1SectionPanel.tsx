@@ -836,10 +836,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 if (!entry) continue;
                 if (claimedFields.has(entry.field)) continue;
                 claimedFields.add(entry.field);
-                acceptedAssist[entry.field] = {
-                  value: entry.canonical,
-                  matchType: "exact",
-                };
+                // Bare canonical string — applySystemPatch expects raw scalars.
+                // Wrapping as { value, matchType } would stringify to "[object Object]"
+                // and trip lookup governance for an already-known canonical.
+                acceptedAssist[entry.field] = entry.canonical;
               }
               if (Object.keys(acceptedAssist).length > 0) {
                 applySystemPatch(acceptedAssist, {
