@@ -328,6 +328,15 @@ export async function fetchAiProposal(
     }
   }
 
+  // Defensive actor drop: actor fields may only flow when activeSection is
+  // playResults. This protects legacy cross-section calls where
+  // sectionOwnedSet is null.
+  if (opts?.activeSection !== "playResults") {
+    for (const k of Object.keys(normalized)) {
+      if (ACTOR_FIELDS.has(k)) delete normalized[k];
+    }
+  }
+
   // ── Slice D1: filter and return AI corrections (separate from proposal) ──
   const correctionsRaw = (data?.corrections ?? {}) as Record<string, unknown>;
   let corrections: AiCorrectionsByField | undefined;
