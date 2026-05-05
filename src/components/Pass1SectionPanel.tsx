@@ -240,6 +240,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     collisions: Collision[];
     /** Resolved overwrite patch fields (apply via fillOnly:false). */
     onConfirm: (selectedFields: Set<string>) => void;
+    /** Optional fallback when the coach cancels/skips the dialog. */
+    onCancel?: () => void;
   } | null>(null);
 
   /** Section-scoped AI clarification modal (single-key answerable). */
@@ -482,10 +484,67 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           );
         }
 
+        // ── Step 1b: Section-aware known lookup scanner (Slice B) ──
+        // Run BEFORE fillable application so we can compute Assist deferral
+        // and avoid writing raw partial governed values into the candidate.
+        const scanResult = scanKnownLookups(normalized, lookupMapEarly, section.ownedFields);
+
+        // ── Slice F2.a sequencing: compute assistDeferredFields ──
+        // For Assist-covered governed fields (offForm/offPlay/motion), if the
+        // parsed value is not a known canonical AND Lookup Assist has viable
+        // options, defer writing the raw value and defer governance until the
+        // coach resolves Assist (selects a canonical, or skips/cancels to fall
+        // back to the existing Unknown Lookup Value path).
+        const assistDeferredFields = new Set<string>();
+        const assistDeferredRawValues: Record<string, unknown> = {};
+        if (id === "playDetails") {
+          const candidateMap = candidate as Record<string, unknown>;
+          // Pre-compute which Assist-eligible fields would be candidates.
+          // We must mirror the same suppression rules collectAssistCandidates
+          // applies (scanner whole-canonical winners, touched, filled), and
+          // additionally require that the parser produced a value that is NOT
+          // already a known canonical for that field.
+          const preFilled = new Set<string>();
+          for (const f of ["offForm", "offPlay", "motion"] as const) {
+            const v = candidateMap[f];
+            if (v !== null && v !== undefined && v !== "") preFilled.add(f);
+          }
+          const preReport = collectAssistCandidates({
+            sectionText: normalized,
+            parserPatch: scopedParsePatch,
+            scannerResult: scanResult,
+            lookupMap: lookupMapEarly,
+            touchedFields,
+            filledFields: preFilled,
+          });
+          for (const field of ["offForm", "offPlay", "motion"] as const) {
+            const parsedVal = scopedParsePatch[field];
+            if (parsedVal === undefined || parsedVal === null || parsedVal === "") continue;
+            // If parsed value is already a known canonical, no need to defer;
+            // governance won't fire on it anyway.
+            const known = lookupMapEarly.get(field) ?? [];
+            const norm = String(parsedVal).toLowerCase().replace(/\s+/g, " ").trim();
+            const isKnownCanonical = known.some(
+              (e) => e.toLowerCase().replace(/\s+/g, " ").trim() === norm,
+            );
+            if (isKnownCanonical) continue;
+            const res = preReport.perField[field];
+            if (res && res.kind === "options" && res.knownOptions.length > 0) {
+              assistDeferredFields.add(field);
+              assistDeferredRawValues[field] = parsedVal;
+            }
+          }
+        }
+
         // Detect manual-edit collisions inside owned fields.
         const manualCollisions: Collision[] = [];
         const fillablePatch: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(scopedParsePatch)) {
+          // Defer Assist-eligible governed fields: do NOT write the raw
+          // partial value; do NOT raise a manual collision. Assist will
+          // present canonical options first; on skip/cancel the field's
+          // raw value is applied and governance opens normally.
+          if (assistDeferredFields.has(k)) continue;
           const current = (candidate as Record<string, unknown>)[k];
           const hasExisting = current !== null && current !== undefined && current !== "";
           if (hasExisting && String(current) !== String(v)) {
@@ -520,13 +579,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           });
         }
 
-        // ── Step 1b: Section-aware known lookup scanner (Slice B) ──
-        // Narrow guardrail: only known canonical lookup values for fields
-        // owned by this section. Scanner cannot invent values, cannot fuzzy
-        // match, cannot bypass governance, and cannot write derived fields.
+        // Scanner-fillable application (whole-canonical hits).
         // Parser-explicit values win — skip any field already in scopedParsePatch
         // (whether it landed in fillablePatch or surfaced as a manual collision).
-        const scanResult = scanKnownLookups(normalized, lookupMapEarly, section.ownedFields);
         const scannerFillable: Record<string, unknown> = {};
         for (const field of Object.keys(scanResult.perField)) {
           const hit = scanResult.perField[field as keyof typeof scanResult.perField];
@@ -547,6 +602,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             source: "deterministic_parse",
           });
         }
+
 
         if (manualCollisions.length > 0 && !opts.allowOverwrite) {
           setOverwriteState({
@@ -803,6 +859,36 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           }
         }
 
+        // Fallback: write raw parsed value for any deferred Assist field the
+        // coach did NOT resolve via Assist (skipped/cancelled or unselected
+        // group), then re-run governance so the existing Unknown Lookup Value
+        // / Add to playbook flow opens for that field.
+        const applyAssistFallback = (resolvedFields: Set<string>) => {
+          const fallbackPatch: Record<string, unknown> = {};
+          for (const field of assistDeferredFields) {
+            if (resolvedFields.has(field)) continue;
+            const raw = assistDeferredRawValues[field];
+            if (raw === undefined || raw === null || raw === "") continue;
+            const current = (candidate as Record<string, unknown>)[field];
+            if (current !== null && current !== undefined && current !== "") continue;
+            fallbackPatch[field] = raw;
+          }
+          if (Object.keys(fallbackPatch).length > 0) {
+            applySystemPatch(fallbackPatch, {
+              fillOnly: true,
+              evidence: Object.fromEntries(
+                Object.keys(fallbackPatch).map((k) => [k, { snippet: text.slice(0, 80) }]),
+              ),
+              source: "deterministic_parse",
+            });
+            const projectedFallback = {
+              ...(candidate as Record<string, unknown>),
+              ...fallbackPatch,
+            };
+            checkAllSectionsGovernance(projectedFallback);
+          }
+        };
+
         if (correctionRows.length > 0 || assistRows.length > 0) {
           const allRows = [...correctionRows, ...assistRows];
           if (correctionRows.length > 0) {
@@ -847,10 +933,23 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                   source: "deterministic_parse",
                 });
               }
+              // 3) Fallback raw + governance for unresolved deferred fields.
+              applyAssistFallback(claimedFields);
               setOverwriteState(null);
             },
+            onCancel: () => {
+              // Coach skipped/closed the dialog → fall back for ALL deferred.
+              applyAssistFallback(new Set());
+            },
           });
+        } else if (assistDeferredFields.size > 0) {
+          // No dialog opened, but we deferred some fields. Apply fallback now
+          // (defensive — should not normally happen since deferred fields
+          // imply Assist had options, but guarantees we never silently drop a
+          // parsed value).
+          applyAssistFallback(new Set());
         }
+
 
         if (droppedGovernedFields.length > 0) {
           // Surface lightly so coach knows AI couldn't pull a clean candidate.
@@ -1381,7 +1480,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           collisions={overwriteState.collisions}
           nonCollisionCount={0}
           onConfirm={overwriteState.onConfirm}
-          onCancel={() => setOverwriteState(null)}
+          onCancel={() => {
+            const cb = overwriteState.onCancel;
+            setOverwriteState(null);
+            if (cb) cb();
+          }}
         />
       )}
 
