@@ -189,6 +189,21 @@ export function filterAiProposal(opts: {
     // Reject any field not in the AI-eligible set (Bucket A/C fields)
     if (!AI_ELIGIBLE_FIELDS.has(fieldName)) continue;
 
+    // Play Results actor fields: integer-only + result-based contamination guard.
+    if (PLAY_RESULTS_ACTOR_FIELDS.has(fieldName)) {
+      const jersey = coerceActorJersey(proposedValue);
+      if (jersey == null) continue; // drop "four", "RB4", floats, etc.
+      proposedValue = jersey;
+
+      const effectiveResult =
+        proposedResult !== undefined && proposedResult !== null && proposedResult !== ""
+          ? proposedResult
+          : candidateResult;
+      // rusher contamination: drop when the result clearly excludes a carrier
+      // (Pass/Sack/Penalty/etc.) — AI must not invent a rusher in those contexts.
+      if (fieldName === "rusher" && isNonRushResult(effectiveResult)) continue;
+    }
+
     if (unresolvedFields.has(fieldName)) {
       safePatch[fieldName] = proposedValue;
       evidence[fieldName] = {
