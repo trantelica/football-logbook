@@ -859,6 +859,36 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           }
         }
 
+        // Fallback: write raw parsed value for any deferred Assist field the
+        // coach did NOT resolve via Assist (skipped/cancelled or unselected
+        // group), then re-run governance so the existing Unknown Lookup Value
+        // / Add to playbook flow opens for that field.
+        const applyAssistFallback = (resolvedFields: Set<string>) => {
+          const fallbackPatch: Record<string, unknown> = {};
+          for (const field of assistDeferredFields) {
+            if (resolvedFields.has(field)) continue;
+            const raw = assistDeferredRawValues[field];
+            if (raw === undefined || raw === null || raw === "") continue;
+            const current = (candidate as Record<string, unknown>)[field];
+            if (current !== null && current !== undefined && current !== "") continue;
+            fallbackPatch[field] = raw;
+          }
+          if (Object.keys(fallbackPatch).length > 0) {
+            applySystemPatch(fallbackPatch, {
+              fillOnly: true,
+              evidence: Object.fromEntries(
+                Object.keys(fallbackPatch).map((k) => [k, { snippet: text.slice(0, 80) }]),
+              ),
+              source: "deterministic_parse",
+            });
+            const projectedFallback = {
+              ...(candidate as Record<string, unknown>),
+              ...fallbackPatch,
+            };
+            checkAllSectionsGovernance(projectedFallback);
+          }
+        };
+
         if (correctionRows.length > 0 || assistRows.length > 0) {
           const allRows = [...correctionRows, ...assistRows];
           if (correctionRows.length > 0) {
@@ -903,10 +933,23 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                   source: "deterministic_parse",
                 });
               }
+              // 3) Fallback raw + governance for unresolved deferred fields.
+              applyAssistFallback(claimedFields);
               setOverwriteState(null);
             },
+            onCancel: () => {
+              // Coach skipped/closed the dialog → fall back for ALL deferred.
+              applyAssistFallback(new Set());
+            },
           });
+        } else if (assistDeferredFields.size > 0) {
+          // No dialog opened, but we deferred some fields. Apply fallback now
+          // (defensive — should not normally happen since deferred fields
+          // imply Assist had options, but guarantees we never silently drop a
+          // parsed value).
+          applyAssistFallback(new Set());
         }
+
 
         if (droppedGovernedFields.length > 0) {
           // Surface lightly so coach knows AI couldn't pull a clean candidate.
