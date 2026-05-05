@@ -105,7 +105,7 @@ function AssistHarness({
           if (!e) continue;
           if (claimed.has(e.field)) continue;
           claimed.add(e.field);
-          patch[e.field] = { value: e.canonical, matchType: "exact" };
+          patch[e.field] = e.canonical;
         }
         if (Object.keys(patch).length > 0) {
           applySystemPatch(patch, { fillOnly: false, source: "deterministic_parse" });
@@ -140,10 +140,28 @@ describe("Slice F2.a — Lookup Assist integration", () => {
     const [patch, opts] = apply.mock.calls[0];
     expect(opts).toEqual({ fillOnly: false, source: "deterministic_parse" });
     expect(patch).toEqual({
-      offForm: { value: "Vader Tight", matchType: "exact" },
-      offPlay: { value: "26 Punch Fake", matchType: "exact" },
-      motion: { value: "Z Across", matchType: "exact" },
+      offForm: "Vader Tight",
+      offPlay: "26 Punch Fake",
+      motion: "Z Across",
     });
+    // Regression: every governed field must be a bare string, never a wrapper
+    // object. Wrappers stringify to "[object Object]" and trip lookup governance.
+    for (const v of Object.values(patch as Record<string, unknown>)) {
+      expect(typeof v).toBe("string");
+    }
+  });
+
+  it("offPlay Assist selection writes a bare string canonical (not a wrapper object)", () => {
+    const apply = vi.fn();
+    render(<AssistHarness text="we run 26" applySystemPatch={apply} />);
+    fireEvent.click(screen.getByText("26 Punch").closest("label")!);
+    fireEvent.click(screen.getByRole("button", { name: /Apply selected \(1\)/ }));
+    expect(apply).toHaveBeenCalledTimes(1);
+    const [patch] = apply.mock.calls[0];
+    expect(patch).toEqual({ offPlay: "26 Punch" });
+    expect(typeof (patch as Record<string, unknown>).offPlay).toBe("string");
+    // No "[object Object]" leak — direct guard against the original defect.
+    expect(String((patch as Record<string, unknown>).offPlay)).not.toBe("[object Object]");
   });
 
   it("Skip applies nothing", () => {
