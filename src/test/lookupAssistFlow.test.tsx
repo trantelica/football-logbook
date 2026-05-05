@@ -105,7 +105,7 @@ function AssistHarness({
           if (!e) continue;
           if (claimed.has(e.field)) continue;
           claimed.add(e.field);
-          patch[e.field] = { value: e.canonical, matchType: "exact" };
+          patch[e.field] = e.canonical;
         }
         if (Object.keys(patch).length > 0) {
           applySystemPatch(patch, { fillOnly: false, source: "deterministic_parse" });
