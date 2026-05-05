@@ -1383,7 +1383,11 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           collisions={overwriteState.collisions}
           nonCollisionCount={0}
           onConfirm={overwriteState.onConfirm}
-          onCancel={() => setOverwriteState(null)}
+          onCancel={() => {
+            const cb = overwriteState.onCancel;
+            setOverwriteState(null);
+            if (cb) cb();
+          }}
         />
       )}
 
