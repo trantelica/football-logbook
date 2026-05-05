@@ -208,6 +208,14 @@ export async function fetchAiProposal(
   // Intersect with AI-eligible field set — only Bucket B fields
   let aiEligibleUnresolved = unresolvedFields.filter((f) => AI_ELIGIBLE_FIELDS.has(f));
 
+  // Play Results actor fields are AI-eligible ONLY when the active section
+  // is playResults. Outside that section (or in legacy cross-section calls
+  // with activeSection undefined), drop them defensively.
+  const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver"]);
+  if (opts?.activeSection !== "playResults") {
+    aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => !ACTOR_FIELDS.has(f));
+  }
+
   // Slice A: section-aware scoping for Pass 1. When activeSection is set,
   // further intersect with the section's ownedFields so AI cannot propose
   // values for fields outside the active section.
@@ -317,6 +325,15 @@ export async function fetchAiProposal(
   if (sectionOwnedSet) {
     for (const k of Object.keys(normalized)) {
       if (!sectionOwnedSet.has(k)) delete normalized[k];
+    }
+  }
+
+  // Defensive actor drop: actor fields may only flow when activeSection is
+  // playResults. This protects legacy cross-section calls where
+  // sectionOwnedSet is null.
+  if (opts?.activeSection !== "playResults") {
+    for (const k of Object.keys(normalized)) {
+      if (ACTOR_FIELDS.has(k)) delete normalized[k];
     }
   }
 

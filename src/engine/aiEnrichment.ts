@@ -18,10 +18,45 @@
 
 import type { CandidateData } from "./types";
 import type { AIFieldEvidence, SystemPatchCollision, GovernedMatchType } from "./transaction";
-import { AI_ELIGIBLE_FIELDS } from "./aiEligibility";
+import {
+  AI_ELIGIBLE_FIELDS,
+  PLAY_RESULTS_ACTOR_FIELDS,
+  NON_RUSH_RESULT_PREFIXES,
+} from "./aiEligibility";
 
 /** Fields that are system-managed and never AI-enrichable */
 const EXCLUDED_FIELDS = new Set(["gameId", "playNum", "qtr", "odk", "series"]);
+
+/**
+ * Coerce an AI actor proposal to a positive integer jersey number, or null.
+ * Drops "four", "RB4", "#4abc", floats, negatives, zero — only bare digit
+ * strings or numbers in the range [1, 99] are accepted.
+ */
+function coerceActorJersey(v: unknown): number | null {
+  if (typeof v === "number") {
+    if (!Number.isInteger(v) || v < 1 || v > 99) return null;
+    return v;
+  }
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+    if (!/^\d{1,2}$/.test(trimmed)) return null;
+    const n = parseInt(trimmed, 10);
+    if (n < 1 || n > 99) return null;
+    return n;
+  }
+  return null;
+}
+
+/**
+ * True when the resolved (or proposed) result clearly forbids a rusher
+ * unless the coach explicitly named a ball carrier. We're conservative:
+ * Rush*, Scramble*, Fumble*, Return, COP, 1st DN, TD-only contexts are
+ * NOT in the deny list (they may legitimately have a rusher).
+ */
+function isNonRushResult(result: unknown): boolean {
+  if (typeof result !== "string" || !result) return false;
+  return NON_RUSH_RESULT_PREFIXES.some((p) => result === p || result.startsWith(`${p},`));
+}
 
 /** Shape of a governed field AI response (value + match classification) */
 export interface GovernedFieldProposal {
@@ -153,6 +188,21 @@ export function filterAiProposal(opts: {
 
     // Reject any field not in the AI-eligible set (Bucket A/C fields)
     if (!AI_ELIGIBLE_FIELDS.has(fieldName)) continue;
+
+    // Play Results actor fields: integer-only + result-based contamination guard.
+    if (PLAY_RESULTS_ACTOR_FIELDS.has(fieldName)) {
+      const jersey = coerceActorJersey(proposedValue);
+      if (jersey == null) continue; // drop "four", "RB4", floats, etc.
+      proposedValue = jersey;
+
+      const effectiveResult =
+        proposedResult !== undefined && proposedResult !== null && proposedResult !== ""
+          ? proposedResult
+          : candidateResult;
+      // rusher contamination: drop when the result clearly excludes a carrier
+      // (Pass/Sack/Penalty/etc.) — AI must not invent a rusher in those contexts.
+      if (fieldName === "rusher" && isNonRushResult(effectiveResult)) continue;
+    }
 
     if (unresolvedFields.has(fieldName)) {
       safePatch[fieldName] = proposedValue;
