@@ -74,6 +74,33 @@ const baseline: PhraseologyHint[] = [
       "Prefer exact match from governedValues. If no match exists but the coach clearly names a play, propose the candidate value with matchType 'candidate_new'.",
     ],
   },
+  {
+    fieldName: "rusher",
+    hints: [
+      "The jersey number of the ball carrier on a run play.",
+      "'#4 carried' / 'carried by number 4' / 'four took the handoff' = rusher 4",
+      "Return ONLY a bare integer jersey number (1–99). Never 'four', 'RB4', or '#4'.",
+      "If the play is a pass/sack/penalty with no clear ball carrier, OMIT.",
+    ],
+  },
+  {
+    fieldName: "passer",
+    hints: [
+      "The jersey number of the player who threw the pass.",
+      "'#4 threw' / 'thrown by number 4' / 'four passed' = passer 4",
+      "Return ONLY a bare integer jersey number (1–99).",
+      "If no pass attempt, OMIT.",
+    ],
+  },
+  {
+    fieldName: "receiver",
+    hints: [
+      "The jersey number of the targeted/intended receiver.",
+      "'thrown to #8' / 'caught by number 8' / 'targeted eight' = receiver 8",
+      "Return ONLY a bare integer jersey number (1–99).",
+      "If no receiver target is named, OMIT.",
+    ],
+  },
 ];
 
 const baselineMap = new Map<string, string[]>();
