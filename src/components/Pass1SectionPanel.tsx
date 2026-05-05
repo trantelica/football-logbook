@@ -240,6 +240,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     collisions: Collision[];
     /** Resolved overwrite patch fields (apply via fillOnly:false). */
     onConfirm: (selectedFields: Set<string>) => void;
+    /** Optional fallback when the coach cancels/skips the dialog. */
+    onCancel?: () => void;
   } | null>(null);
 
   /** Section-scoped AI clarification modal (single-key answerable). */
