@@ -187,3 +187,45 @@ describe("RawInputCollisionDialog — Slice F2.a Lookup Assist grouped rows", ()
     expect(screen.getByText("AI suggestion")).toBeInTheDocument();
   });
 });
+
+describe("RawInputCollisionDialog — Slice U3 cueText display", () => {
+  it("renders 'Heard:' cue text once per assist group", () => {
+    setup([
+      {
+        fieldName: "assist::offForm::Black",
+        currentValue: null,
+        proposedValue: "Black",
+        source: "lookup_assist",
+        groupKey: "offForm",
+        signalLabel: "Sounds like",
+        cueText: "we run 26 from black formation",
+      },
+      {
+        fieldName: "assist::offForm::Blue",
+        currentValue: null,
+        proposedValue: "Blue",
+        source: "lookup_assist",
+        groupKey: "offForm",
+        signalLabel: "Contains",
+        cueText: "we run 26 from black formation",
+      },
+    ]);
+    const cues = screen.getAllByText(/Heard:/);
+    expect(cues).toHaveLength(1);
+    expect(cues[0].textContent).toContain("we run 26 from black formation");
+  });
+
+  it("renders 'From:' cue text on AI correction rows", () => {
+    setup([
+      {
+        fieldName: "offPlay",
+        currentValue: "Reverse",
+        proposedValue: "39 Reverse Pass",
+        source: "ai_correction",
+        cueText: "39 reverse pass to the strong side",
+      },
+    ]);
+    expect(screen.getByText(/From:/)).toBeInTheDocument();
+    expect(screen.getByText(/39 reverse pass to the strong side/)).toBeInTheDocument();
+  });
+});

@@ -31,6 +31,8 @@ export interface Collision {
   groupKey?: string;
   /** Coach-friendly chip text, e.g. "Number match", "Sounds like". */
   signalLabel?: string;
+  /** Display-only short snippet of source text that triggered this suggestion. */
+  cueText?: string;
 }
 
 interface RawInputCollisionDialogProps {
@@ -173,6 +175,11 @@ export function RawInputCollisionDialog({
           {isAi && c.note && (
             <p className="text-[11px] text-muted-foreground italic">{c.note}</p>
           )}
+          {isAi && c.cueText && (
+            <p className="text-[11px] text-muted-foreground italic font-mono">
+              From: "{c.cueText}"
+            </p>
+          )}
         </div>
       </label>
     );
@@ -202,6 +209,7 @@ export function RawInputCollisionDialog({
           {groupOrder.map((g) => {
             const rows = groups.get(g)!;
             const cur = rows[0]?.currentValue;
+            const groupCue = rows.find((r) => r.cueText)?.cueText;
             return (
               <div key={g} className="space-y-1">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
@@ -212,6 +220,11 @@ export function RawInputCollisionDialog({
                     </span>
                   )}
                 </p>
+                {groupCue && (
+                  <p className="text-[11px] text-muted-foreground italic font-mono">
+                    Heard: "{groupCue}"
+                  </p>
+                )}
                 <div className="space-y-1">{rows.map(renderRow)}</div>
               </div>
             );

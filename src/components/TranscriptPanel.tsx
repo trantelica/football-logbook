@@ -569,14 +569,14 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
             </>
           )}
 
-          {hasContent && !listening && (
+          {hasContent && (
             <Button
               size="sm"
-              variant="ghost"
-              className="h-6 text-[10px] gap-1 text-muted-foreground"
+              variant="outline"
+              className="h-7 text-xs gap-1 text-muted-foreground"
               onClick={handleClear}
             >
-              <Trash2 className="h-2.5 w-2.5" />
+              <Trash2 className="h-3 w-3" />
               Clear
             </Button>
           )}

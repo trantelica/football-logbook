@@ -793,6 +793,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             correctionPatch[k] = { value: c.value, matchType: c.matchType };
           }
           const candidateMap = candidate as Record<string, unknown>;
+          const aiSnippet = text.length > 120 ? text.slice(0, 117) + "…" : text;
           for (const [k, c] of Object.entries(corrections)) {
             if (!ownedSet.has(k)) continue;
             if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
@@ -802,6 +803,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
               proposedValue: c.value,
               source: "ai_correction",
               note: "AI suggests this fits the transcript better.",
+              cueText: aiSnippet || undefined,
             });
           }
         }
@@ -843,6 +845,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           };
           for (const [field, res] of Object.entries(assistReport.perField)) {
             if (!res || res.kind !== "options") continue;
+            const cueText = res.cue ? (res.cue.length > 120 ? res.cue.slice(0, 117) + "…" : res.cue) : undefined;
             for (const opt of res.knownOptions) {
               const rowId = `assist::${field}::${opt.canonical}`;
               const strongest = opt.signals[0];
@@ -853,6 +856,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 source: "lookup_assist",
                 groupKey: field,
                 signalLabel: strongest ? SIGNAL_LABEL[strongest] : undefined,
+                cueText,
               });
               assistPatchByRow.set(rowId, { field, canonical: opt.canonical });
             }
