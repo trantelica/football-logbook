@@ -31,6 +31,8 @@ export interface Collision {
   groupKey?: string;
   /** Coach-friendly chip text, e.g. "Number match", "Sounds like". */
   signalLabel?: string;
+  /** Display-only short snippet of source text that triggered this suggestion. */
+  cueText?: string;
 }
 
 interface RawInputCollisionDialogProps {
