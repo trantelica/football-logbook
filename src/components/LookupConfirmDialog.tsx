@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { LOOKUP_DEPENDENT_ATTRS } from "@/engine/schema";
 
-export const COMMON_PLAY_TYPES = ["Run", "Pass"] as const;
+export const COMMON_PLAY_TYPES: readonly string[] = ["Run", "Pass"];
 
 /**
  * UI-only ordering helper for the Add New offPlay modal.
