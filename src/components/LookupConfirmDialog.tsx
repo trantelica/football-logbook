@@ -14,8 +14,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { LOOKUP_DEPENDENT_ATTRS } from "@/engine/schema";
+
+const COMMON_PLAY_TYPES = ["Run", "Pass"];
 
 interface LookupConfirmDialogProps {
   open: boolean;
