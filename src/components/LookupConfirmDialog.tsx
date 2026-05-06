@@ -14,8 +14,27 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { LOOKUP_DEPENDENT_ATTRS } from "@/engine/schema";
+
+export const COMMON_PLAY_TYPES: readonly string[] = ["Run", "Pass"];
+
+/**
+ * UI-only ordering helper for the Add New offPlay modal.
+ * Splits playType allowedValues into a "Common" group (Run, Pass)
+ * and an "Other" group preserving original order. Does not mutate
+ * or remove any values; canonical commit value is unchanged.
+ */
+export function partitionPlayTypeOptions(allowedValues: readonly string[]): {
+  common: string[];
+  other: string[];
+} {
+  const common = COMMON_PLAY_TYPES.filter((v) => allowedValues.includes(v));
+  const other = allowedValues.filter((v) => !common.includes(v));
+  return { common, other };
+}
 
 interface LookupConfirmDialogProps {
   open: boolean;
@@ -83,11 +102,37 @@ export function LookupConfirmDialog({
                     <SelectValue placeholder="Select…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {def.allowedValues.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
+                    {fieldName === "offPlay" && def.name === "playType" ? (() => {
+                      const allowed = def.allowedValues;
+                      const common = COMMON_PLAY_TYPES.filter((v) => allowed.includes(v));
+                      const others = allowed.filter((v) => !common.includes(v));
+                      return (
+                        <>
+                          {common.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>Common</SelectLabel>
+                              {common.map((v) => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          {others.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>Other</SelectLabel>
+                              {others.map((v) => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                        </>
+                      );
+                    })() : (
+                      def.allowedValues.map((v) => (
+                        <SelectItem key={v} value={v}>
+                          {v}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
