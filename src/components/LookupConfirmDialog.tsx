@@ -19,7 +19,22 @@ import {
 } from "@/components/ui/select";
 import { LOOKUP_DEPENDENT_ATTRS } from "@/engine/schema";
 
-const COMMON_PLAY_TYPES = ["Run", "Pass"];
+export const COMMON_PLAY_TYPES = ["Run", "Pass"] as const;
+
+/**
+ * UI-only ordering helper for the Add New offPlay modal.
+ * Splits playType allowedValues into a "Common" group (Run, Pass)
+ * and an "Other" group preserving original order. Does not mutate
+ * or remove any values; canonical commit value is unchanged.
+ */
+export function partitionPlayTypeOptions(allowedValues: readonly string[]): {
+  common: string[];
+  other: string[];
+} {
+  const common = COMMON_PLAY_TYPES.filter((v) => allowedValues.includes(v));
+  const other = allowedValues.filter((v) => !common.includes(v));
+  return { common, other };
+}
 
 interface LookupConfirmDialogProps {
   open: boolean;
