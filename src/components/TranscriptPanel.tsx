@@ -569,17 +569,6 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
             </>
           )}
 
-          {hasContent && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1 text-muted-foreground"
-              onClick={handleClear}
-            >
-              <Trash2 className="h-3 w-3" />
-              Clear
-            </Button>
-          )}
         </div>
       </div>
 
@@ -602,6 +591,21 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
         }}
         readOnly={listening}
       />
+
+      {/* Clear control — placed below the transcript so it stays accessible during dictation */}
+      {hasContent && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+            onClick={handleClear}
+          >
+            <Trash2 className="h-3 w-3" />
+            Clear
+          </Button>
+        </div>
+      )}
 
       {/* Typed line input */}
       {showTyped && !listening && (
