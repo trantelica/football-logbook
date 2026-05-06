@@ -87,11 +87,37 @@ export function LookupConfirmDialog({
                     <SelectValue placeholder="Select…" />
                   </SelectTrigger>
                   <SelectContent>
-                    {def.allowedValues.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
+                    {fieldName === "offPlay" && def.name === "playType" ? (() => {
+                      const allowed = def.allowedValues;
+                      const common = COMMON_PLAY_TYPES.filter((v) => allowed.includes(v));
+                      const others = allowed.filter((v) => !common.includes(v));
+                      return (
+                        <>
+                          {common.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>Common</SelectLabel>
+                              {common.map((v) => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          {others.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>Other</SelectLabel>
+                              {others.map((v) => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                        </>
+                      );
+                    })() : (
+                      def.allowedValues.map((v) => (
+                        <SelectItem key={v} value={v}>
+                          {v}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
