@@ -569,17 +569,6 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
             </>
           )}
 
-          {hasContent && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1 text-muted-foreground"
-              onClick={handleClear}
-            >
-              <Trash2 className="h-3 w-3" />
-              Clear
-            </Button>
-          )}
         </div>
       </div>
 
