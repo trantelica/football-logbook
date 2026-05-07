@@ -91,6 +91,16 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\b(\d+)\s+yards?\s+to\s+go\b/gi, "DIST $1"],
   [/\b(\d+)\s+to\s+go\b/gi, "DIST $1"],
 
+  // Ordinal + DIST anchor: when an explicit DIST anchor was emitted by the
+  // phrasal distance rules above, recover the leading down ordinal.
+  //   "First and distance is 7"  → (after DIST rule) "First and DIST 7"  → "DN 1 DIST 7"
+  //   "Third and distance of 4"  → "DN 3 DIST 4"
+  // Lookahead for DIST ensures these rules NEVER fire on bare ordinals.
+  [/\b(?:1st|first)\s+and\s+(?=DIST\b)/gi, "DN 1 "],
+  [/\b(?:2nd|second)\s+and\s+(?=DIST\b)/gi, "DN 2 "],
+  [/\b(?:3rd|third)\s+and\s+(?=DIST\b)/gi, "DN 3 "],
+  [/\b(?:4th|fourth)\s+and\s+(?=DIST\b)/gi, "DN 4 "],
+
   // Yard-line phrases: "yard line", "yardline", "YL", "ball on the 28"
   [/\byard\s*line\b/gi, "YARD"],
   [/\byardline\b/gi, "YARD"],
