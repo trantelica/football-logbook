@@ -793,5 +793,37 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).not.toContain("DIST 7");
     });
   });
+
+  describe("explicit yard-line precedence over generic 'minus N'", () => {
+    it("'ball on the minus 20' contains YARD -20 and not GN/LS -20", () => {
+      const out = normalizeTranscriptForParse("ball on the minus 20");
+      expect(out).toContain("YARD -20");
+      expect(out).not.toContain("GN/LS -20");
+    });
+    it("'ball is on the minus 35' contains YARD -35", () => {
+      expect(normalizeTranscriptForParse("ball is on the minus 35")).toContain("YARD -35");
+    });
+    it("'on the minus 20 yard line' contains YARD -20", () => {
+      const out = normalizeTranscriptForParse("on the minus 20 yard line");
+      expect(out).toContain("YARD -20");
+      expect(out).not.toContain("GN/LS -20");
+    });
+    it("bare 'minus 5' still becomes GN/LS -5", () => {
+      expect(normalizeTranscriptForParse("minus 5")).toContain("GN/LS -5");
+    });
+  });
+
+  describe("ordinal + DIST anchor → DN", () => {
+    it("'First and distance is 7' contains DN 1 and DIST 7", () => {
+      const out = normalizeTranscriptForParse("First and distance is 7");
+      expect(out).toContain("DN 1");
+      expect(out).toContain("DIST 7");
+    });
+    it("'Third and distance is 4' contains DN 3 and DIST 4", () => {
+      const out = normalizeTranscriptForParse("Third and distance is 4");
+      expect(out).toContain("DN 3");
+      expect(out).toContain("DIST 4");
+    });
+  });
 });
 
