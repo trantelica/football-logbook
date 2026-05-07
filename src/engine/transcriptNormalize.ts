@@ -136,7 +136,7 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   //   "ball is on the minus 35"       → YARD -35
   //   "on the minus 20 yard line"     → YARD -20
   [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?minus\s+(\d+)\b/gi, "YARD -$1"],
-  [/\bon\s+(?:the\s+)?minus\s+(\d+)\s+yard\s*line\b/gi, "YARD -$1"],
+  [/\bon\s+(?:the\s+)?minus\s+(\d+)\s+(?:yard\s*line|YARD)\b/gi, "YARD -$1"],
   [/\bminus\s+(\d+)\b/gi, "GN/LS -$1"],
 
   // Gain/Loss single-word markers mapped to GN/LS
