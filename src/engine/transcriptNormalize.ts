@@ -91,6 +91,16 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\b(\d+)\s+yards?\s+to\s+go\b/gi, "DIST $1"],
   [/\b(\d+)\s+to\s+go\b/gi, "DIST $1"],
 
+  // Ordinal + DIST anchor: when an explicit DIST anchor was emitted by the
+  // phrasal distance rules above, recover the leading down ordinal.
+  //   "First and distance is 7"  → (after DIST rule) "First and DIST 7"  → "DN 1 DIST 7"
+  //   "Third and distance of 4"  → "DN 3 DIST 4"
+  // Lookahead for DIST ensures these rules NEVER fire on bare ordinals.
+  [/\b(?:1st|first)\s+and\s+(?=DIST\b)/gi, "DN 1 "],
+  [/\b(?:2nd|second)\s+and\s+(?=DIST\b)/gi, "DN 2 "],
+  [/\b(?:3rd|third)\s+and\s+(?=DIST\b)/gi, "DN 3 "],
+  [/\b(?:4th|fourth)\s+and\s+(?=DIST\b)/gi, "DN 4 "],
+
   // Yard-line phrases: "yard line", "yardline", "YL", "ball on the 28"
   [/\byard\s*line\b/gi, "YARD"],
   [/\byardline\b/gi, "YARD"],
@@ -118,6 +128,15 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\b(\d+)\s+yard\s+gain\b/gi, "GN/LS $1"],
   [/\b(\d+)\s+yard\s+loss\b/gi, "GN/LS -$1"],
   [/\bplus\s+(\d+)\b/gi, "GN/LS $1"],
+  // Explicit "minus N" yard-line phrasing — must run BEFORE the generic
+  // "minus N" → GN/LS -N gain/loss rule below, so explicit yard-line language
+  // is not consumed as gain/loss. High-precision: requires "ball on (the)" or
+  // "on (the) minus N yard line" cue.
+  //   "ball on the minus 20"          → YARD -20
+  //   "ball is on the minus 35"       → YARD -35
+  //   "on the minus 20 yard line"     → YARD -20
+  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?minus\s+(\d+)\b/gi, "YARD -$1"],
+  [/\bon\s+(?:the\s+)?minus\s+(\d+)\s+(?:yard\s*line|YARD)\b/gi, "YARD -$1"],
   [/\bminus\s+(\d+)\b/gi, "GN/LS -$1"],
 
   // Gain/Loss single-word markers mapped to GN/LS
