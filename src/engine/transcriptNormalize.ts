@@ -82,6 +82,13 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\band\s+(\d+)\s+to\s+go\b/gi, "DIST $1"],
   [/\band\s+(\d+)\b/gi, "DIST $1"],
   [/\bneed\s+(\d+)\b/gi, "DIST $1"],
+  // Explicit distance phrasing: "distance 7", "distance is 7", "distance of 7" → DIST 7.
+  // High-precision: leading "distance" cue word required.
+  [/\bdistance\s+(?:is\s+|of\s+)?(\d+)\b/gi, "DIST $1"],
+  // Explicit yards-to-go phrasing: "7 yards to go", "7 yard to go" → DIST 7.
+  // Requires the explicit "yard(s) to go" tail; bare "7 yards" is NOT matched
+  // (avoids contamination with gainLoss narration like "ran for 7 yards").
+  [/\b(\d+)\s+yards?\s+to\s+go\b/gi, "DIST $1"],
   [/\b(\d+)\s+to\s+go\b/gi, "DIST $1"],
 
   // Yard-line phrases: "yard line", "yardline", "YL", "ball on the 28"
