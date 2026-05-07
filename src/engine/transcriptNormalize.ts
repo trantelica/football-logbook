@@ -105,6 +105,15 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // for a bare positive yard-line phrase.
   [/\bfrom\s+(?:the\s+)?(-\d+)\s+YARD\b/gi, "YARD $1"],
   [/\bon\s+(?:the\s+)?(-\d+)\s+YARD\b/gi, "YARD $1"],
+  // Explicit "minus N" yard-line phrasing — must run BEFORE the generic
+  // "minus N" → GN/LS -N gain/loss rule below, so explicit yard-line language
+  // is not consumed as gain/loss. High-precision: requires "ball on (the)" or
+  // "on (the) ... yard line" cue around "minus N".
+  //   "ball on the minus 20"          → YARD -20
+  //   "ball is on the minus 35"       → YARD -35
+  //   "on the minus 20 yard line"     → YARD -20
+  [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?minus\s+(\d+)\b/gi, "YARD -$1"],
+  [/\bon\s+(?:the\s+)?minus\s+(\d+)\s+yard\s*line\b/gi, "YARD -$1"],
   // "ball on the N" (no side qualifier) — positive
   [/\bball\s+(?:is\s+)?on\s+(?:the\s+)?(-?\d+)\b/gi, "YARD $1"],
 
