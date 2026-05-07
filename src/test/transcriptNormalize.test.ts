@@ -771,5 +771,27 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).toContain("PASSER 0");
     });
   });
+
+  describe("explicit distance phrasing → DIST", () => {
+    it("'distance is 7' emits DIST 7", () => {
+      expect(normalizeTranscriptForParse("distance is 7")).toContain("DIST 7");
+    });
+    it("'distance 7' emits DIST 7", () => {
+      expect(normalizeTranscriptForParse("distance 7")).toContain("DIST 7");
+    });
+    it("'distance of 7' emits DIST 7", () => {
+      expect(normalizeTranscriptForParse("distance of 7")).toContain("DIST 7");
+    });
+    it("'7 yards to go' emits DIST 7", () => {
+      expect(normalizeTranscriptForParse("7 yards to go")).toContain("DIST 7");
+    });
+    it("'7 yard to go' emits DIST 7", () => {
+      expect(normalizeTranscriptForParse("7 yard to go")).toContain("DIST 7");
+    });
+    it("bare '7 yards' does NOT emit DIST 7", () => {
+      const out = normalizeTranscriptForParse("ran for 7 yards");
+      expect(out).not.toContain("DIST 7");
+    });
+  });
 });
 
