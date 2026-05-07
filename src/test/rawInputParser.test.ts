@@ -208,3 +208,19 @@ describe("rawInputParser — hash conservative", () => {
     expect(report.some(r => r.anchor === "HASH" && r.status === "unrecognized")).toBe(true);
   });
 });
+
+describe("rawInputParser — Situation narration scoping", () => {
+  it("'First and distance is 7, ball on the minus 20, ...' yields dn=1, dist=7, yardLn=-20 in Situation scope", () => {
+    const input =
+      "First and distance is 7, ball on the minus 20, black formation, 26 punch, rush for 6 yards by number 2.";
+    const { patch } = parseFull(input);
+    expect(patch.dn).toBe(1);
+    expect(patch.dist).toBe(7);
+    expect(patch.yardLn).toBe(-20);
+    // The parser itself may extract play-detail/result fields; section scoping
+    // happens downstream. Here we assert the Situation-owned fields parsed
+    // correctly. The Situation-scope filter (sectionOwnership) ensures
+    // non-Situation fields are not applied when this transcript is dictated
+    // into the Situation section.
+  });
+});
