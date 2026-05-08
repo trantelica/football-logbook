@@ -901,6 +901,28 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
               });
               assistPatchByRow.set(rowId, { field, canonical: opt.canonical });
             }
+            // Issue 2: when a raw unknown governed value was detected for this
+            // field (Assist deferred the parser value), append an explicit
+            // "Add as new value" row so fuzzy options are never the only path.
+            // Selecting this row routes through applyAssistFallback, which
+            // writes the raw value and triggers the existing lookup governance
+            // Add-New-Value modal (which collects required dependents per the
+            // existing governance rules).
+            const deferredRaw = assistDeferredRawValues[field];
+            if (typeof deferredRaw === "string" && deferredRaw.trim()) {
+              const rawTrimmed = deferredRaw.trim();
+              const rowId = `assist-new::${field}::${rawTrimmed}`;
+              assistRows.push({
+                fieldName: rowId,
+                currentValue: candidateMap[field] ?? null,
+                proposedValue: `Add "${rawTrimmed}" as new`,
+                source: "lookup_assist",
+                groupKey: field,
+                signalLabel: "New value",
+                cueText,
+              });
+              assistAddNewByRow.set(rowId, { field, rawValue: rawTrimmed });
+            }
           }
         }
 
