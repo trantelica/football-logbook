@@ -816,6 +816,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         // and fields already filled (per `candidate`).
         const assistRows: Collision[] = [];
         const assistPatchByRow = new Map<string, { field: string; canonical: string }>();
+        // Add-new rows: selecting one signals "do not claim this field via
+        // Assist" so applyAssistFallback writes the raw value and the existing
+        // lookup governance flow opens to collect required dependents.
+        const assistAddNewByRow = new Map<string, { field: string; rawValue: string }>();
         if (id === "playDetails") {
           const candidateMap = candidate as Record<string, unknown>;
           const filledFields = new Set<string>();
@@ -897,6 +901,28 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
               });
               assistPatchByRow.set(rowId, { field, canonical: opt.canonical });
             }
+            // Issue 2: when a raw unknown governed value was detected for this
+            // field (Assist deferred the parser value), append an explicit
+            // "Add as new value" row so fuzzy options are never the only path.
+            // Selecting this row routes through applyAssistFallback, which
+            // writes the raw value and triggers the existing lookup governance
+            // Add-New-Value modal (which collects required dependents per the
+            // existing governance rules).
+            const deferredRaw = assistDeferredRawValues[field];
+            if (typeof deferredRaw === "string" && deferredRaw.trim()) {
+              const rawTrimmed = deferredRaw.trim();
+              const rowId = `assist-new::${field}::${rawTrimmed}`;
+              assistRows.push({
+                fieldName: rowId,
+                currentValue: candidateMap[field] ?? null,
+                proposedValue: `Add "${rawTrimmed}" as new`,
+                source: "lookup_assist",
+                groupKey: field,
+                signalLabel: "New value",
+                cueText,
+              });
+              assistAddNewByRow.set(rowId, { field, rawValue: rawTrimmed });
+            }
           }
         }
 
@@ -955,10 +981,14 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                   source: "ai_proposed",
                 });
               }
-              // 2) Lookup Assist selections → deterministic_parse, one per group
+              // 2) Lookup Assist selections → deterministic_parse, one per group.
+              //    Add-new rows are NOT claimed here — they intentionally fall
+              //    through to applyAssistFallback so the existing governance
+              //    Add-New-Value modal opens for the raw value.
               const acceptedAssist: Record<string, unknown> = {};
               const claimedFields = new Set<string>();
               for (const rowId of selectedFields) {
+                if (assistAddNewByRow.has(rowId)) continue;
                 const entry = assistPatchByRow.get(rowId);
                 if (!entry) continue;
                 if (claimedFields.has(entry.field)) continue;
@@ -974,7 +1004,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                   source: "deterministic_parse",
                 });
               }
-              // 3) Fallback raw + governance for unresolved deferred fields.
+              // 3) Fallback raw + governance for unresolved deferred fields
+              //    (includes any field whose selected row was an "Add as new
+              //    value" row — those are explicitly NOT in claimedFields).
               applyAssistFallback(claimedFields);
               setOverwriteState(null);
             },

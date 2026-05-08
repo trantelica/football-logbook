@@ -825,5 +825,34 @@ describe("normalizeTranscriptForParse — motion phrasing coverage", () => {
       expect(out).toContain("DIST 4");
     });
   });
+
+  describe("Play Results passer attribution (Issue 1)", () => {
+    it("'thrown to number 14 by quarterback number zero' yields PASSER 0 RECEIVER 14", () => {
+      const out = normalizeTranscriptForParse("Thrown to number 14 by quarterback number zero");
+      expect(out).toContain("RECEIVER 14");
+      expect(out).toContain("PASSER 0");
+    });
+    it("'thrown to 14 by quarterback 0' yields PASSER 0 RECEIVER 14", () => {
+      const out = normalizeTranscriptForParse("Thrown to 14 by quarterback 0");
+      expect(out).toContain("RECEIVER 14");
+      expect(out).toContain("PASSER 0");
+    });
+    it("'pass to 14 from quarterback 0' yields PASSER 0 RECEIVER 14", () => {
+      const out = normalizeTranscriptForParse("Pass to 14 from quarterback 0");
+      expect(out).toContain("RECEIVER 14");
+      expect(out).toContain("PASSER 0");
+    });
+    it("'completed to 14 by 0' yields RESULT Complete RECEIVER 14 PASSER 0", () => {
+      const out = normalizeTranscriptForParse("Completed to 14 by 0");
+      expect(out).toContain("RESULT Complete");
+      expect(out).toContain("RECEIVER 14");
+      expect(out).toContain("PASSER 0");
+    });
+    it("'quarterback zero throws to number 14' yields PASSER 0 RECEIVER 14", () => {
+      const out = normalizeTranscriptForParse("Quarterback zero throws to number 14");
+      expect(out).toContain("PASSER 0");
+      expect(out).toContain("RECEIVER 14");
+    });
+  });
 });
 

@@ -224,3 +224,27 @@ describe("rawInputParser — Situation narration scoping", () => {
     // into the Situation section.
   });
 });
+
+describe("rawInputParser — Play Results passer attribution (Issue 1)", () => {
+  it("'Thrown to number 14 by quarterback number zero' → receiver=14, passer=0", () => {
+    const { patch } = parseFull("Thrown to number 14 by quarterback number zero");
+    expect(patch.receiver).toBe(14);
+    expect(patch.passer).toBe(0);
+  });
+  it("'Pass to 14 from quarterback 0' → receiver=14, passer=0", () => {
+    const { patch } = parseFull("Pass to 14 from quarterback 0");
+    expect(patch.receiver).toBe(14);
+    expect(patch.passer).toBe(0);
+  });
+  it("'Completed to 14 by 0' → result=Complete, receiver=14, passer=0", () => {
+    const { patch } = parseFull("Completed to 14 by 0");
+    expect(patch.result).toBe("Complete");
+    expect(patch.receiver).toBe(14);
+    expect(patch.passer).toBe(0);
+  });
+  it("'Quarterback zero throws to number 14' → passer=0, receiver=14", () => {
+    const { patch } = parseFull("Quarterback zero throws to number 14");
+    expect(patch.passer).toBe(0);
+    expect(patch.receiver).toBe(14);
+  });
+});
