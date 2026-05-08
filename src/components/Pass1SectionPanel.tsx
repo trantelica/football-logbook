@@ -827,6 +827,39 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             // avoids competing rows in the same dialog for the same field.
             if (correctionPatch[f]) filledFields.add(f);
           }
+          // Step 1 (governance/Assist coexistence): suppress Assist groups for
+          // any governed field that is already pending lookup governance OR
+          // about to enter governance for an unknown value introduced by this
+          // same proposal sweep. This prevents "Pick Known Values" from
+          // opening alongside / behind the "Add New Value" modal for the same
+          // field. Other governed fields with valid Assist options are
+          // unaffected.
+          const projectedForGovernance: Record<string, unknown> = {
+            ...candidateMap,
+            ...fillablePatch,
+            ...scannerFillable,
+            ...assistDeferredRawValues,
+          };
+          for (const [k, v] of Object.entries(ownedAiProposal)) {
+            if (aiCollisions.find((c) => c.fieldName === k)) continue;
+            if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
+              projectedForGovernance[k] = (v as { value: unknown }).value;
+            } else {
+              projectedForGovernance[k] = v;
+            }
+          }
+          const projectedGovernanceQueue = buildLookupGovernanceQueue(
+            projectedForGovernance,
+            lookupMap as Map<string, string[]>,
+            aiProposedFields,
+          );
+          const governancePendingFields = new Set<string>(
+            projectedGovernanceQueue.map((it) => it.fieldName),
+          );
+          if (lookupInterruptPending?.fieldName) {
+            governancePendingFields.add(lookupInterruptPending.fieldName);
+          }
+
           const assistReport = collectAssistCandidates({
             sectionText: normalized,
             parserPatch: scopedParsePatch,
@@ -846,6 +879,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           };
           for (const [field, res] of Object.entries(assistReport.perField)) {
             if (!res || res.kind !== "options") continue;
+            // Step 1 suppression: skip Assist groups for fields already
+            // pending (or about to enter) lookup governance this cycle.
+            if (governancePendingFields.has(field)) continue;
             const cueText = res.cue ? (res.cue.length > 120 ? res.cue.slice(0, 117) + "…" : res.cue) : undefined;
             for (const opt of res.knownOptions) {
               const rowId = `assist::${field}::${opt.canonical}`;
