@@ -606,9 +606,15 @@ const STT_SAFETY_SUBSTITUTIONS: [RegExp, string][] = [
  */
 const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // ── PASSER + RECEIVER pair (run first — most specific) ──
+  // "quarterback 0 throws to number 14" / "quarterback 12 threw to 88".
+  // Run BEFORE the generic digit-led pair so the leading "quarterback" cue
+  // is consumed (avoids "quarterback" later normalizing to a stray PASSER
+  // anchor with an empty value).
+  [/\bquarterback\s+(?:#|number\s+)?(\d+)\s+(?:passed|threw|throws|pass|throw|passes)\s+(?:it\s+)?to\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1 RECEIVER $2"],
   // "12 passed to 88", "12 threw to 88", "12 throws to 88"
   [/(?:#|number\s+)?(\d+)\s+(?:passed|threw|throws|pass|throw)\s+(?:it\s+)?to\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1 RECEIVER $2"],
   // "12 to 88 complete/incomplete" — keep narrow; require explicit verb above instead.
+
 
   // ── RUSHER ──
   // "number 4 is/was the ball carrier" / "#4 is/was the ball carrier" / "4 is/was the ball carrier"
