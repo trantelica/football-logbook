@@ -199,6 +199,16 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // doesn't get parsed as "<a> jet motion").
   [/(?:^|\s)(?:(?:and\s+)?then\s+)?(?:we\s+(?:use|have|run|are\s+in|are\s+running|got)(?:\s+a)?|with(?:\s+a)?|in|on|using)?\s*(jet|fly|orbit|return)\s+motion\b/gi,
     (_m, dir: string) => ` MOTION ${dir.charAt(0).toUpperCase() + dir.slice(1).toLowerCase()}`],
+  // Generic single-token motion under MANDATORY explicit coach cue. Captures
+  // unknown governed motion names (e.g. "we use flip motion" → "MOTION Flip")
+  // so they reach lookup governance instead of being silently dropped. Cue is
+  // required (no optional prefix) to avoid grabbing incidental "<word> motion"
+  // phrases. Article "a"/"an"/"the" filtered in the replacement.
+  [/(?:^|\s)(?:(?:and\s+)?then\s+)?(?:we\s+(?:use|have|run|are\s+running|got)(?:\s+a|\s+an)?|with\s+(?:a|an)|using)\s+([a-z]+)\s+motion\b/gi,
+    (m, word: string) => {
+      if (/^(a|an|the|no)$/i.test(word)) return m;
+      return ` MOTION ${word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()}`;
+    }],
   // Generic two-token motion phrase: "4 pirate motion", "Z across motion".
   // Kept narrow to a digit or single-letter actor token + one descriptor token.
   [/(?:^|\s)(?:(?:and\s+)?then\s+)?(?:we\s+(?:use|have|run|are\s+in|are\s+running|got)(?:\s+a)?|with(?:\s+a)?|in|on|using)?\s*((?:\d+|[A-Z]))\s+([A-Za-z]+)\s+motion\b/gi,

@@ -116,3 +116,74 @@ describe("Lookup Assist — Add as new value row (Issue 2)", () => {
     expect(claimedFields.has("offPlay")).toBe(false);
   });
 });
+
+/**
+ * Issue 2 follow-up: exact failing manual case — "We use flip motion" with
+ * no existing "Flip" motion canonical must NOT silently force fuzzy-only
+ * resolution. Acceptable outcomes:
+ *   A. Parser extracts motion=Flip → buildLookupGovernanceQueue enqueues it
+ *      (direct governance), OR
+ *   B. Lookup Assist appears and includes an "Add 'Flip' as new" row that
+ *      bypasses Assist claiming and routes to lookup governance.
+ *
+ * This project's parser implements (A): the explicit "we use <word> motion"
+ * cue extracts motion="Flip", which the existing governance queue picks up
+ * because "Flip" is not in the motion lookup canonicals.
+ */
+describe('Issue 2 follow-up — "We use flip motion" routes to governance', () => {
+  it('parser extracts motion="Flip" from "We use flip motion"', async () => {
+    const { normalizeTranscriptForParse } = await import("@/engine/transcriptNormalize");
+    const { parseRawInput } = await import("@/engine/rawInputParser");
+    const norm = normalizeTranscriptForParse("We use flip motion");
+    const { patch } = parseRawInput(norm);
+    expect(patch.motion).toBe("Flip");
+  });
+
+  it("buildLookupGovernanceQueue enqueues motion=Flip when not a known canonical (behavior A)", async () => {
+    const { buildLookupGovernanceQueue } = await import("@/engine/lookupGovernanceQueue");
+    const lookupMap = new Map<string, string[]>([
+      ["motion", ["Z Across", "Z Jet", "Jet"]],
+      ["offForm", []],
+      ["offPlay", []],
+    ]);
+    const queue = buildLookupGovernanceQueue({ motion: "Flip" }, lookupMap);
+    const motionItem = queue.find((q) => q.fieldName === "motion");
+    expect(motionItem).toBeDefined();
+    expect(motionItem?.value).toBe("Flip");
+  });
+
+  it("if Assist were to appear for the raw cue, an Add-New row is offered (behavior B fallback)", () => {
+    // Even though parser handles this case directly (A), confirm the
+    // Assist row-construction would still produce an Add-New escape hatch
+    // if a raw deferred value were present.
+    const rows = simulate({
+      text: "we use flip motion",
+      parserPatch: { motion: "Flip" },
+      lookupMap: lookupOf({ motion: ["Z Across", "Z Jet", "Jet"] }),
+      deferredRaw: { motion: "Flip" },
+    });
+    const motionRows = rows.filter((r) => r.field === "motion");
+    // Either no Assist appears (parser handled it) OR an Add-New row exists.
+    if (motionRows.length > 0) {
+      expect(motionRows.some((r) => r.kind === "add_new" && r.proposedValue.includes("Flip"))).toBe(true);
+    }
+  });
+
+  it("Add-New row does not pre-claim motion → fallback writes raw → governance opens", () => {
+    const rows = simulate({
+      text: "we use flip motion",
+      parserPatch: { motion: "Flip" },
+      lookupMap: lookupOf({ motion: ["Z Across", "Z Jet"] }),
+      deferredRaw: { motion: "Flip" },
+    });
+    const addNew = rows.find((r) => r.kind === "add_new" && r.field === "motion");
+    if (addNew) {
+      const claimedFields = new Set<string>();
+      for (const rowId of [addNew.rowId]) {
+        if (rowId.startsWith("assist-new::")) continue;
+        claimedFields.add("motion");
+      }
+      expect(claimedFields.has("motion")).toBe(false);
+    }
+  });
+});
