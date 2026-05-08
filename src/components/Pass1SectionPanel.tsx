@@ -981,10 +981,14 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                   source: "ai_proposed",
                 });
               }
-              // 2) Lookup Assist selections → deterministic_parse, one per group
+              // 2) Lookup Assist selections → deterministic_parse, one per group.
+              //    Add-new rows are NOT claimed here — they intentionally fall
+              //    through to applyAssistFallback so the existing governance
+              //    Add-New-Value modal opens for the raw value.
               const acceptedAssist: Record<string, unknown> = {};
               const claimedFields = new Set<string>();
               for (const rowId of selectedFields) {
+                if (assistAddNewByRow.has(rowId)) continue;
                 const entry = assistPatchByRow.get(rowId);
                 if (!entry) continue;
                 if (claimedFields.has(entry.field)) continue;
@@ -1000,7 +1004,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                   source: "deterministic_parse",
                 });
               }
-              // 3) Fallback raw + governance for unresolved deferred fields.
+              // 3) Fallback raw + governance for unresolved deferred fields
+              //    (includes any field whose selected row was an "Add as new
+              //    value" row — those are explicitly NOT in claimedFields).
               applyAssistFallback(claimedFields);
               setOverwriteState(null);
             },
