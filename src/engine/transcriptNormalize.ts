@@ -668,6 +668,8 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // Narrow: only fires on explicit "complete to <jersey>" cue, never on a
   // bare jersey mention.
   [/\bcomplete\s+to\s+(?:#|number\s+)?(\d+)/gi, "RESULT Complete RECEIVER $1"],
+  // "completed to N" — past-tense parallel to "complete to N".
+  [/\bcompleted\s+to\s+(?:#|number\s+)?(\d+)/gi, "RESULT Complete RECEIVER $1"],
   // "incomplete to N" — same shape for the negative case.
   [/\bincomplete\s+to\s+(?:#|number\s+)?(\d+)/gi, "RESULT Incomplete RECEIVER $1"],
 
@@ -675,6 +677,16 @@ const ACTOR_NORMALIZATIONS: [RegExp, string][] = [
   // "the pass by N" / "pass by number 0" / "pass by #0"
   [/\b(?:the\s+)?pass\s+by\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
   // "thrown by N" already handled above under PASSER (solo).
+  // "by quarterback N" / "by the quarterback N" / "by quarterback number 0".
+  // Narrow: requires the explicit "quarterback" cue so a bare "by N" never
+  // becomes a passer attribution. Common after "thrown to <receiver>".
+  [/\bby\s+(?:the\s+)?quarterback\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+  // "from quarterback N" / "from the quarterback N".
+  [/\bfrom\s+(?:the\s+)?quarterback\s+(?:#|number\s+)?(\d+)/gi, "PASSER $1"],
+  // After RECEIVER has already been emitted, allow a trailing "by N" / "by #N"
+  // as the passer attribution. Narrow: only fires when an upstream RECEIVER
+  // anchor exists in the text — never on a bare "by N".
+  [/\bRECEIVER\s+(\d+)\s+by\s+(?:#|number\s+)?(\d+)\b/gi, "RECEIVER $1 PASSER $2"],
 
   // ── RESULT (Play Results: explicit pass-outcome cues) ──
   // Run AFTER the RECEIVER patterns above, which consume "pass to N" /
