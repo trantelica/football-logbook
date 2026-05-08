@@ -69,6 +69,7 @@ import { detectParserSuspicion } from "@/engine/parserSuspicion";
 import { playSchema } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
 import { collectAssistCandidates, type AssistSignal } from "@/engine/lookupAssist";
+import { buildLookupGovernanceQueue } from "@/engine/lookupGovernanceQueue";
 
 interface Pass1SectionPanelProps {
   /** The right-column Unified Proposal Candidate slot (existing field grid). */
