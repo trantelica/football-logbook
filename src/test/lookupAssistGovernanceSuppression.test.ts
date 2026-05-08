@@ -40,10 +40,16 @@ function simulate(input: SimInput): SimOutput {
   const governancePendingFields = new Set<string>(queue.map((it) => it.fieldName));
   if (input.externalPending) governancePendingFields.add(input.externalPending);
 
+  const filledFields = new Set<string>();
+  for (const f of ["offForm", "offPlay", "motion"] as const) {
+    const v = input.candidate[f];
+    if (v !== null && v !== undefined && v !== "") filledFields.add(f);
+  }
   const report = collectAssistCandidates({
     sectionText: input.text,
     parserPatch: input.parserPatch,
     lookupMap: input.lookupMap,
+    filledFields,
   });
 
   const assistGroups: string[] = [];
