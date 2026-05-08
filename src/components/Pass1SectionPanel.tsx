@@ -816,6 +816,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         // and fields already filled (per `candidate`).
         const assistRows: Collision[] = [];
         const assistPatchByRow = new Map<string, { field: string; canonical: string }>();
+        // Add-new rows: selecting one signals "do not claim this field via
+        // Assist" so applyAssistFallback writes the raw value and the existing
+        // lookup governance flow opens to collect required dependents.
+        const assistAddNewByRow = new Map<string, { field: string; rawValue: string }>();
         if (id === "playDetails") {
           const candidateMap = candidate as Record<string, unknown>;
           const filledFields = new Set<string>();
