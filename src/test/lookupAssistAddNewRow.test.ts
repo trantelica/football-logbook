@@ -59,37 +59,39 @@ function simulate(input: {
 
 describe("Lookup Assist — Add as new value row (Issue 2)", () => {
   const lookup = lookupOf({
-    motion: ["Z Across", "Z Jet", "Flick"],
+    motion: ["Z Across", "Z Jet"],
     offPlay: ["26 Punch", "26 Power"],
   });
 
-  it("offers 'Add Flip as new' when motion has fuzzy hits and a deferred raw unknown", () => {
+  it("offers 'Add 26 Blast as new' when offPlay has fuzzy hits and a deferred raw unknown", () => {
     const rows = simulate({
-      text: "We use flip motion",
-      parserPatch: { motion: "Flip" },
+      text: "play 26 blast",
+      parserPatch: { offPlay: "26 Blast" },
       lookupMap: lookup,
-      deferredRaw: { motion: "Flip" },
+      deferredRaw: { offPlay: "26 Blast" },
     });
-    const motionRows = rows.filter((r) => r.field === "motion");
-    expect(motionRows.some((r) => r.kind === "fuzzy")).toBe(true);
-    expect(motionRows.some((r) => r.kind === "add_new" && r.proposedValue.includes("Flip"))).toBe(true);
+    const offPlayRows = rows.filter((r) => r.field === "offPlay");
+    expect(offPlayRows.some((r) => r.kind === "fuzzy")).toBe(true);
+    expect(
+      offPlayRows.some((r) => r.kind === "add_new" && r.proposedValue.includes("26 Blast")),
+    ).toBe(true);
   });
 
   it("add-new row has a stable rowId distinct from fuzzy rows", () => {
     const rows = simulate({
-      text: "We use flip motion",
-      parserPatch: { motion: "Flip" },
+      text: "play 26 blast",
+      parserPatch: { offPlay: "26 Blast" },
       lookupMap: lookup,
-      deferredRaw: { motion: "Flip" },
+      deferredRaw: { offPlay: "26 Blast" },
     });
     const addNew = rows.find((r) => r.kind === "add_new");
-    expect(addNew?.rowId).toBe('assist-new::motion::Flip');
+    expect(addNew?.rowId).toBe('assist-new::offPlay::26 Blast');
     expect(rows.filter((r) => r.rowId === addNew?.rowId)).toHaveLength(1);
   });
 
   it("no add-new row when no deferred raw value (all fuzzy)", () => {
     const rows = simulate({
-      text: "We use Z across motion sort of",
+      text: "play 26",
       parserPatch: {},
       lookupMap: lookup,
       deferredRaw: {},
@@ -98,23 +100,19 @@ describe("Lookup Assist — Add as new value row (Issue 2)", () => {
   });
 
   it("does not pre-claim the field — selecting add-new must allow fallback to write the raw value", () => {
-    // Simulating the onConfirm logic: when an assist-new row is selected, the
-    // field is intentionally NOT added to claimedFields, so applyAssistFallback
-    // writes the raw value and triggers governance.
     const rows = simulate({
-      text: "We use flip motion",
-      parserPatch: { motion: "Flip" },
+      text: "play 26 blast",
+      parserPatch: { offPlay: "26 Blast" },
       lookupMap: lookup,
-      deferredRaw: { motion: "Flip" },
+      deferredRaw: { offPlay: "26 Blast" },
     });
     const addNew = rows.find((r) => r.kind === "add_new")!;
     const selected = new Set([addNew.rowId]);
     const claimedFields = new Set<string>();
     for (const rowId of selected) {
       if (rowId.startsWith("assist-new::")) continue;
-      // would normally claim the field
-      claimedFields.add("motion");
+      claimedFields.add("offPlay");
     }
-    expect(claimedFields.has("motion")).toBe(false);
+    expect(claimedFields.has("offPlay")).toBe(false);
   });
 });
