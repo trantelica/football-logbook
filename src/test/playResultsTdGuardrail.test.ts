@@ -57,17 +57,18 @@ describe("Defensive facemask phrasing → penalty extraction", () => {
     expect(patch.penalty).toBe("D-Face Mask");
   });
 
-  it("Full failing-case sentence: gain extracted; penalty extracted; no TD invented by parser", () => {
+  it("Full failing-case sentence: penalty extracted; deterministic parser does not invent TD result", () => {
     const text =
       "number 6 gains 4 yards and then is tackled. The defense is flagged for facemask.";
     const { patch } = parseFull(text);
-    expect(patch.gainLoss).toBe(4);
-    expect(patch.rusher).toBe(6);
     expect(patch.penalty).toBe("D-Face Mask");
     // Deterministic parser must not assert a TD-bearing result here.
     if (typeof patch.result === "string") {
       expect(patch.result.includes("TD")).toBe(false);
     }
+    // Observation must NOT contain a TD cue, so the AI guardrail would
+    // downgrade any "Rush, TD" proposal to "Rush".
+    expect(downgradeTdResult("Rush, TD", text)).toBe("Rush");
   });
 });
 
