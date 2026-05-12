@@ -66,7 +66,7 @@ import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { scanKnownLookups } from "@/engine/lookupScanner";
 import { detectParserSuspicion } from "@/engine/parserSuspicion";
-import { playSchema } from "@/engine/schema";
+import { playSchema, RESULT_VALUES } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
 import { collectAssistCandidates, type AssistSignal } from "@/engine/lookupAssist";
 import { buildLookupGovernanceQueue } from "@/engine/lookupGovernanceQueue";
@@ -706,12 +706,49 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
             if (norm) deterministicGovernedFragments.add(norm);
           }
         }
+        // Play Results TD-evidence guardrail: do not accept a TD-bearing
+        // result value unless the observation text contains an explicit
+        // scoring cue. Downgrades "Rush, TD" → "Rush", "Sack, Fumble, Def TD"
+        // → "Sack, Fumble", etc. Drops bare "TD" with no cue.
+        const TD_CUE_RE = /\b(touchdown|tds?|scored?s?|gets?\s+in|got\s+in|into\s+the\s+end\s*zone|end\s*zone|endzone)\b/i;
+        const hasTdCue = TD_CUE_RE.test(text);
+        const downgradeTdResult = (val: unknown): unknown => {
+          if (id !== "playResults" || hasTdCue) return val;
+          if (typeof val !== "string") return val;
+          const v = val.trim();
+          if (!/(^|,\s*)(Def\s+TD|TD)$/i.test(v)) return val;
+          // Strip trailing ", Def TD" or ", TD" (or bare "TD")
+          let base = v.replace(/,\s*Def\s+TD$/i, "").replace(/,\s*TD$/i, "");
+          if (/^TD$/i.test(base)) base = "";
+          base = base.trim();
+          if (!base) return null; // drop entirely
+          return (RESULT_VALUES as readonly string[]).includes(base) ? base : null;
+        };
+
         for (const [k, v] of Object.entries(aiProposal)) {
           if (!ownedSet.has(k)) continue;
           // Hard guardrail: AI must never target derived fields, even via the
           // section-owned set. Skip silently before any governance / collision.
           if (DERIVED_FIELDS_NEVER_AI.has(k)) continue;
           if (justParsedFields.has(k)) continue;
+
+          // TD-evidence guardrail (Play Results, result field only)
+          if (id === "playResults" && k === "result") {
+            const unwrapped =
+              v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
+                ? (v as { value: unknown }).value
+                : v;
+            const downgraded = downgradeTdResult(unwrapped);
+            if (downgraded === null) continue; // drop unsupported TD proposal
+            if (downgraded !== unwrapped) {
+              if (v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)) {
+                ownedAiProposal[k] = { ...(v as object), value: downgraded };
+              } else {
+                ownedAiProposal[k] = downgraded;
+              }
+              continue;
+            }
+          }
 
           // Unwrap governed proposal { value, matchType } once for inspection.
           let inner =
