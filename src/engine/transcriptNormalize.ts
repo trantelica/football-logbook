@@ -242,6 +242,11 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   // pluralize. Done as a narrow word-boundary substitution (no broader effect).
   [/\boffsides\b/gi, "offside"],
 
+  // Normalize one-word "facemask" → "face mask" so canonical "Face Mask"
+  // infraction matching below works regardless of whether coach speaks/types
+  // the spaced or unspaced form.
+  [/\bfacemask\b/gi, "face mask"],
+
   // Narrow alias: bare "interference" in a clear penalty context resolves
   // to "pass interference" so canonical matching below produces the
   // schema-correct "Pass Interference" infraction. Only fires when paired
