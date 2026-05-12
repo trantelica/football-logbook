@@ -59,7 +59,7 @@ describe("Defensive facemask phrasing → penalty extraction", () => {
 
   it("Full failing-case sentence: penalty extracted; deterministic parser does not invent TD result", () => {
     const text =
-      "number 6 gains 4 yards and then is tackled. The defense is flagged for facemask.";
+      "number 6 gains 4 yards and then is tackled. The defense is flagged for facemask";
     const { patch } = parseFull(text);
     expect(patch.penalty).toBe("D-Face Mask");
     // Deterministic parser must not assert a TD-bearing result here.
