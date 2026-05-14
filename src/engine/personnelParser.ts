@@ -142,11 +142,11 @@ function extractClauseMatch(clause: string): { jerseyToken: string; positionPhra
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
   // Form 1: "number <token> ..."
-  m = trimmed.match(/^number\s+(#?\w+)\s+(?:moves\s+to|switches\s+to|is\s+playing|is\s+at|is\s+in|plays|playing|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  m = trimmed.match(/^number\s+(#?\w+)\s+(?:moved\s+to|moves\s+to|switched\s+to|switches\s+to|is\s+now\s+playing|is\s+now\s+at|is\s+now\s+in|is\s+playing|is\s+at|is\s+in|plays|playing|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
   // Form 2: "#22 ..." or "22 ..." — includes compact "<jersey> is at <pos>" and "<jersey> moves to <pos>"
-  m = trimmed.match(/^(#?\d+)\s+(?:moves\s+to|switches\s+to|is\s+playing|is\s+at|is\s+in|plays|playing|moves|switches|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
+  m = trimmed.match(/^(#?\d+)\s+(?:moved\s+to|moves\s+to|switched\s+to|switches\s+to|is\s+now\s+playing|is\s+now\s+at|is\s+now\s+in|is\s+playing|is\s+at|is\s+in|plays|playing|moves|switches|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
   return null;
