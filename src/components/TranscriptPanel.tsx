@@ -14,7 +14,7 @@
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2 } from "lucide-react";
+import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { parseRawInput, type ParseResult } from "@/engine/rawInputParser";
@@ -29,7 +29,8 @@ import { useSeason } from "@/engine/seasonContext";
 import { useRoster } from "@/engine/rosterContext";
 import { getSeasonConfig } from "@/engine/db";
 import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
-import { PERSONNEL_LABELS } from "@/engine/personnel";
+import { PERSONNEL_LABELS, PERSONNEL_POSITIONS } from "@/engine/personnel";
+import { fetchAiPersonnelProposal } from "@/engine/aiPersonnelClient";
 import { RosterResolveDialog, type OffRosterPending } from "@/components/RosterResolveDialog";
 import { toast } from "sonner";
 
@@ -466,6 +467,103 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
   }, [collisionState]);
 
   const isPass2Plus = (activePass ?? 1) >= 2;
+  /** Pass 2 ONLY — AI personnel fallback must not appear in Pass 3+. */
+  const isPass2Only = (activePass ?? 1) === 2;
+
+  const [aiBusy, setAiBusy] = useState(false);
+
+  /**
+   * Pass 2 AI fallback — narrow help for personnel narration the deterministic
+   * parser missed or only partially resolved (incl. surgical edits over filled
+   * carry-forward state). Returns canonical pos* fields ONLY. Routes through
+   * applySystemPatch({ fillOnly: true, source: "ai_proposed" }) so collision
+   * review, duplicate validation, and off-roster governance remain authoritative.
+   */
+  const handleAskAi = useCallback(async () => {
+    if (!isPass2Only) return; // hard guard — Pass 2 only
+    const sourceText = text.trim();
+    if (!sourceText) return;
+
+    // Capture current parser pass so AI is never asked to re-emit what the
+    // deterministic parser already produced for this exact text.
+    const parsed = handleParse();
+    const deterministicPatch = parsed?.mergedPatch ?? {};
+
+    // Snapshot of canonical pos* fields in the active slot (carry-forward + draft).
+    const cur = (currentCandidate ?? {}) as Record<string, unknown>;
+    const currentPersonnel: Partial<Record<(typeof PERSONNEL_POSITIONS)[number], number | null>> = {};
+    for (const p of PERSONNEL_POSITIONS) {
+      const v = cur[p];
+      if (v == null) continue;
+      const n = typeof v === "number" ? v : Number(v);
+      if (Number.isInteger(n)) currentPersonnel[p] = n;
+    }
+
+    const rosterCtx = roster.map((r) => ({ jersey: r.jerseyNumber, name: r.playerName }));
+
+    setAiBusy(true);
+    try {
+      const personnelOnlyDet: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(deterministicPatch)) {
+        if ((PERSONNEL_POSITIONS as readonly string[]).includes(k)) personnelOnlyDet[k] = v;
+      }
+
+      const { patch: aiPatch, error } = await fetchAiPersonnelProposal({
+        observationText: sourceText,
+        currentPersonnel,
+        deterministicPatch: personnelOnlyDet,
+        positionAliases: aliasMap,
+        roster: rosterCtx,
+      });
+
+      if (error) {
+        toast.error(error);
+        return;
+      }
+
+      // Drop AI keys the deterministic parser already filled with the same value.
+      const filtered: Record<string, number> = {};
+      for (const [k, v] of Object.entries(aiPatch)) {
+        const detVal = personnelOnlyDet[k];
+        if (detVal != null && Number(detVal) === v) continue;
+        filtered[k] = v;
+      }
+      if (Object.keys(filtered).length === 0) {
+        toast.info("AI had nothing to add to the deterministic parse.");
+        return;
+      }
+
+      const evidence: Record<string, { snippet: string }> = {};
+      for (const k of Object.keys(filtered)) {
+        evidence[k] = { snippet: sourceText.slice(0, 120) };
+      }
+
+      const collisions = applySystemPatch(filtered, {
+        fillOnly: true,
+        evidence,
+        source: "ai_proposed",
+      });
+
+      if (collisions.length > 0) {
+        const nonCollisionCount = Object.keys(filtered).length - collisions.length;
+        setCollisionState({
+          collisions: collisions.map((c: SystemPatchCollision) => ({
+            fieldName: c.fieldName,
+            currentValue: c.currentValue,
+            proposedValue: c.proposedValue,
+          })),
+          nonCollisionCount,
+          fullPatch: filtered,
+        });
+      } else {
+        setApplied(true);
+        toast.success(`AI proposed ${Object.keys(filtered).length} field(s)`);
+        onApply?.(sourceText, filtered);
+      }
+    } finally {
+      setAiBusy(false);
+    }
+  }, [isPass2Only, text, handleParse, currentCandidate, roster, aliasMap, applySystemPatch, onApply]);
 
   return (
     <div className="rounded-lg border border-border/50 p-3 space-y-2 bg-muted/30">
@@ -530,16 +628,32 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
               Pass 1: legacy two-step Parse → Apply to Draft. */}
           {isPass2Plus ? (
             hasParseableText && !listening && (
-              <Button
-                size="sm"
-                variant="default"
-                className="h-7 text-xs gap-1"
-                onClick={handleUpdateProposal}
-                title="Parse narration and update proposal immediately. No commit."
-              >
-                <Wand2 className="h-3 w-3" />
-                Update Proposal
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleUpdateProposal}
+                  title="Parse narration and update proposal immediately. No commit."
+                >
+                  <Wand2 className="h-3 w-3" />
+                  Update Proposal
+                </Button>
+                {/* Pass 2 ONLY — AI personnel fallback. Hidden in Pass 3+. */}
+                {isPass2Only && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={handleAskAi}
+                    disabled={aiBusy}
+                    title="Ask AI to help interpret personnel changes the parser missed. Proposes canonical fields only — coach reviews before commit."
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {aiBusy ? "Asking AI…" : "Ask AI for help"}
+                  </Button>
+                )}
+              </>
             )
           ) : (
             <>
