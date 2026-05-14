@@ -158,7 +158,7 @@ function extractClauseMatch(clause: string): { jerseyToken: string; positionPhra
  * inside a long unpunctuated dictation.
  */
 const ANCHOR_LOOKAHEAD =
-  /(?=\b(?:number\s+(?:#?\w+)|#\d+)\s+(?:is\s+playing|is\s+at|is\s+in|playing|plays|moves\s+to|switches\s+to|is|at|in)\b)/gi;
+  /(?=\b(?:number\s+(?:#?\w+)|#\d+)\s+(?:is\s+now\s+playing|is\s+now\s+at|is\s+now\s+in|is\s+playing|is\s+at|is\s+in|playing|plays|moved\s+to|moves\s+to|switched\s+to|switches\s+to|is|at|in)\b)/gi;
 
 /** Leading filler phrases coaches use before the first jersey ("we have …"). */
 const LEADING_FILLER_RE =
