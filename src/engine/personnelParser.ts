@@ -83,6 +83,15 @@ function parseJerseyToken(token: string): number | null {
   return null;
 }
 
+/**
+ * Number-word → canonical skill-position label map. Coaches commonly say
+ * "playing one"/"playing two" to mean canonical positions 1..4 (pos1..pos4).
+ * Restricted to 1..4 because those are the only canonical numeric labels.
+ */
+const POSITION_WORD_TO_LABEL: Record<string, string> = {
+  one: "1", two: "2", three: "3", four: "4",
+};
+
 /** Try to resolve a position phrase to a canonical pos* field. */
 function resolvePositionPhrase(
   phrase: string,
@@ -100,11 +109,18 @@ function resolvePositionPhrase(
   // 2. Single-token: try canonical label / alias resolution.
   // Strip any trailing punctuation.
   const cleaned = trimmed.replace(/[.,;:!?]+$/, "");
+  // Number-word → canonical numeric label ("one" → "1") before alias lookup.
+  const cleanedLower = cleaned.toLowerCase();
+  const wordAsLabel = POSITION_WORD_TO_LABEL[cleanedLower];
   // If multi-word but not a known role phrase, try the first token only as a
   // last resort (handles "X receiver", "Y tight end", etc.).
   const firstToken = cleaned.split(/\s+/)[0];
+  const firstTokenAsLabel =
+    POSITION_WORD_TO_LABEL[firstToken.toLowerCase()];
   return (
+    (wordAsLabel && resolveToCanonicalPos(wordAsLabel, aliasMap)) ??
     resolveToCanonicalPos(cleaned, aliasMap) ??
+    (firstTokenAsLabel && resolveToCanonicalPos(firstTokenAsLabel, aliasMap)) ??
     resolveToCanonicalPos(firstToken, aliasMap)
   );
 }
@@ -137,6 +153,38 @@ function extractClauseMatch(clause: string): { jerseyToken: string; positionPhra
 }
 
 /**
+ * Position-verb anchors that signal "<jersey> <verb> <position>" — used both
+ * by extractClauseMatch and by splitIntoClauses below to find clause starts
+ * inside a long unpunctuated dictation.
+ */
+const ANCHOR_LOOKAHEAD =
+  /(?=\b(?:number\s+(?:#?\w+)|#\d+)\s+(?:is\s+playing|is\s+at|is\s+in|playing|plays|moves\s+to|switches\s+to|is|at|in)\b)/gi;
+
+/** Leading filler phrases coaches use before the first jersey ("we have …"). */
+const LEADING_FILLER_RE =
+  /^(?:we\s+(?:have|use|got|run|put)|i\s+have|here(?:'|’)?s)\s+/i;
+
+/**
+ * Split a free-text personnel block into clauses, even when the coach speaks
+ * a long unpunctuated run-on like "number one playing left tackle number two
+ * playing left guard …". Strategy:
+ *   1. Normalize "and" + standard punctuation to a single ";" splitter.
+ *   2. Inject a ";" before every "number <tok>" / "#<digits>" anchor that is
+ *      followed by a known position verb. This guarantees one assignment per
+ *      clause without altering wording inside a clause.
+ *   3. Trim leading filler ("we have", "we use", …) so each clause starts at
+ *      the jersey anchor for extractClauseMatch.
+ */
+function splitIntoClauses(text: string): string[] {
+  const normalized = text.replace(/\s+and\s+/gi, "; ").replace(/[.;,\n]+/g, "; ");
+  const withBoundaries = normalized.replace(ANCHOR_LOOKAHEAD, "; ");
+  return withBoundaries
+    .split(/;+/)
+    .map((s) => s.trim().replace(LEADING_FILLER_RE, "").trim())
+    .filter(Boolean);
+}
+
+/**
  * Parse personnel narration into a canonical pos* patch + report.
  */
 export function parsePersonnelNarration(
@@ -155,10 +203,7 @@ export function parsePersonnelNarration(
     return { patch, report, offRosterJerseys, duplicateJerseys, sameSlotConflicts };
   }
 
-  const clauses = text
-    .split(/(?:[.;,\n]|\s+and\s+)+/i)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const clauses = splitIntoClauses(text);
 
   // Pass A — extract candidate intentions per clause (without committing to patch).
   type Intention = {
