@@ -83,6 +83,15 @@ function parseJerseyToken(token: string): number | null {
   return null;
 }
 
+/**
+ * Number-word → canonical skill-position label map. Coaches commonly say
+ * "playing one"/"playing two" to mean canonical positions 1..4 (pos1..pos4).
+ * Restricted to 1..4 because those are the only canonical numeric labels.
+ */
+const POSITION_WORD_TO_LABEL: Record<string, string> = {
+  one: "1", two: "2", three: "3", four: "4",
+};
+
 /** Try to resolve a position phrase to a canonical pos* field. */
 function resolvePositionPhrase(
   phrase: string,
@@ -100,11 +109,18 @@ function resolvePositionPhrase(
   // 2. Single-token: try canonical label / alias resolution.
   // Strip any trailing punctuation.
   const cleaned = trimmed.replace(/[.,;:!?]+$/, "");
+  // Number-word → canonical numeric label ("one" → "1") before alias lookup.
+  const cleanedLower = cleaned.toLowerCase();
+  const wordAsLabel = POSITION_WORD_TO_LABEL[cleanedLower];
   // If multi-word but not a known role phrase, try the first token only as a
   // last resort (handles "X receiver", "Y tight end", etc.).
   const firstToken = cleaned.split(/\s+/)[0];
+  const firstTokenAsLabel =
+    POSITION_WORD_TO_LABEL[firstToken.toLowerCase()];
   return (
+    (wordAsLabel && resolveToCanonicalPos(wordAsLabel, aliasMap)) ??
     resolveToCanonicalPos(cleaned, aliasMap) ??
+    (firstTokenAsLabel && resolveToCanonicalPos(firstTokenAsLabel, aliasMap)) ??
     resolveToCanonicalPos(firstToken, aliasMap)
   );
 }
