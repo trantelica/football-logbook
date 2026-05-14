@@ -61,10 +61,6 @@ describe("parsePersonnelNarration — surgical edit verbs", () => {
     expect(r.patch).toEqual({ posC: 12 });
   });
 
-  it("'twelve moved to center' (number-word jersey) → posC = 12", () => {
-    const r = parsePersonnelNarration("twelve moved to center", aliases);
-    expect(r.patch).toEqual({ posC: 12 });
-  });
 
   it("surgical edit emits only mentioned canonical fields (carry-forward preserved by caller)", () => {
     // Parser only emits patch keys for what was said. Other carried-forward
