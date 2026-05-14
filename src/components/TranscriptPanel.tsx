@@ -14,7 +14,7 @@
 import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2 } from "lucide-react";
+import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { parseRawInput, type ParseResult } from "@/engine/rawInputParser";
@@ -29,7 +29,8 @@ import { useSeason } from "@/engine/seasonContext";
 import { useRoster } from "@/engine/rosterContext";
 import { getSeasonConfig } from "@/engine/db";
 import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
-import { PERSONNEL_LABELS } from "@/engine/personnel";
+import { PERSONNEL_LABELS, PERSONNEL_POSITIONS } from "@/engine/personnel";
+import { fetchAiPersonnelProposal } from "@/engine/aiPersonnelClient";
 import { RosterResolveDialog, type OffRosterPending } from "@/components/RosterResolveDialog";
 import { toast } from "sonner";
 
