@@ -155,10 +155,7 @@ export function parsePersonnelNarration(
     return { patch, report, offRosterJerseys, duplicateJerseys, sameSlotConflicts };
   }
 
-  const clauses = text
-    .split(/(?:[.;,\n]|\s+and\s+)+/i)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const clauses = splitIntoClauses(text);
 
   // Pass A — extract candidate intentions per clause (without committing to patch).
   type Intention = {
