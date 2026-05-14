@@ -137,6 +137,38 @@ function extractClauseMatch(clause: string): { jerseyToken: string; positionPhra
 }
 
 /**
+ * Position-verb anchors that signal "<jersey> <verb> <position>" — used both
+ * by extractClauseMatch and by splitIntoClauses below to find clause starts
+ * inside a long unpunctuated dictation.
+ */
+const ANCHOR_LOOKAHEAD =
+  /(?=\b(?:number\s+(?:#?\w+)|#\d+)\s+(?:is\s+playing|is\s+at|is\s+in|playing|plays|moves\s+to|switches\s+to|is|at|in)\b)/gi;
+
+/** Leading filler phrases coaches use before the first jersey ("we have …"). */
+const LEADING_FILLER_RE =
+  /^(?:we\s+(?:have|use|got|run|put)|i\s+have|here(?:'|’)?s)\s+/i;
+
+/**
+ * Split a free-text personnel block into clauses, even when the coach speaks
+ * a long unpunctuated run-on like "number one playing left tackle number two
+ * playing left guard …". Strategy:
+ *   1. Normalize "and" + standard punctuation to a single ";" splitter.
+ *   2. Inject a ";" before every "number <tok>" / "#<digits>" anchor that is
+ *      followed by a known position verb. This guarantees one assignment per
+ *      clause without altering wording inside a clause.
+ *   3. Trim leading filler ("we have", "we use", …) so each clause starts at
+ *      the jersey anchor for extractClauseMatch.
+ */
+function splitIntoClauses(text: string): string[] {
+  const normalized = text.replace(/\s+and\s+/gi, "; ").replace(/[.;,\n]+/g, "; ");
+  const withBoundaries = normalized.replace(ANCHOR_LOOKAHEAD, "; ");
+  return withBoundaries
+    .split(/;+/)
+    .map((s) => s.trim().replace(LEADING_FILLER_RE, "").trim())
+    .filter(Boolean);
+}
+
+/**
  * Parse personnel narration into a canonical pos* patch + report.
  */
 export function parsePersonnelNarration(
