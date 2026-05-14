@@ -628,16 +628,32 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
               Pass 1: legacy two-step Parse → Apply to Draft. */}
           {isPass2Plus ? (
             hasParseableText && !listening && (
-              <Button
-                size="sm"
-                variant="default"
-                className="h-7 text-xs gap-1"
-                onClick={handleUpdateProposal}
-                title="Parse narration and update proposal immediately. No commit."
-              >
-                <Wand2 className="h-3 w-3" />
-                Update Proposal
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleUpdateProposal}
+                  title="Parse narration and update proposal immediately. No commit."
+                >
+                  <Wand2 className="h-3 w-3" />
+                  Update Proposal
+                </Button>
+                {/* Pass 2 ONLY — AI personnel fallback. Hidden in Pass 3+. */}
+                {isPass2Only && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={handleAskAi}
+                    disabled={aiBusy}
+                    title="Ask AI to help interpret personnel changes the parser missed. Proposes canonical fields only — coach reviews before commit."
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {aiBusy ? "Asking AI…" : "Ask AI for help"}
+                  </Button>
+                )}
+              </>
             )
           ) : (
             <>
