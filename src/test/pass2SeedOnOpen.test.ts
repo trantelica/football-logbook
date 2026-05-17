@@ -118,3 +118,37 @@ describe("countCommittedPersonnel", () => {
     expect(countCommittedPersonnel(meta(1, [...PERSONNEL_POSITIONS]))).toBe(11);
   });
 });
+
+describe("seedPass2PersonnelIntoCandidate", () => {
+  it("fills only empty/null/undefined personnel slots and reports seeded fields", () => {
+    const source = makePlay({ playNum: 1, ...complete11() });
+    const target = makePlay({ playNum: 2, posLT: 77, posC: 55 });
+    const { candidate, seededFields } = seedPass2PersonnelIntoCandidate(target, source);
+    // Existing values preserved
+    expect((candidate as Record<string, unknown>).posLT).toBe(77);
+    expect((candidate as Record<string, unknown>).posC).toBe(55);
+    // Others seeded from source
+    expect((candidate as Record<string, unknown>).posLG).toBe(2);
+    expect((candidate as Record<string, unknown>).pos4).toBe(11);
+    // Seeded set excludes the two pre-filled slots
+    expect(seededFields.has("posLT")).toBe(false);
+    expect(seededFields.has("posC")).toBe(false);
+    expect(seededFields.size).toBe(9);
+  });
+
+  it("never overwrites an existing value, even when source differs", () => {
+    const source = makePlay({ playNum: 1, ...complete11() });
+    const target = makePlay({ playNum: 2, ...complete11({ posLT: 99 }) });
+    const { candidate, seededFields } = seedPass2PersonnelIntoCandidate(target, source);
+    expect((candidate as Record<string, unknown>).posLT).toBe(99);
+    expect(seededFields.size).toBe(0);
+  });
+
+  it("returns a new object (does not mutate the input candidate)", () => {
+    const source = makePlay({ playNum: 1, ...complete11() });
+    const target = makePlay({ playNum: 2 });
+    const { candidate } = seedPass2PersonnelIntoCandidate(target, source);
+    expect(candidate).not.toBe(target);
+    expect((target as Record<string, unknown>).posLT).toBeNull();
+  });
+});
