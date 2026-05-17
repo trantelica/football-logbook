@@ -215,6 +215,36 @@ export function findPriorPass2CompletePlay(
 }
 
 /**
+ * Pure helper: seed Pass 2 canonical personnel fields (posLT..pos4) from a
+ * source play into a candidate. Only fills slots that are currently null/
+ * undefined/"" — never overwrites existing values. Returns a new candidate
+ * object and the set of field names that were actually seeded.
+ *
+ * No commit, no DB writes, no cascade. Used by both the direct-click
+ * (selectSlot) and Next Slot (advanceToNextFilteredSlot) paths so they
+ * produce identical proposal-only seeded state.
+ */
+export function seedPass2PersonnelIntoCandidate<T extends CandidateData | PlayRecord>(
+  candidate: T,
+  sourcePlay: PlayRecord
+): { candidate: T; seededFields: Set<string> } {
+  const next = { ...(candidate as unknown as Record<string, unknown>) };
+  const src = sourcePlay as unknown as Record<string, unknown>;
+  const seededFields = new Set<string>();
+  for (const pos of PERSONNEL_POSITIONS) {
+    const cur = next[pos];
+    if (cur === null || cur === undefined || cur === "") {
+      const sv = src[pos];
+      if (sv !== null && sv !== undefined && sv !== "") {
+        next[pos] = sv;
+        seededFields.add(pos);
+      }
+    }
+  }
+  return { candidate: next as unknown as T, seededFields };
+}
+
+/**
  * Returns the count of personnel positions already committed for a slot.
  * Used to gate Pass 2 seed-on-open: only seed when no personnel is committed.
  */
