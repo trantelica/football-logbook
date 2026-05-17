@@ -1388,7 +1388,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         slot = fresh;
       }
 
-      const newCandidate: CandidateData = { ...slot };
+      let newCandidate: CandidateData = { ...slot };
       
       // Phase 5A: Load prevPlay from IndexedDB to avoid stale state
       const prevPlay = await getPlay(gameId, playNum - 1);
