@@ -1540,21 +1540,21 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         if (committedPersonnelCount === 0) {
           const sourcePlay = findPriorPass2CompletePlay(freshPlays, freshMetaMap, playNum);
           if (sourcePlay) {
-            const seededFields = new Set<string>();
-            const sp = sourcePlay as unknown as Record<string, unknown>;
-            for (const pos of PERSONNEL_POSITIONS) {
-              const currentVal = (newCandidate as Record<string, unknown>)[pos];
-              if (currentVal === null || currentVal === undefined || currentVal === "") {
-                const srcVal = sp[pos];
-                if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
-                  (newCandidate as Record<string, unknown>)[pos] = srcVal;
-                  seededFields.add(pos);
-                }
-              }
-            }
+            const { candidate: seeded, seededFields } = seedPass2PersonnelIntoCandidate(
+              newCandidate,
+              sourcePlay,
+            );
+            newCandidate = seeded;
             if (seededFields.size > 0) {
               setCarriedForwardFields(seededFields);
               setCarriedForwardFromPlayNum(sourcePlay.playNum);
+              // Parity with Next Slot path: reset provenance sets so seeded
+              // personnel never carries stale parser/AI/lookup attribution.
+              setDeterministicParseFields(new Set());
+              setParseEvidenceByField({});
+              setAiProposedFields(new Set());
+              setAiEvidenceByField({});
+              setLookupDerivedFields(new Set());
             }
           }
         }
