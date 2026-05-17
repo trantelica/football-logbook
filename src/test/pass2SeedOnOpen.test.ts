@@ -138,7 +138,7 @@ describe("seedPass2PersonnelIntoCandidate", () => {
 
   it("never overwrites an existing value, even when source differs", () => {
     const source = makePlay({ playNum: 1, ...complete11() });
-    const target = makePlay({ playNum: 2, ...complete11({ posLT: 99 }) });
+    const target = makePlay({ playNum: 2, ...complete11(), posLT: 99 });
     const { candidate, seededFields } = seedPass2PersonnelIntoCandidate(target, source);
     expect((candidate as unknown as Record<string, unknown>).posLT).toBe(99);
     expect(seededFields.size).toBe(0);
