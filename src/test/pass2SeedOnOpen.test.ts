@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   findPriorPass2CompletePlay,
   countCommittedPersonnel,
+  seedPass2PersonnelIntoCandidate,
   PERSONNEL_POSITIONS,
 } from "@/engine/personnel";
 import type { PlayRecord, SlotMeta } from "@/engine/types";
