@@ -1767,19 +1767,8 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           if (nextCommittedPersonnel === 0) {
             const sourcePlay = findPriorPass2CompletePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
             if (sourcePlay) {
-              const seededCandidate: CandidateData = { ...nextSlot };
-              const seededFields = new Set<string>();
-              const src = sourcePlay as unknown as Record<string, unknown>;
-              for (const pos of PERSONNEL_POSITIONS) {
-                const currentVal = (seededCandidate as unknown as Record<string, unknown>)[pos];
-                if (currentVal === null || currentVal === undefined || currentVal === "") {
-                  const srcVal = src[pos];
-                  if (srcVal !== null && srcVal !== undefined && srcVal !== "") {
-                    (seededCandidate as unknown as Record<string, unknown>)[pos] = srcVal;
-                    seededFields.add(pos);
-                  }
-                }
-              }
+              const { candidate: seededCandidate, seededFields } =
+                seedPass2PersonnelIntoCandidate<CandidateData>({ ...nextSlot }, sourcePlay);
 
               setCandidate(seededCandidate);
               setSelectedSlotNum(nextPlay.playNum);
