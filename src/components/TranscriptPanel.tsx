@@ -588,104 +588,23 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     setCollisionState(null);
   }, [collisionState]);
 
-  const isPass2Plus = (activePass ?? 1) >= 2;
-  /** Pass 2 ONLY — AI personnel fallback must not appear in Pass 3+. */
-  const isPass2Only = (activePass ?? 1) === 2;
-
-  const [aiBusy, setAiBusy] = useState(false);
-
   /**
-   * Pass 2 AI fallback — narrow help for personnel narration the deterministic
-   * parser missed or only partially resolved (incl. surgical edits over filled
-   * carry-forward state). Returns canonical pos* fields ONLY. Routes through
-   * applySystemPatch({ fillOnly: true, source: "ai_proposed" }) so collision
-   * review, duplicate validation, and off-roster governance remain authoritative.
+   * Dev-only manual "Ask AI" — same fallback path as the auto-trigger from
+   * Update Proposal, exposed for debugging/QA. Hidden in production via
+   * isDevMode(). Pass 2 only.
    */
   const handleAskAi = useCallback(async () => {
-    if (!isPass2Only) return; // hard guard — Pass 2 only
+    if (!isPass2Only) return;
     const sourceText = text.trim();
     if (!sourceText) return;
-
-    // Capture current parser pass so AI is never asked to re-emit what the
-    // deterministic parser already produced for this exact text.
     const parsed = handleParse();
-    const deterministicPatch = parsed?.mergedPatch ?? {};
-
-    // Snapshot of canonical pos* fields in the active slot (carry-forward + draft).
-    const cur = (currentCandidate ?? {}) as Record<string, unknown>;
-    const currentPersonnel: Partial<Record<(typeof PERSONNEL_POSITIONS)[number], number | null>> = {};
-    for (const p of PERSONNEL_POSITIONS) {
-      const v = cur[p];
-      if (v == null) continue;
-      const n = typeof v === "number" ? v : Number(v);
-      if (Number.isInteger(n)) currentPersonnel[p] = n;
+    const personnelOnlyDet: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(parsed?.mergedPatch ?? {})) {
+      if ((PERSONNEL_POSITIONS as readonly string[]).includes(k)) personnelOnlyDet[k] = v;
     }
+    await runAiPersonnelFallback(sourceText, personnelOnlyDet);
+  }, [isPass2Only, text, handleParse, runAiPersonnelFallback]);
 
-    const rosterCtx = roster.map((r) => ({ jersey: r.jerseyNumber, name: r.playerName }));
-
-    setAiBusy(true);
-    try {
-      const personnelOnlyDet: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(deterministicPatch)) {
-        if ((PERSONNEL_POSITIONS as readonly string[]).includes(k)) personnelOnlyDet[k] = v;
-      }
-
-      const { patch: aiPatch, error } = await fetchAiPersonnelProposal({
-        observationText: sourceText,
-        currentPersonnel,
-        deterministicPatch: personnelOnlyDet,
-        positionAliases: aliasMap,
-        roster: rosterCtx,
-      });
-
-      if (error) {
-        toast.error(error);
-        return;
-      }
-
-      // Drop AI keys the deterministic parser already filled with the same value.
-      const filtered: Record<string, number> = {};
-      for (const [k, v] of Object.entries(aiPatch)) {
-        const detVal = personnelOnlyDet[k];
-        if (detVal != null && Number(detVal) === v) continue;
-        filtered[k] = v;
-      }
-      if (Object.keys(filtered).length === 0) {
-        toast.info("AI had nothing to add to the deterministic parse.");
-        return;
-      }
-
-      const evidence: Record<string, { snippet: string }> = {};
-      for (const k of Object.keys(filtered)) {
-        evidence[k] = { snippet: sourceText.slice(0, 120) };
-      }
-
-      const collisions = applySystemPatch(filtered, {
-        fillOnly: true,
-        evidence,
-        source: "ai_proposed",
-      });
-
-      if (collisions.length > 0) {
-        const nonCollisionCount = Object.keys(filtered).length - collisions.length;
-        setCollisionState({
-          collisions: collisions.map((c: SystemPatchCollision) => ({
-            fieldName: c.fieldName,
-            currentValue: c.currentValue,
-            proposedValue: c.proposedValue,
-          })),
-          nonCollisionCount,
-          fullPatch: filtered,
-        });
-      } else {
-        setApplied(true);
-        toast.success(`AI proposed ${Object.keys(filtered).length} field(s)`);
-        onApply?.(sourceText, filtered);
-      }
-    } finally {
-      setAiBusy(false);
-    }
-  }, [isPass2Only, text, handleParse, currentCandidate, roster, aliasMap, applySystemPatch, onApply]);
 
   return (
     <div className="rounded-lg border border-border/50 p-3 space-y-2 bg-muted/30">
