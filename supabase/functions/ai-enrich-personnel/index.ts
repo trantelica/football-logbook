@@ -74,14 +74,17 @@ Deno.serve(async (req) => {
       observationText.trim() === ""
     ) {
       return new Response(
-        JSON.stringify({ patch: {}, error: "No observation text provided" }),
+        JSON.stringify({ patch: {}, error: "No observation text provided", errorCategory: "bad_request" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({ error: "AI personnel: LOVABLE_API_KEY is not configured", errorCategory: "auth" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const aliases = (positionAliases ?? {}) as Record<string, string>;
