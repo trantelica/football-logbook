@@ -215,6 +215,31 @@ export function findPriorPass2CompletePlay(
 }
 
 /**
+ * Immediate-prior Pass 2 carry-forward source.
+ *
+ * Returns the slot whose playNum is the greatest value strictly less than
+ * currentPlayNum, but only if that slot is offensive (odk === "O") AND
+ * Pass 2 complete. Otherwise returns null. Does NOT scan farther backward.
+ *
+ * This is the source-selection rule for Pass 2 personnel seed-on-open.
+ */
+export function findImmediatePriorPass2CompleteOffensivePlay(
+  plays: PlayRecord[],
+  metas: Map<number, SlotMeta>,
+  currentPlayNum: number,
+): PlayRecord | null {
+  let prev: PlayRecord | null = null;
+  for (const p of plays) {
+    if (p.playNum >= currentPlayNum) continue;
+    if (!prev || p.playNum > prev.playNum) prev = p;
+  }
+  if (!prev) return null;
+  if (prev.odk !== "O") return null;
+  if (!isPass2Complete(prev, metas.get(prev.playNum))) return null;
+  return prev;
+}
+
+/**
  * Pure helper: seed Pass 2 canonical personnel fields (posLT..pos4) from a
  * source play into a candidate. Only fills slots that are currently null/
  * undefined/"" — never overwrites existing values. Returns a new candidate

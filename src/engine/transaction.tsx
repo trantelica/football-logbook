@@ -26,7 +26,7 @@ import { runCommitQC } from "./commitQC";
 import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATResult } from "./patEngine";
 import { possessionGuardrail } from "./possession";
 import { toast } from "sonner";
-import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS, findPriorPass2CompletePlay, countCommittedPersonnel, seedPass2PersonnelIntoCandidate } from "./personnel";
+import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS, findImmediatePriorPass2CompleteOffensivePlay, countCommittedPersonnel, seedPass2PersonnelIntoCandidate } from "./personnel";
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
@@ -1538,7 +1538,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         const slotMeta = freshMetaMap.get(playNum);
         const committedPersonnelCount = countCommittedPersonnel(slotMeta);
         if (committedPersonnelCount === 0) {
-          const sourcePlay = findPriorPass2CompletePlay(freshPlays, freshMetaMap, playNum);
+          const sourcePlay = findImmediatePriorPass2CompleteOffensivePlay(freshPlays, freshMetaMap, playNum);
           if (sourcePlay) {
             const { candidate: seeded, seededFields } = seedPass2PersonnelIntoCandidate(
               newCandidate,
@@ -1765,7 +1765,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           const nextCommittedPersonnel = countCommittedPersonnel(nextMeta);
 
           if (nextCommittedPersonnel === 0) {
-            const sourcePlay = findPriorPass2CompletePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
+            const sourcePlay = findImmediatePriorPass2CompleteOffensivePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
             if (sourcePlay) {
               const { candidate: seededCandidate, seededFields } =
                 seedPass2PersonnelIntoCandidate<CandidateData>({ ...nextSlot }, sourcePlay);
