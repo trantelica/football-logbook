@@ -169,20 +169,20 @@ Return ONLY canonical pos* keys you can confidently infer. Omit everything else.
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limited, please try again later." }),
+          JSON.stringify({ error: "AI rate limited. Try again shortly.", errorCategory: "rate_limited" }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Add funds in Settings > Workspace > Usage." }),
+          JSON.stringify({ error: "AI credits exhausted. Add funds in Settings > Workspace > Usage.", errorCategory: "credits_exhausted" }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
       return new Response(
-        JSON.stringify({ error: "AI service error" }),
+        JSON.stringify({ error: `AI gateway error ${response.status}: ${t.slice(0, 200)}`, errorCategory: "gateway_error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -195,8 +195,28 @@ Return ONLY canonical pos* keys you can confidently infer. Omit everything else.
       try {
         const parsed = JSON.parse(toolCall.function.arguments);
         if (parsed && typeof parsed === "object") raw = parsed as Record<string, unknown>;
-      } catch {
-        console.error("Failed to parse AI tool call arguments");
+      } catch (e) {
+        console.error("Failed to parse AI tool call arguments", e);
+      }
+    } else {
+      // Some models may return content instead of a tool_call — try JSON-in-content as a fallback.
+      const content = data.choices?.[0]?.message?.content;
+      if (typeof content === "string" && content.trim()) {
+        try {
+          const m = content.match(/\{[\s\S]*\}/);
+          if (m) {
+            const parsed = JSON.parse(m[0]);
+            if (parsed && typeof parsed === "object") raw = parsed as Record<string, unknown>;
+          }
+        } catch (e) {
+          console.error("Fallback JSON-in-content parse failed", e);
+        }
+      }
+      if (Object.keys(raw).length === 0) {
+        return new Response(
+          JSON.stringify({ patch: {}, error: "AI returned no structured personnel output.", errorCategory: "model_empty" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
     }
 
@@ -217,7 +237,7 @@ Return ONLY canonical pos* keys you can confidently infer. Omit everything else.
   } catch (e) {
     console.error("ai-enrich-personnel error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error", errorCategory: "server_exception" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
