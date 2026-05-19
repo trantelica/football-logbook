@@ -106,6 +106,51 @@ describe("findPriorPass2CompletePlay", () => {
   });
 });
 
+describe("findImmediatePriorPass2CompleteOffensivePlay", () => {
+  it("seeds Slot 2 from Slot 1 when Slot 1 is O + Pass 2 complete", () => {
+    const p1 = makePlay({ playNum: 1, ...complete11() });
+    const metas = new Map<number, SlotMeta>([[1, meta(1, [...PERSONNEL_POSITIONS])]]);
+    expect(findImmediatePriorPass2CompleteOffensivePlay([p1], metas, 2)?.playNum).toBe(1);
+  });
+
+  it("does NOT scan back past an incomplete immediately prior O slot", () => {
+    const p1 = makePlay({ playNum: 1, ...complete11() });
+    const p2 = makePlay({ playNum: 2, posLT: 7 }); // partial
+    const metas = new Map<number, SlotMeta>([
+      [1, meta(1, [...PERSONNEL_POSITIONS])],
+      [2, meta(2, ["posLT"])],
+    ]);
+    expect(findImmediatePriorPass2CompleteOffensivePlay([p1, p2], metas, 3)).toBeNull();
+  });
+
+  it("does NOT scan back past a D/K/S immediately prior slot", () => {
+    const p1 = makePlay({ playNum: 1, ...complete11() });
+    const p2 = makePlay({ playNum: 2, odk: "D" });
+    const metas = new Map<number, SlotMeta>([
+      [1, meta(1, [...PERSONNEL_POSITIONS])],
+      [2, meta(2, [])],
+    ]);
+    expect(findImmediatePriorPass2CompleteOffensivePlay([p1, p2], metas, 3)).toBeNull();
+  });
+
+  it("uses the nearest prior slot, not playNum-1 arithmetic", () => {
+    // Sparse playNums: prior = 3 (not 4)
+    const p1 = makePlay({ playNum: 1, ...complete11() });
+    const p3 = makePlay({ playNum: 3, ...complete11() });
+    const metas = new Map<number, SlotMeta>([
+      [1, meta(1, [...PERSONNEL_POSITIONS])],
+      [3, meta(3, [...PERSONNEL_POSITIONS])],
+    ]);
+    expect(findImmediatePriorPass2CompleteOffensivePlay([p1, p3], metas, 5)?.playNum).toBe(3);
+  });
+
+  it("returns null when there is no prior slot", () => {
+    const p1 = makePlay({ playNum: 1, ...complete11() });
+    const metas = new Map<number, SlotMeta>([[1, meta(1, [...PERSONNEL_POSITIONS])]]);
+    expect(findImmediatePriorPass2CompleteOffensivePlay([p1], metas, 1)).toBeNull();
+  });
+});
+
 describe("countCommittedPersonnel", () => {
   it("returns 0 when meta is missing", () => {
     expect(countCommittedPersonnel(undefined)).toBe(0);
