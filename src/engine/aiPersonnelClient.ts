@@ -47,9 +47,19 @@ export interface FetchAiPersonnelOpts {
   roster?: AiPersonnelRosterEntry[];
 }
 
+export type AiPersonnelErrorCategory =
+  | "bad_request"
+  | "auth"
+  | "rate_limited"
+  | "credits_exhausted"
+  | "gateway_error"
+  | "model_empty"
+  | "server_exception";
+
 export interface FetchAiPersonnelResult {
   patch: Record<string, number>;
   error?: string;
+  errorCategory?: AiPersonnelErrorCategory;
 }
 
 export async function fetchAiPersonnelProposal(
@@ -57,7 +67,7 @@ export async function fetchAiPersonnelProposal(
 ): Promise<FetchAiPersonnelResult> {
   const observationText = (opts.observationText ?? "").trim();
   if (!observationText) {
-    return { patch: {}, error: "No observation text — AI personnel needs narration" };
+    return { patch: {}, error: "No observation text — AI personnel needs narration", errorCategory: "bad_request" };
   }
 
   const positionAliases = (opts.positionAliases ?? {}) as PositionAliasMap;
@@ -75,10 +85,16 @@ export async function fetchAiPersonnelProposal(
 
   if (error) {
     console.error("ai-enrich-personnel invocation error:", error);
-    return { patch: {}, error: "AI personnel service error" };
+    // supabase-js wraps non-2xx as error but still includes the body in `data`.
+    const detail = (data as { error?: string; errorCategory?: AiPersonnelErrorCategory } | null) ?? null;
+    return {
+      patch: {},
+      error: detail?.error ?? `AI personnel service error: ${error.message ?? "unknown"}`,
+      errorCategory: detail?.errorCategory ?? "gateway_error",
+    };
   }
   if (data?.error) {
-    return { patch: {}, error: data.error };
+    return { patch: {}, error: data.error, errorCategory: data.errorCategory as AiPersonnelErrorCategory | undefined };
   }
 
   const rawPatch = (data?.patch ?? {}) as Record<string, unknown>;
