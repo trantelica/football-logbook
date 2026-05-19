@@ -1765,7 +1765,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           const nextCommittedPersonnel = countCommittedPersonnel(nextMeta);
 
           if (nextCommittedPersonnel === 0) {
-            const sourcePlay = findPriorPass2CompletePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
+            const sourcePlay = findImmediatePriorPass2CompleteOffensivePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
             if (sourcePlay) {
               const { candidate: seededCandidate, seededFields } =
                 seedPass2PersonnelIntoCandidate<CandidateData>({ ...nextSlot }, sourcePlay);
