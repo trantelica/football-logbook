@@ -680,18 +680,19 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
                   <Wand2 className="h-3 w-3" />
                   Update Proposal
                 </Button>
-                {/* Pass 2 ONLY — AI personnel fallback. Hidden in Pass 3+. */}
-                {isPass2Only && (
+                {/* Pass 2 ONLY, DEV ONLY — auto-fallback drives normal flow.
+                    This button is a manual override for QA/debugging. */}
+                {isPass2Only && isDevMode() && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-7 text-xs gap-1"
+                    variant="ghost"
+                    className="h-7 text-xs gap-1 text-muted-foreground"
                     onClick={handleAskAi}
                     disabled={aiBusy}
-                    title="Ask AI to help interpret personnel changes the parser missed. Proposes canonical fields only — coach reviews before commit."
+                    title="Dev only: manually invoke the AI personnel fallback. The normal Update Proposal flow already auto-runs this when needed."
                   >
                     <Sparkles className="h-3 w-3" />
-                    {aiBusy ? "Asking AI…" : "Ask AI for help"}
+                    {aiBusy ? "AI…" : "Ask AI (dev)"}
                   </Button>
                 )}
               </>
