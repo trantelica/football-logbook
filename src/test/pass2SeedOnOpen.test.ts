@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   findPriorPass2CompletePlay,
+  findImmediatePriorPass2CompleteOffensivePlay,
   countCommittedPersonnel,
   seedPass2PersonnelIntoCandidate,
   PERSONNEL_POSITIONS,
