@@ -92,13 +92,68 @@ const POSITION_WORD_TO_LABEL: Record<string, string> = {
   one: "1", two: "2", three: "3", four: "4",
 };
 
+/**
+ * Common STT filler / hedge words that may appear between the assignment verb
+ * and the position label. Stripped iteratively from the head of the captured
+ * position phrase before resolution. Conservative list — does not include any
+ * tokens that participate in canonical labels (X, Y, Q, H, F, Z, 1..4).
+ */
+const FILLER_HEAD_WORDS = new Set<string>([
+  "a", "an", "the", "at", "in", "on", "to",
+  "it", "that", "this",
+  "playing", "played", "plays", "play",
+  "position", "spot", "slot", "role",
+  "is", "was", "now",
+]);
+
+/**
+ * Conservative STT-corruption rewrite map. Kept intentionally small —
+ * this is not a fuzzy vocabulary, just the handful of high-frequency
+ * mishears observed in coach dictation.
+ */
+const STT_PHRASE_REWRITES: Array<[RegExp, string]> = [
+  [/\bray\s+guard\b/g, "right guard"],
+  [/\bray\s+tackle\b/g, "right tackle"],
+];
+
+function stripFillerHead(phrase: string): string {
+  let s = phrase.trim();
+  let changed = true;
+  while (changed && s.length > 0) {
+    changed = false;
+    const parts = s.split(/\s+/);
+    if (parts.length === 0) break;
+    const head = parts[0].toLowerCase().replace(/[.,;:!?]+$/, "");
+    if (FILLER_HEAD_WORDS.has(head)) {
+      s = parts.slice(1).join(" ").trim();
+      changed = true;
+    }
+  }
+  return s;
+}
+
 /** Try to resolve a position phrase to a canonical pos* field. */
 function resolvePositionPhrase(
   phrase: string,
   aliasMap: PositionAliasMap | undefined | null,
 ): string | null {
-  const trimmed = phrase.trim();
+  let trimmed = phrase.trim();
   if (!trimmed) return null;
+
+  // Strip leading filler words ("a left guard" → "left guard",
+  // "It Center" → "Center", "that Y" → "Y", "position one" → "one").
+  trimmed = stripFillerHead(trimmed);
+  if (!trimmed) return null;
+
+  // Apply conservative STT phrase rewrites (lower-case form).
+  const lowerForRewrite = trimmed.toLowerCase();
+  let rewritten = lowerForRewrite;
+  for (const [re, to] of STT_PHRASE_REWRITES) {
+    rewritten = rewritten.replace(re, to);
+  }
+  if (rewritten !== lowerForRewrite) {
+    trimmed = rewritten;
+  }
 
   // 1. Built-in long-form role phrases (case-insensitive).
   const lower = trimmed.toLowerCase();
