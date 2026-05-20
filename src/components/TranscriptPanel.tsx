@@ -237,19 +237,18 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
   const [aiBusy, setAiBusy] = useState(false);
 
   /**
-   * Pass 2 AI fallback core — invoked either automatically from Update Proposal
-   * when the deterministic parser misses/partially resolves personnel
-   * narration, or manually via the dev-mode "Ask AI" button. Returns nothing;
-   * applies through applySystemPatch({ source: "ai_proposed", fillOnly: true })
-   * so existing collision/overwrite review, duplicate validation, and off-
-   * roster governance remain authoritative.
+   * Pass 2 AI fallback — fetch AI personnel proposal for the same source text.
+   * Returns the filtered AI patch (canonical pos* fields only, jerseys
+   * deduped against deterministic patch). Does NOT call applySystemPatch —
+   * caller is responsible for merging + applying so the entire proposal
+   * routes through a single collision/overwrite review pass.
    */
-  const runAiPersonnelFallback = useCallback(async (
+  const fetchAiPersonnelPatchOnly = useCallback(async (
     sourceText: string,
     deterministicPersonnelPatch: Record<string, unknown>,
-  ) => {
-    if (!isPass2Only) return;
-    if (!sourceText.trim()) return;
+  ): Promise<Record<string, number> | null> => {
+    if (!isPass2Only) return null;
+    if (!sourceText.trim()) return null;
 
     const cur = (currentCandidate ?? {}) as Record<string, unknown>;
     const currentPersonnel: Partial<Record<(typeof PERSONNEL_POSITIONS)[number], number | null>> = {};
@@ -273,59 +272,73 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
 
       if (error) {
         toast.error(`AI personnel [${errorCategory ?? "unknown"}]: ${error}`);
-        return;
+        return null;
       }
 
+      // Parser keys win on collision — never overwrite a deterministic value.
       const filtered: Record<string, number> = {};
       for (const [k, v] of Object.entries(aiPatch)) {
-        const detVal = deterministicPersonnelPatch[k];
-        if (detVal != null && Number(detVal) === v) continue;
+        if (Object.prototype.hasOwnProperty.call(deterministicPersonnelPatch, k)) continue;
         filtered[k] = v;
       }
-      if (Object.keys(filtered).length === 0) {
-        toast.info("AI had nothing to add to the deterministic parse.");
-        return;
-      }
-
-      const evidence: Record<string, { snippet: string }> = {};
-      for (const k of Object.keys(filtered)) {
-        evidence[k] = { snippet: sourceText.slice(0, 120) };
-      }
-
-      const collisions = applySystemPatch(filtered, {
-        fillOnly: true,
-        evidence,
-        source: "ai_proposed",
-      });
-
-      if (collisions.length > 0) {
-        const nonCollisionCount = Object.keys(filtered).length - collisions.length;
-        setCollisionState({
-          collisions: collisions.map((c: SystemPatchCollision) => ({
-            fieldName: c.fieldName,
-            currentValue: c.currentValue,
-            proposedValue: c.proposedValue,
-          })),
-          nonCollisionCount,
-          fullPatch: filtered,
-        });
-      } else {
-        setApplied(true);
-        toast.success(`AI proposed ${Object.keys(filtered).length} field(s)`);
-        onApply?.(sourceText, filtered);
-      }
+      return filtered;
     } finally {
       setAiBusy(false);
     }
-  }, [isPass2Only, currentCandidate, roster, aliasMap, applySystemPatch, onApply]);
+  }, [isPass2Only, currentCandidate, roster, aliasMap]);
 
   /**
-   * Pass 2+ consolidated action — parse personnel narration AND immediately
-   * write the canonical pos* patch into proposal/draft state. In Pass 2 only,
-   * if the deterministic parser misses or partially resolves meaningful
-   * personnel text (empty patch or any unrecognized clauses), the AI fallback
-   * is invoked automatically and routes through the same collision/overwrite
-   * review path. No silent overwrite, no silent commit.
+   * Dev-only manual fallback — applies the AI patch directly through
+   * applySystemPatch (same review path as the auto-trigger). Used by the
+   * "Ask AI (dev)" button.
+   */
+  const runAiPersonnelFallback = useCallback(async (
+    sourceText: string,
+    deterministicPersonnelPatch: Record<string, unknown>,
+  ) => {
+    const filtered = await fetchAiPersonnelPatchOnly(sourceText, deterministicPersonnelPatch);
+    if (filtered == null) return;
+    if (Object.keys(filtered).length === 0) {
+      toast.info("AI had nothing to add to the deterministic parse.");
+      return;
+    }
+
+    const evidence: Record<string, { snippet: string }> = {};
+    for (const k of Object.keys(filtered)) {
+      evidence[k] = { snippet: sourceText.slice(0, 120) };
+    }
+
+    const collisions = applySystemPatch(filtered, {
+      fillOnly: true,
+      evidence,
+      source: "ai_proposed",
+    });
+
+    if (collisions.length > 0) {
+      const nonCollisionCount = Object.keys(filtered).length - collisions.length;
+      setCollisionState({
+        collisions: collisions.map((c: SystemPatchCollision) => ({
+          fieldName: c.fieldName,
+          currentValue: c.currentValue,
+          proposedValue: c.proposedValue,
+        })),
+        nonCollisionCount,
+        fullPatch: filtered,
+      });
+    } else {
+      setApplied(true);
+      toast.success(`AI proposed ${Object.keys(filtered).length} field(s)`);
+      onApply?.(sourceText, filtered);
+    }
+  }, [fetchAiPersonnelPatchOnly, applySystemPatch, onApply]);
+
+  /**
+   * Pass 2+ consolidated action — parse personnel narration, optionally
+   * augment with AI fallback (Pass 2 only when parser was partial), then
+   * apply ONCE through applySystemPatch so the collision/overwrite review
+   * receives the full merged proposal. Null personnel fields are stripped
+   * before apply per spec — they never enter applied state or collision
+   * review.
    */
   const handleUpdateProposal = useCallback(async () => {
     const parsed = handleParse();
@@ -360,41 +373,64 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       (r) => r.status === "unrecognized",
     );
     const personnelMissCount = Object.keys(personnelOnlyDet).length === 0;
-    const shouldRunAiFallback = isPass2Only && (personnelMissCount || hasUnrecognizedPersonnel);
+    const shouldRunAiFallback =
+      isPass2Only && (personnelMissCount || hasUnrecognizedPersonnel);
 
-    if (Object.keys(mergedPatch).length === 0) {
-      // Parser found nothing — try AI fallback in Pass 2 instead of bailing.
-      if (shouldRunAiFallback) {
-        await runAiPersonnelFallback(sourceText, personnelOnlyDet);
-        return;
+    // Pass 2: run AI BEFORE collision review when parser was partial. The
+    // merged proposal (parser + AI) is applied as a single patch so the
+    // collision dialog (if any) reflects the complete coach intent rather
+    // than only the deterministic slice.
+    let aiAugmentedKeys: Set<string> = new Set();
+    let workingPatch: Record<string, unknown> = { ...mergedPatch };
+    if (shouldRunAiFallback) {
+      const aiPatch = await fetchAiPersonnelPatchOnly(sourceText, personnelOnlyDet);
+      if (aiPatch && Object.keys(aiPatch).length > 0) {
+        for (const [k, v] of Object.entries(aiPatch)) {
+          // Parser keys already win (fetchAiPersonnelPatchOnly excluded them).
+          workingPatch[k] = v;
+          aiAugmentedKeys.add(k);
+        }
       }
+    }
+
+    // Strip null personnel fields — they never enter applied state or
+    // collision review (per spec). Move-detection "clear source slot"
+    // semantics are intentionally not propagated.
+    const personnelSet = new Set<string>(PERSONNEL_POSITIONS as readonly string[]);
+    for (const k of Object.keys(workingPatch)) {
+      if (personnelSet.has(k) && workingPatch[k] == null) {
+        delete workingPatch[k];
+      }
+    }
+
+    if (Object.keys(workingPatch).length === 0) {
       if (!personnel || personnel.offRosterJerseys.length === 0) {
         toast.info("No personnel assignments recognized in narration.");
       }
       return;
     }
-    // Build per-field evidence from the personnel parse report so each
-    // narration-updated pos* slot carries its source clause as transcript
-    // evidence (visible via the Parse provenance badge tooltip).
+
+    // Build per-field evidence — parser report for deterministic keys,
+    // source-text snippet for AI-augmented keys.
     const evidence: Record<string, { snippet: string }> = {};
     if (personnel) {
       for (const entry of personnel.report) {
         if (entry.status !== "matched" || !entry.canonicalField) continue;
         evidence[entry.canonicalField] = { snippet: entry.rawSentence };
-        if (entry.movedFrom) {
-          evidence[entry.movedFrom] = {
-            snippet: `moved #${entry.jersey} → ${entry.canonicalField}`,
-          };
-        }
       }
     }
-    const collisions = applySystemPatch(mergedPatch, {
+    for (const k of aiAugmentedKeys) {
+      if (!evidence[k]) evidence[k] = { snippet: sourceText.slice(0, 120) };
+    }
+
+    const source = aiAugmentedKeys.size > 0 ? "ai_proposed" : "deterministic_parse";
+    const collisions = applySystemPatch(workingPatch, {
       fillOnly: true,
       evidence,
-      source: "deterministic_parse",
+      source,
     });
     if (collisions.length > 0) {
-      const nonCollisionCount = Object.keys(mergedPatch).length - collisions.length;
+      const nonCollisionCount = Object.keys(workingPatch).length - collisions.length;
       setCollisionState({
         collisions: collisions.map((c: SystemPatchCollision) => ({
           fieldName: c.fieldName,
@@ -402,22 +438,14 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
           proposedValue: c.proposedValue,
         })),
         nonCollisionCount,
-        fullPatch: mergedPatch,
+        fullPatch: workingPatch,
       });
-      // Do NOT auto-run AI fallback while a collision dialog is open — coach
-      // resolves deterministic collisions first.
       return;
     }
     setApplied(true);
-    toast.success(`Updated proposal: ${Object.keys(mergedPatch).length} field(s)`);
-    onApply?.(sourceText, mergedPatch);
-
-    // Parser partially resolved (matched some, but left meaningful narration
-    // unrecognized) — chain AI fallback automatically after deterministic apply.
-    if (shouldRunAiFallback && hasUnrecognizedPersonnel) {
-      await runAiPersonnelFallback(sourceText, personnelOnlyDet);
-    }
-  }, [handleParse, applySystemPatch, onApply, isPass2Only, runAiPersonnelFallback]);
+    toast.success(`Updated proposal: ${Object.keys(workingPatch).length} field(s)`);
+    onApply?.(sourceText, workingPatch);
+  }, [handleParse, applySystemPatch, onApply, isPass2Only, fetchAiPersonnelPatchOnly]);
 
   /**
    * Handle roster-resolution outcome. Re-parses the original narration with
