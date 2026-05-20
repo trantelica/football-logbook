@@ -204,6 +204,11 @@ function extractClauseMatch(clause: string): { jerseyToken: string; positionPhra
   m = trimmed.match(/^(#?\d+)\s+(?:moved\s+to|moves\s+to|switched\s+to|switches\s+to|is\s+now\s+playing|is\s+now\s+at|is\s+now\s+in|is\s+playing|is\s+at|is\s+in|plays|playing|moves|switches|is|at)\s+(?:at\s+|in\s+|the\s+)?(.+)$/i);
   if (m) return { jerseyToken: m[1], positionPhrase: m[2] };
 
+  // Form 3: reverse construction — "<position-phrase> is/was played by [number] <jersey>"
+  // e.g. "Left tackle is played by number one" → posLT = 1.
+  m = trimmed.match(/^(.+?)\s+(?:is|was|are|were)\s+played\s+by\s+(?:number\s+|#)?(\w+)\s*$/i);
+  if (m) return { jerseyToken: m[2], positionPhrase: m[1] };
+
   return null;
 }
 
