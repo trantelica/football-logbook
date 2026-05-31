@@ -20,6 +20,7 @@ import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig } from "@/engine/db";
 import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
 import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarrationParser";
+import { parseGradeBulkCommand, computeBulkFillPatch } from "@/engine/gradeBulkCommand";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
