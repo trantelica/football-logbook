@@ -1672,8 +1672,9 @@ function SectionCard(props: SectionCardProps) {
     <div
       className={cn(
         "rounded-lg border p-3 space-y-2 transition-colors",
-        isActive ? "border-primary/60 bg-primary/5" : "border-border/60 bg-background",
-        isRecording && "border-destructive/60",
+        isActive && !isRecording && "border-accent/70 bg-accent/5 ring-1 ring-accent/30",
+        !isActive && !isRecording && "border-border/60 bg-background",
+        isRecording && "border-warning bg-warning/5 ring-1 ring-warning/40 animate-pulse",
       )}
       onClick={onFocus}
     >
@@ -1684,15 +1685,21 @@ function SectionCard(props: SectionCardProps) {
           </Label>
           <kbd className="kbd">{section.dictateKey}</kbd>
           {isRecording && (
-            <span className="flex items-center gap-1 text-[10px] text-destructive font-medium">
-              <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" />
+            <span className="flex items-center gap-1 text-[10px] text-warning font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-warning animate-pulse" />
               Listening
             </span>
           )}
+          {isActive && !isRecording && (
+            <span className="text-[10px] uppercase tracking-wide text-accent font-medium">
+              Active
+            </span>
+          )}
           {state.dirty && !isRecording && (
-            <span className="text-[10px] text-amber-600 dark:text-amber-400">Unsynced</span>
+            <span className="text-[10px] text-proposal">Unsynced</span>
           )}
         </div>
+
         <div className="flex items-center gap-1">
           <Button
             size="sm"
@@ -1754,8 +1761,9 @@ function SectionCard(props: SectionCardProps) {
         data-section-id={section.id}
         className={cn(
           "text-xs font-mono min-h-[64px] resize-y bg-background/50",
-          isRecording && "border-destructive/30",
+          isRecording && "border-warning/40",
         )}
+
         placeholder={
           isRecording
             ? "Listening — speech will appear here…"

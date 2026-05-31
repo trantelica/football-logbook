@@ -43,6 +43,7 @@ import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
 import { Pass1SectionPanel } from "./Pass1SectionPanel";
+import { PlayContextHeader } from "./PlayContextHeader";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -1026,6 +1027,10 @@ export function DraftPanel() {
   return (
     <>
       {stageSelector}
+
+      <PlayContextHeader />
+
+
 
       
 
