@@ -73,6 +73,16 @@ export default {
           muted: "hsl(var(--committed-muted))",
         },
         "field-touched": "hsl(var(--field-touched))",
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+          muted: "hsl(var(--warning-muted))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+          muted: "hsl(var(--info-muted))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
