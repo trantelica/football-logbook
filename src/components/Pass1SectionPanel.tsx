@@ -1761,8 +1761,9 @@ function SectionCard(props: SectionCardProps) {
         data-section-id={section.id}
         className={cn(
           "text-xs font-mono min-h-[64px] resize-y bg-background/50",
-          isRecording && "border-destructive/30",
+          isRecording && "border-warning/40",
         )}
+
         placeholder={
           isRecording
             ? "Listening — speech will appear here…"
