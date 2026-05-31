@@ -189,6 +189,17 @@ export function parseGradeNarration(input: string): GradeParseResult {
 
   /** Read a grade value starting at index j (may be multi-word like "minus three"). */
   function readGrade(j: number): { value: number; consumed: number } | { outOfRange: true; raw: string; consumed: number } | null {
+    // Sign-word + digit: "minus 1", "negative 2", "plus 3"
+    if (j < tokens.length - 1) {
+      const signTok = tokens[j];
+      const digTok = tokens[j + 1];
+      if ((signTok === "minus" || signTok === "negative" || signTok === "plus") && /^\d+$/.test(digTok)) {
+        const n = parseInt(digTok, 10) * (signTok === "plus" ? 1 : -1);
+        if (n >= -3 && n <= 3) return { value: n, consumed: 2 };
+        return { outOfRange: true, raw: `${signTok} ${digTok}`, consumed: 2 };
+      }
+    }
+
     // Try multi-word grade first
     const mw = (() => {
       for (const phrase of MULTI_WORD_POSITIONS) {
