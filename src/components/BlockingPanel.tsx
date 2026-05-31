@@ -20,6 +20,7 @@ import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig } from "@/engine/db";
 import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
 import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarrationParser";
+import { parseGradeBulkCommand, computeBulkFillPatch } from "@/engine/gradeBulkCommand";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -172,6 +173,45 @@ export function BlockingPanel() {
       toast.error("Grades are not currently editable.");
       return;
     }
+
+    // ── Pass 3 bulk command (state-aware fill of empty grades) ──────────
+    const bulk = parseGradeBulkCommand(trimmed, aliasMap);
+    if (bulk) {
+      if (bulk.status === "unresolved_exception") {
+        toast.error(bulk.reason);
+        setLastReport(null);
+        return;
+      }
+      if (bulk.status === "out_of_range" || bulk.status === "no_value") {
+        toast.error(bulk.reason);
+        setLastReport(null);
+        return;
+      }
+      // matched
+      const { patch: bulkPatch, targets } = computeBulkFillPatch(
+        bulk.value,
+        bulk.exceptions,
+        cr,
+        c,
+      );
+      if (targets.length === 0) {
+        toast.info("No empty grade fields to fill.");
+        setLastReport(null);
+        return;
+      }
+      const bulkEvidence = Object.fromEntries(
+        targets.map((f) => [f, { snippet: trimmed }]),
+      );
+      applySystemPatch(bulkPatch, {
+        fillOnly: false,
+        source: "deterministic_parse",
+        evidence: bulkEvidence,
+      });
+      toast.success(`Applied grade ${bulk.value} to ${targets.length} empty field(s).`);
+      return; // do not also run per-clause parser
+    }
+
+    // ── Normal per-clause grade narration ───────────────────────────────
     const { patch, report } = parseGradeNarration(trimmed);
     const normalizedPatch = normalizeGradePatchKeys(patch);
     setLastReport(report);
@@ -196,7 +236,7 @@ export function BlockingPanel() {
         ? `Applied ${matchedCount} grade(s) to proposal. ${blockedCount} clause(s) skipped.`
         : `Applied ${matchedCount} grade(s) to proposal.`,
     );
-  }, [narrationText, gradesDisabled, applySystemPatch]);
+  }, [narrationText, gradesDisabled, applySystemPatch, aliasMap, cr, c]);
 
   const handleClearNarration = useCallback(() => {
     clearDictation();
