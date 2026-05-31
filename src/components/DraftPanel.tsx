@@ -1028,6 +1028,10 @@ export function DraftPanel() {
     <>
       {stageSelector}
 
+      <PlayContextHeader />
+
+
+
       
 
       {/* Transcript Panel — Pass 2 ONLY (personnel narration surface).
