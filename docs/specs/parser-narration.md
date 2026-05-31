@@ -363,6 +363,22 @@ Rules:
 
 ## 14. Pass 3 Grade Narration Scope
 
+> **Status (per `docs/specs/release-readiness-checkpoint.md`):**
+> - Deterministic Pass 3 parser: **accepted and active**.
+> - Pass 3 AI assist: **architecture approved, not implemented**. Forward-looking AI sections (see §17A.14.3) describe planned behavior and are not live.
+
+### 14.0 Deterministic Pass 3 Surface
+
+The deterministic Pass 3 parser supports:
+
+1. per-clause grade extraction (each clause resolves independently)
+2. collapsed grade tokens (e.g., `Y1`)
+3. STT normalization within Pass 3 context (e.g., `go to` → `got a`)
+4. a bulk-empty grade command (e.g., "clear all grades") that proposes setting every active grade field for the current play to empty, via the standard proposal → commit path
+5. fall-through / no-match behavior: an utterance that does not resolve to any grade clause applies nothing, leaves all state untouched, and does not crash
+
+All deterministic Pass 3 output flows through proposal review and through `GradeOverwriteDialog` whenever a committed grade value would change.
+
 Pass 3 parser may extract blocking grades.
 
 Examples:

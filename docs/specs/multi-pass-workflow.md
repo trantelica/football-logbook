@@ -423,7 +423,39 @@ Both manual grade edits and narrated grade edits must go through the same propos
 
 There must not be one pathway for dictation and another unsafe pathway for manual edit.
 
-### 8.7 Pass 3 Stability Principle
+### 8.7 Per-Clause Grade Parsing
+
+Pass 3 grade narration is parsed clause-by-clause. Each comma- or conjunction-separated clause resolves independently to a single `(slot, grade)` pair and produces an independent proposal patch entry.
+
+A malformed or unresolved clause does not abort sibling clauses. Resolved clauses still flow through proposal review; unresolved clauses are dropped without mutation.
+
+### 8.8 Bulk-Empty Grade Command
+
+Pass 3 accepts a deterministic bulk-empty grade command (e.g., "clear all grades") that proposes setting every active grade field for the current play to empty.
+
+The command:
+
+1. is deterministic, not AI-derived
+2. flows through the standard proposal → commit path
+3. respects persistent overwrite awareness on already-committed grade fields
+4. does not touch Pass 1 or Pass 2 fields
+
+### 8.9 Persistent Overwrite Awareness
+
+Committed grade fields retain a persistent overwrite-aware state. Any proposal that would change a committed grade value must surface the change before commit and route through `GradeOverwriteDialog`.
+
+### 8.10 GradeOverwriteDialog on Commit
+
+`GradeOverwriteDialog` is the governed overwrite path for grade fields, parallel to `OverwriteReview` for Pass 1 and Pass 2.
+
+Behavior:
+
+1. Fires on commit when one or more committed grade values would change.
+2. Shows before/after values for each affected grade field.
+3. Confirm commits the change and records an overwrite audit event.
+4. Cancel preserves the committed value and writes nothing.
+
+### 8.11 Pass 3 Stability Principle
 
 Pass 3 is functional and should not be refined endlessly unless a regression appears.
 
@@ -434,7 +466,12 @@ Future Pass 3 changes should be:
 3. regression-tested
 4. limited to grading workflow unless explicitly approved
 
-### 8.8 Pass 3 Guardrails
+### 8.12 Pass 3 Acceptance Status
+
+- **Pass 3 deterministic grading:** accepted per `docs/specs/release-readiness-checkpoint.md`.
+- **Pass 3 AI assist:** architecture approved, **not currently active**. Any reference to Pass 3 AI behavior in this spec or in `parser-narration.md` is forward-looking and must not be presumed live.
+
+### 8.13 Pass 3 Guardrails
 
 Pass 3 must not:
 
@@ -444,6 +481,8 @@ Pass 3 must not:
 4. commit grade narration without proposal review
 5. accept out-of-range grades
 6. create new schema fields for temporary parser artifacts
+7. bypass `GradeOverwriteDialog` when changing committed grade values
+8. crash or partially commit on fall-through / no-match utterances — such utterances apply nothing
 
 ---
 
@@ -634,6 +673,11 @@ Pass 3 passes if:
 4. collapsed tokens like `Y1` are handled correctly
 5. Pass 3 does not mutate Pass 1 or Pass 2 fields unless explicitly touched and confirmed
 6. provenance indicators remain visible where useful
+7. per-clause parsing resolves each clause independently
+8. bulk-empty grade command proposes clearing all active grade fields and respects overwrite review
+9. `GradeOverwriteDialog` fires on commit when a committed grade value would change
+10. cancel in `GradeOverwriteDialog` preserves the committed value and writes nothing
+11. fall-through / no-match utterances apply nothing and do not crash
 
 ---
 
