@@ -71,33 +71,33 @@
   }
 
   .dark {
-    --background: 222 20% 8%;
-    --foreground: 210 20% 92%;
+    --background: 222 15% 10%;
+    --foreground: 0 0% 95%;
 
-    --card: 222 18% 11%;
-    --card-foreground: 210 20% 92%;
+    --card: 0 0% 14%;
+    --card-foreground: 0 0% 95%;
 
-    --popover: 222 18% 11%;
-    --popover-foreground: 210 20% 92%;
+    --popover: 0 0% 16%;
+    --popover-foreground: 0 0% 95%;
 
-    --primary: 215 60% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 210 20% 55%;
+    --primary-foreground: 210 20% 15%;
 
-    --secondary: 220 16% 18%;
-    --secondary-foreground: 210 20% 92%;
+    --secondary: 208 25% 25%;
+    --secondary-foreground: 0 0% 90%;
 
-    --muted: 220 16% 16%;
-    --muted-foreground: 215 14% 55%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 3% 60%;
 
-    --accent: 220 16% 18%;
-    --accent-foreground: 210 20% 92%;
+    --accent: 215 25% 55%;
+    --accent-foreground: 215 25% 15%;
 
-    --destructive: 0 62% 45%;
+    --destructive: 4 80% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 16% 18%;
-    --input: 220 16% 22%;
-    --ring: 215 60% 55%;
+    --border: 0 0% 20%;
+    --input: 0 0% 22%;
+    --ring: 210 20% 55%;
 
     /* Football Engine semantic tokens — dark */
     --candidate: 220 16% 20%;
@@ -112,7 +112,15 @@
     --committed-foreground: 0 0% 100%;
     --committed-muted: 142 30% 14%;
 
-    --field-touched: 215 30% 18%;
+    --warning: 4 80% 60%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 4 35% 16%;
+
+    --info: 215 25% 55%;
+    --info-foreground: 0 0% 100%;
+    --info-muted: 215 30% 16%;
+
+    --field-touched: 208 25% 20%;
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
