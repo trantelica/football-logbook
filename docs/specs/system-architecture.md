@@ -567,6 +567,8 @@ AI must not:
 
 The deterministic engine remains authoritative.
 
+> **Current state (per `docs/specs/release-readiness-checkpoint.md`):** No AI enrichment is active in the Pass 3 deterministic grading path. Pass 3 AI assist is architecture-approved but not implemented.
+
 ---
 
 ## 19. Guided Session Architecture
@@ -716,8 +718,8 @@ The architecture is conforming when:
 |---|---|---|
 | ARCH-001 | Need confirm current audit event coverage across overwrite, lookup append, roster resolution, and config changes | Inspect before broad patching |
 | ARCH-002 | Need confirm proposal patch shape and touched-field tracking are consistent across passes | Inspect before broad patching |
-| ARCH-003 | Need confirm carry-forward seed-on-open and Commit & Next share same policy | Already observed as a product requirement; inspect implementation |
-| ARCH-004 | Need confirm export reads committed rows only | Treat as critical invariant |
+| ARCH-003 | Need confirm carry-forward seed-on-open and Commit & Next share same policy | **Resolved** against `docs/specs/release-readiness-checkpoint.md` — Pass 2 carry-forward (immediate-prior-only, Pass-2-only, personnel-only, candidate/proposal-only) accepted |
+| ARCH-004 | Need confirm export reads committed rows only | **Resolved** against `docs/specs/release-readiness-checkpoint.md` — Hudl CSV export reads committed `plays` rows only; scaffold/candidate/proposal state excluded |
 | ARCH-005 | Need confirm AI/parser outputs cannot directly mutate committed rows | Critical before deeper guided-session work |
 
 ---

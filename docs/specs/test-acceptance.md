@@ -658,7 +658,10 @@ posY = 84
 
 **And** must not silently add #84 to the roster.
 
-### PARSER-016 — Pass 3 AI Respects Grade Scope
+> **PARSER-016..019 status:** **Parked — pending Pass 3 AI implementation.**
+> These cases describe Pass 3 AI assist behavior. Pass 3 AI is architecture-approved but not implemented (see `docs/specs/release-readiness-checkpoint.md`). They are retained for forward acceptance and must not be treated as active gaps in the deterministic baseline.
+
+### PARSER-016 — Pass 3 AI Respects Grade Scope *(Parked)*
 
 **Given** Pass 3 narration:
 
@@ -676,7 +679,7 @@ gradeX = -2
 
 **And** must not update Pass 1 or Pass 2 fields.
 
-### PARSER-017 — Pass 3 STT Correction Is Context-Bound
+### PARSER-017 — Pass 3 STT Correction Is Context-Bound *(Parked)*
 
 **Given** Pass 3 narration:
 
@@ -693,7 +696,7 @@ gradeY = 1
 **Given** the same phrase appears in Pass 1  
 **Then** system must not set `gradeY`.
 
-### PARSER-018 — Pass 3 Vague Praise Does Not Set Grade
+### PARSER-018 — Pass 3 Vague Praise Does Not Set Grade *(Parked)*
 
 **Given** Pass 3 narration:
 
@@ -709,7 +712,7 @@ gradeY = 1
 
 unless the coach provides explicit grade evidence.
 
-### PARSER-019 — Pass 3 Out-of-Range Grade Blocks or Flags
+### PARSER-019 — Pass 3 Out-of-Range Grade Blocks or Flags *(Parked)*
 
 **Given** AI or parser proposes:
 
@@ -718,6 +721,51 @@ gradeY = 4
 ```
 
 **Then** validation must block or flag the value before commit.
+
+### PARSER-021 — Pass 3 Bulk-Empty Grade Command
+
+**Given** Pass 3 narration:
+
+```text
+clear all grades
+```
+
+**Then** the deterministic parser must propose setting every active grade field for the current play to empty  
+**And** the proposal must flow through standard review  
+**And** any committed grade value must route through `GradeOverwriteDialog` before being cleared.
+
+### PARSER-022 — Pass 3 Fall-Through Utterance Is a No-Op
+
+**Given** Pass 3 narration that resolves to no grade clause:
+
+```text
+nice rep guys
+```
+
+**Then** the system must apply nothing  
+**And** must not crash  
+**And** must not partially mutate proposal or committed state.
+
+### GRADE-OVERWRITE-001 — Dialog Fires on Committed Grade Change
+
+**Given** a committed grade value exists for a field  
+**And** a new proposal would change that value  
+**Then** `GradeOverwriteDialog` must fire on commit  
+**And** show before/after values for the affected grade field(s).
+
+### GRADE-OVERWRITE-002 — Cancel Preserves Committed Value
+
+**Given** `GradeOverwriteDialog` is open  
+**When** the coach cancels  
+**Then** the committed value must be preserved  
+**And** no write, audit event, or partial mutation may occur.
+
+### EXPORT-001 — Hudl CSV Excludes Non-Committed State
+
+**Given** scaffolded slots, candidate values, and proposal values exist in current session state  
+**Then** Hudl CSV export must include committed rows only  
+**And** must not emit data rows for scaffolded/uncommitted slots  
+**And** must not leak candidate or proposal values into any cell.
 
 ### PARSER-020 — AI Crosscheck Preserves Pass Boundaries
 
