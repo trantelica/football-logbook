@@ -158,7 +158,10 @@ export function parseGradeNarration(input: string): GradeParseResult {
 
   if (!input || !input.trim()) return { patch, report };
 
-  const raw = input.toLowerCase().replace(/[,;.\n]/g, " ").replace(/\s+/g, " ").trim();
+  // Narrow STT normalization: "left tackled" → "left tackle" (Pass 3 only).
+  // Strictly word-boundary-scoped; no fuzzy matching.
+  const normalizedInput = input.replace(/\bleft\s+tackled\b/gi, "left tackle");
+  const raw = normalizedInput.toLowerCase().replace(/[,;.\n]/g, " ").replace(/\s+/g, " ").trim();
   const tokens = tokenise(raw);
 
   let i = 0;
