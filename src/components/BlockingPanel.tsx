@@ -535,7 +535,34 @@ export function BlockingPanel() {
       {/* Section 5: Grade Grid — ordered rows */}
       {committedRow && (
         <div className="space-y-3">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Blocking Grades</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Blocking Grades</div>
+            {overwriteDiffs.length > 0 && (
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">
+                {overwriteDiffs.length} overwrite{overwriteDiffs.length === 1 ? "" : "s"} pending
+              </span>
+            )}
+          </div>
+
+          {overwriteDiffs.length > 0 && (
+            <div className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-1.5 font-semibold mb-1">
+                <AlertTriangle className="h-3 w-3" />
+                This proposal changes committed grades
+              </div>
+              <div className="font-mono text-[10px] leading-snug">
+                {overwriteDiffs.map((d, idx) => (
+                  <span key={d.field}>
+                    {idx > 0 && <span className="text-amber-600/70">, </span>}
+                    {d.label} {d.before} → {d.after}
+                  </span>
+                ))}
+              </div>
+              <div className="text-[10px] mt-1 text-amber-700/80 dark:text-amber-400/80">
+                You'll be asked to confirm on Commit.
+              </div>
+            </div>
+          )}
 
           {/* Row 1: OL + Y */}
           <div className="space-y-1">
