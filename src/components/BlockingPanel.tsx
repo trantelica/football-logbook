@@ -238,6 +238,28 @@ export function BlockingPanel() {
     return { primary: GRADE_LABELS[gradeField], alias };
   };
 
+  // ── Compute Pass 3 overwrite diffs (committed non-null → different proposed) ──
+  const overwriteDiffs = React.useMemo(() => {
+    if (!committedRow) return [] as { field: string; label: string; before: number; after: number }[];
+    const out: { field: string; label: string; before: number; after: number }[] = [];
+    for (const gf of GRADE_FIELDS) {
+      const beforeRaw = (cr as Record<string, unknown> | null)?.[gf];
+      const afterRaw = (c as Record<string, unknown>)[gf];
+      if (beforeRaw == null || beforeRaw === "") continue;
+      if (afterRaw == null || afterRaw === "") continue;
+      const before = Number(beforeRaw);
+      const after = Number(afterRaw);
+      if (Number.isFinite(before) && Number.isFinite(after) && before !== after) {
+        out.push({ field: gf, label: GRADE_LABELS[gf] ?? gf, before, after });
+      }
+    }
+    return out;
+  }, [committedRow, cr, c]);
+  const overwriteFieldSet = React.useMemo(
+    () => new Set(overwriteDiffs.map((d) => d.field)),
+    [overwriteDiffs],
+  );
+
   // ── Render a single grade control ──────────────────────────────────────
   const renderGradeControl = (gradeField: string) => {
     const posField = GRADE_TO_POS[gradeField];
@@ -254,16 +276,33 @@ export function BlockingPanel() {
 
     const isParsed = deterministicParseFields.has(gradeField);
     const isTouched = touchedFields.has(gradeField);
+    const committedRaw = cr?.[gradeField];
+    const committedNum = committedRaw != null && committedRaw !== "" ? Number(committedRaw) : null;
+    const isOverwrite = overwriteFieldSet.has(gradeField);
 
     return (
       <div key={gradeField} className="space-y-1">
         {/* Label row: position + alias + provenance (no duplicate indicator) */}
-        <div className="flex items-center gap-1.5 min-h-[18px]">
+        <div className="flex items-center gap-1.5 min-h-[18px] flex-wrap">
           <span className="text-[11px] font-semibold text-foreground">
             {primary}
             {alias && <span className="text-muted-foreground font-normal ml-0.5">({alias})</span>}
           </span>
           {renderGradeProvenance(gradeField)}
+          {isOverwrite && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded px-1">
+                    <AlertTriangle className="h-2.5 w-2.5" />Overwrite
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Changes a committed grade. Confirmation required on Commit.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         {/* Player context */}
         <div className="text-[10px] text-muted-foreground truncate" title={playerDisplay}>
@@ -277,8 +316,9 @@ export function BlockingPanel() {
         >
           <SelectTrigger className={cn(
             "h-8 text-sm font-mono [&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:justify-between [&>span:first-child]:w-full [&>span:first-child]:!line-clamp-none [&>span:first-child]:!overflow-visible",
-            isParsed && !isTouched && !error && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
-            isTouched && !error && "bg-field-touched",
+            isParsed && !isTouched && !error && !isOverwrite && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
+            isTouched && !error && !isOverwrite && "bg-field-touched",
+            isOverwrite && !error && "bg-amber-50 dark:bg-amber-950/30 border-amber-400 dark:border-amber-700",
             error && "border-destructive",
           )}>
             {/* Custom display: numeric value left, single indicator right */}
@@ -300,6 +340,11 @@ export function BlockingPanel() {
             ))}
           </SelectContent>
         </Select>
+        {isOverwrite && committedNum != null && numValue != null && (
+          <p className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">
+            Committed: {committedNum} → Proposed: {numValue}
+          </p>
+        )}
         {error && <p className="text-[10px] text-destructive">{error}</p>}
       </div>
     );
