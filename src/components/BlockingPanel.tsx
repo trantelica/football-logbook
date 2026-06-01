@@ -18,7 +18,7 @@ import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig } from "@/engine/db";
-import { GRADE_FIELDS, GRADE_LABELS, PERSONNEL_POSITIONS, PERSONNEL_LABELS } from "@/engine/personnel";
+import { GRADE_FIELDS, GRADE_LABELS } from "@/engine/personnel";
 import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarrationParser";
 import { parseGradeBulkCommand, computeBulkFillPatch } from "@/engine/gradeBulkCommand";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
