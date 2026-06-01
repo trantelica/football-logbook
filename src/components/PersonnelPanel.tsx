@@ -192,7 +192,7 @@ export function PersonnelPanel() {
       )}
 
       {/* Play Context Header — Read-only */}
-      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+      <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
         <div className="flex items-center gap-2 mb-2">
           <Lock className="h-3 w-3 text-muted-foreground" />
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">

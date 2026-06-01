@@ -51,8 +51,8 @@ export function SlotsGrid() {
 
   if (committedPlays.length === 0) {
     return (
-      <div className="rounded-lg border-2 border-muted p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+      <div className="rounded-lg border border-border/60 bg-card p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
           Play Slots
         </h2>
         <p className="text-xs text-muted-foreground">
@@ -71,9 +71,9 @@ export function SlotsGrid() {
     : `${ODK_FILTER_LABELS[odkFilter] ?? odkFilter} Plays (${filteredPlays.length} of ${committedPlays.length})`;
 
   return (
-    <div className="rounded-lg border-2 border-committed/30 bg-committed-muted p-4">
+    <div className="rounded-lg border border-committed/30 bg-committed-muted p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-committed">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-committed">
           {headerLabel}
         </h2>
         <div className="flex gap-2 text-[10px] flex-wrap">
