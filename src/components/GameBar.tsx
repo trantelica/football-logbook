@@ -66,91 +66,101 @@ export function GameBar() {
 
   return (
     <>
-      <header className="flex items-center gap-3 border-b bg-card px-4 py-2">
+      <header className="flex items-center gap-2 border-b bg-card px-4 py-2">
+        {/* Brand */}
         <h1 className="text-sm font-bold tracking-wide uppercase text-muted-foreground">
           Football Engine
         </h1>
+
         <div className="mx-2 h-5 w-px bg-border" />
 
-        {/* Season selector */}
-        {seasons.length > 0 && (
-          <Select
-            value={activeSeason?.seasonId ?? ""}
-            onValueChange={(v) => switchSeason(v)}
+        {/* Season group */}
+        <div className="flex items-center gap-1.5">
+          {seasons.length > 0 && (
+            <Select
+              value={activeSeason?.seasonId ?? ""}
+              onValueChange={(v) => switchSeason(v)}
+            >
+              <SelectTrigger className="w-[180px] h-8 text-sm">
+                <SelectValue placeholder="Select season…" />
+              </SelectTrigger>
+              <SelectContent>
+                {seasons.map((s) => (
+                  <SelectItem key={s.seasonId} value={s.seasonId}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1"
+            onClick={() => setNewSeasonOpen(true)}
           >
-            <SelectTrigger className="w-[180px] h-8 text-sm">
-              <SelectValue placeholder="Select season…" />
-            </SelectTrigger>
-            <SelectContent>
-              {seasons.map((s) => (
-                <SelectItem key={s.seasonId} value={s.seasonId}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+            <CalendarDays className="h-3.5 w-3.5" />
+            New Season
+          </Button>
 
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1"
-          onClick={() => setNewSeasonOpen(true)}
-        >
-          <CalendarDays className="h-3.5 w-3.5" />
-          New Season
-        </Button>
-
-        {activeSeason && (
-          <>
+          {activeSeason && (
             <Button
               size="sm"
-              variant="outline"
-              className="h-8 gap-1"
+              variant="ghost"
+              className="h-8 gap-1 text-muted-foreground"
               onClick={() => setConfigOpen(true)}
             >
               <Settings className="h-3.5 w-3.5" />
               Config
             </Button>
+          )}
+        </div>
 
-            <div className="mx-1 h-5 w-px bg-border" />
+        {activeSeason && (
+          <>
+            <div className="mx-2 h-5 w-px bg-border" />
 
-            {/* Game selector — always visible when season active */}
-            <Select
-              value={activeGame?.gameId ?? ""}
-              onValueChange={(v) => switchGame(v)}
-              disabled={seasonGames.length === 0}
-            >
-              <SelectTrigger className="w-[220px] h-8 text-sm">
-                <SelectValue placeholder={seasonGames.length === 0 ? "No games yet" : "Select game…"} />
-              </SelectTrigger>
-              <SelectContent>
-                {seasonGames.map((g) => (
-                  <SelectItem key={g.gameId} value={g.gameId}>
-                    vs {g.opponent} — {g.date}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Game group */}
+            <div className="flex items-center gap-1.5">
+              <Select
+                value={activeGame?.gameId ?? ""}
+                onValueChange={(v) => switchGame(v)}
+                disabled={seasonGames.length === 0}
+              >
+                <SelectTrigger className="w-[220px] h-8 text-sm">
+                  <SelectValue placeholder={seasonGames.length === 0 ? "No games yet" : "Select game…"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasonGames.map((g) => (
+                    <SelectItem key={g.gameId} value={g.gameId}>
+                      vs {g.opponent} — {g.date}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Button
-              size="sm"
-              variant="default"
-              className="h-8 gap-1 bg-committed text-committed-foreground hover:bg-committed/90"
-              onClick={() => setStartGameOpen(true)}
-            >
-              <Flag className="h-3.5 w-3.5" />
-              Start Game
-            </Button>
+              <Button
+                size="sm"
+                variant="default"
+                className="h-8 gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => setStartGameOpen(true)}
+              >
+                <Flag className="h-3.5 w-3.5" />
+                Start Game
+              </Button>
+            </div>
           </>
         )}
 
         {activeGame && (
-          <div className="ml-auto text-xs text-muted-foreground font-mono">
+          <div className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground/60 font-mono">
             {activeGame.gameId.slice(0, 8)}
           </div>
         )}
       </header>
+
+
 
       
       <StartGameDialog open={startGameOpen} onOpenChange={setStartGameOpen} />
