@@ -546,31 +546,11 @@ export function BlockingPanel() {
         </div>
       )}
 
-      {/* Section 4: Personnel (read-only from committedRow) */}
-      {committedRow && committedRow.odk === "O" && (
-        <div className="space-y-1">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Personnel (Committed)</div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-1">
-            {PERSONNEL_POSITIONS.map((pos) => {
-              const jersey = cr?.[pos] as number | null | undefined;
-              const name = getPlayerName(jersey != null ? Number(jersey) : null);
-              return (
-                <div key={pos} className="text-xs font-mono bg-muted/50 rounded px-2 py-1">
-                  <span className="text-muted-foreground">{PERSONNEL_LABELS[pos]}: </span>
-                  {jersey != null ? (
-                    <span>
-                      #{jersey}
-                      {name ? ` ${name}` : " (name unknown)"}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Section 4: Personnel (committed) — intentionally hidden in Pass 3.
+          Each grade control already shows the assigned #jersey / name beneath
+          its position label, so this upper block was redundant. Committed
+          personnel data is unchanged. */}
+
 
       {/* Section 5: Grade Grid — ordered rows */}
       {committedRow && (
