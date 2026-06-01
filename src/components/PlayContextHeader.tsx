@@ -65,6 +65,9 @@ export function PlayContextHeader() {
       <ContextChip label="Dist" value={fmt(c.dist)} />
       <ContextChip label="YardLn" value={fmt(c.yardLn)} />
       <ContextChip label="Hash" value={fmt(c.hash)} />
+      <span className="h-3 w-px bg-border" aria-hidden />
+      <ContextChip label="Off Form" value={fmt(c.offForm)} />
+      <ContextChip label="Off Play" value={fmt(c.offPlay)} />
       <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
         Pass {activePass}
       </span>
