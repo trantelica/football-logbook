@@ -23,8 +23,8 @@ export function CommittedPlaysPanel() {
 
   if (committedPlays.length === 0) {
     return (
-      <div className="rounded-lg border-2 border-committed/30 bg-committed-muted p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-committed mb-2">
+      <div className="rounded-lg border border-committed/30 bg-committed-muted p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-committed mb-3">
           Committed Plays
         </h2>
         <p className="text-xs text-muted-foreground">
@@ -35,8 +35,8 @@ export function CommittedPlaysPanel() {
   }
 
   return (
-    <div className="rounded-lg border-2 border-committed/30 bg-committed-muted p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-committed mb-3">
+    <div className="rounded-lg border border-committed/30 bg-committed-muted p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-committed mb-3">
         Committed Plays ({committedPlays.length})
       </h2>
       <div className="overflow-auto max-h-[320px]">

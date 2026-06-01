@@ -414,7 +414,7 @@ export function BlockingPanel() {
 
       {/* Section 2: Pass 3 grade narration entry — proposal-only */}
       {!noCommittedRow && !notOffense && (
-        <div className="rounded-lg border border-border/50 p-3 space-y-2 bg-muted/30">
+        <div className="rounded-lg border border-border/60 p-3 space-y-2 bg-muted/30">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Pass 3 · Grade narration

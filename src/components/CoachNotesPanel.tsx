@@ -129,7 +129,7 @@ export function CoachNotesPanel({ selectedSlotNum }: CoachNotesPanelProps) {
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="rounded-lg border border-border/50 p-3 space-y-3 bg-muted/30">
+        <div className="rounded-lg border border-border/60 p-3 space-y-3 bg-muted/30">
           {selectedSlotNum === null ? (
             <p className="text-xs text-muted-foreground italic">
               Select a play slot to add a note.
