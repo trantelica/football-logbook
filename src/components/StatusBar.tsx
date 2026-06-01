@@ -91,6 +91,16 @@ export function StatusBar() {
           ? "bg-candidate"
           : "bg-committed";
 
+  const badgeStyle = !activeGame
+    ? "bg-muted text-muted-foreground"
+    : errorCount > 0
+      ? "bg-destructive/15 text-destructive"
+      : state === "proposal"
+        ? "bg-proposal-muted text-proposal-foreground"
+        : state === "candidate"
+          ? "bg-candidate-muted text-candidate-foreground"
+          : "bg-committed-muted text-committed-foreground";
+
   // ── Hudl Export ──
   const handleHudlExport = async () => {
     if (!activeGame) return;
