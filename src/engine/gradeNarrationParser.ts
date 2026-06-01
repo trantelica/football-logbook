@@ -282,34 +282,46 @@ export function parseGradeNarration(input: string): GradeParseResult {
       continue;
     }
 
-    // 3. Try numeric position phrases like "the four", "number four",
-    // or "the number four" as grade1..grade4.
+    // 3. Try numeric position phrases. Recognized shapes:
+    //   - "the four", "number four", "the number four"
+    //   - "<number> position", "the <number> position"
+    //     (the explicit "position" word is sufficient disambiguation on its own)
     {
       let j = i;
-      if (tokens[j] === "the") j++;
-      if (tokens[j] === "number") j++;
-      if (j > i && j < tokens.length) {
+      let hadPrefix = false;
+      if (tokens[j] === "the") { j++; hadPrefix = true; }
+      if (tokens[j] === "number") { j++; hadPrefix = true; }
+      if (j < tokens.length) {
         const nextTok = tokens[j];
         const posDigit = nextTok === "one" ? "1" : nextTok === "two" ? "2" : nextTok === "three" ? "3" : nextTok === "four" ? "4" : /^[1-4]$/.test(nextTok) ? nextTok : null;
         if (posDigit && NUMERIC_POSITION_MAP[posDigit]) {
-          const field = NUMERIC_POSITION_MAP[posDigit];
-          const gradeStart = skipFiller(j + 1);
-          const gr = readGrade(gradeStart);
-          if (gr && "value" in gr) {
-            const clauseEnd = gradeStart + gr.consumed;
-            const clause = tokens.slice(i, clauseEnd).join(" ");
-            pairs.push({ field, value: gr.value, clause });
-            i = clauseEnd;
-            continue;
-          } else if (gr && "outOfRange" in gr) {
-            const clauseEnd = gradeStart + gr.consumed;
-            const clause = tokens.slice(i, clauseEnd).join(" ");
-            report.push({ rawClause: clause, canonicalField: field, status: "out_of_range", reason: `Grade ${gr.raw} is out of range (-3..+3).` });
-            i = clauseEnd;
+          let k = j + 1;
+          const hasPositionWord = tokens[k] === "position";
+          if (hasPositionWord) k++;
+          // Require either an explicit "the"/"number" prefix or the word
+          // "position" after the digit/word — otherwise a bare "one"/"two"
+          // is ambiguous with a grade value and must not trigger position
+          // interpretation.
+          if (hadPrefix || hasPositionWord) {
+            const field = NUMERIC_POSITION_MAP[posDigit];
+            const gradeStart = skipFiller(k);
+            const gr = readGrade(gradeStart);
+            if (gr && "value" in gr) {
+              const clauseEnd = gradeStart + gr.consumed;
+              const clause = tokens.slice(i, clauseEnd).join(" ");
+              pairs.push({ field, value: gr.value, clause });
+              i = clauseEnd;
+              continue;
+            } else if (gr && "outOfRange" in gr) {
+              const clauseEnd = gradeStart + gr.consumed;
+              const clause = tokens.slice(i, clauseEnd).join(" ");
+              report.push({ rawClause: clause, canonicalField: field, status: "out_of_range", reason: `Grade ${gr.raw} is out of range (-3..+3).` });
+              i = clauseEnd;
+              continue;
+            }
+            i = k;
             continue;
           }
-          i = j + 1;
-          continue;
         }
       }
     }

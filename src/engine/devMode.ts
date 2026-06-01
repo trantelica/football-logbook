@@ -1,15 +1,28 @@
 /**
  * Dev-mode detection.
- * Active when Vite dev server is running OR when ?dev=1 is in the URL.
- * This allows dev tools (smoke tests, AI patch buttons) to work
- * in both the Lovable preview iframe and the production preview tab.
+ *
+ * Internal-only gate for developer tools and diagnostic UI. Coaches running
+ * the app in normal preview or production MUST NOT see dev surfaces, so this
+ * is explicit-opt-in only:
+ *   - URL query string ?dev=1
+ *   - localStorage flag "lovable:devMode" = "1"
+ *
+ * The previous behaviour of auto-enabling whenever Vite was in dev mode was
+ * causing dev tools to appear in coach-facing preview sessions.
  */
 export function isDevMode(): boolean {
-  if (import.meta.env.DEV) return true;
   try {
     const params = new URLSearchParams(window.location.search);
-    return params.get("dev") === "1";
+    if (params.get("dev") === "1") return true;
   } catch {
-    return false;
+    /* no-op */
   }
+  try {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("lovable:devMode") === "1") {
+      return true;
+    }
+  } catch {
+    /* no-op */
+  }
+  return false;
 }
