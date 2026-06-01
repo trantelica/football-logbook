@@ -1681,9 +1681,10 @@ function SectionCard(props: SectionCardProps) {
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Label className="text-xs font-semibold uppercase tracking-wide">
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {section.title}
           </Label>
+
           <kbd className="kbd">{section.dictateKey}</kbd>
           {isRecording && (
             <span className="flex items-center gap-1 text-[10px] text-warning font-medium">
