@@ -91,6 +91,16 @@ export function StatusBar() {
           ? "bg-candidate"
           : "bg-committed";
 
+  const badgeStyle = !activeGame
+    ? "bg-muted text-muted-foreground"
+    : errorCount > 0
+      ? "bg-destructive/15 text-destructive"
+      : state === "proposal"
+        ? "bg-proposal-muted text-proposal-foreground"
+        : state === "candidate"
+          ? "bg-candidate-muted text-candidate-foreground"
+          : "bg-committed-muted text-committed-foreground";
+
   // ── Hudl Export ──
   const handleHudlExport = async () => {
     if (!activeGame) return;
@@ -348,10 +358,12 @@ export function StatusBar() {
     <>
       <footer className="flex items-center gap-3 border-t bg-card px-4 py-1.5 text-xs text-muted-foreground">
         {/* RYG dot */}
-        <div className={cn("h-2.5 w-2.5 rounded-full", indicator)} />
+        <div className={cn("h-2 w-2 rounded-full ring-1 ring-foreground/10", indicator)} />
 
         {/* State */}
-        <span className="font-medium">{STATE_LABELS[state] ?? state}</span>
+        <span className={cn("inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-medium leading-none", badgeStyle)}>
+          {STATE_LABELS[state] ?? state}
+        </span>
 
         {activeGame && (
           <>
