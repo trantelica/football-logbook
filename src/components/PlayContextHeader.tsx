@@ -68,7 +68,7 @@ export function PlayContextHeader() {
       <span className="h-3 w-px bg-border" aria-hidden />
       <ContextChip label="Off Form" value={fmt(c.offForm)} />
       <ContextChip label="Off Play" value={fmt(c.offPlay)} />
-      <span className="ml-auto text-[10px] uppercase tracking-wide text-muted-foreground">
+      <span className="ml-auto text-[10px] uppercase tracking-wide text-warning">
         Pass {activePass}
       </span>
     </div>
