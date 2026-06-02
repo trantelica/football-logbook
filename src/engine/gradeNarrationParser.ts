@@ -16,7 +16,7 @@
  */
 
 import { GRADE_FIELDS, GRADE_LABELS } from "./personnel";
-import { resolveToCanonicalPos, type PositionAliasMap } from "./positionAliases";
+import type { PositionAliasMap } from "./positionAliases";
 
 /** posX → gradeX (for alias-based position resolution). */
 const POS_TO_GRADE: Record<string, string> = {
