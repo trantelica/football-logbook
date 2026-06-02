@@ -212,7 +212,7 @@ export function BlockingPanel() {
     }
 
     // ── Normal per-clause grade narration ───────────────────────────────
-    const { patch, report } = parseGradeNarration(trimmed);
+    const { patch, report } = parseGradeNarration(trimmed, aliasMap);
     const normalizedPatch = normalizeGradePatchKeys(patch);
     setLastReport(report);
     const matchedCount = report.filter((r) => r.status === "matched").length;
