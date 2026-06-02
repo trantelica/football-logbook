@@ -1068,8 +1068,11 @@ export function DraftPanel() {
           entry, so Raw Input has no remaining home in this view. */}
 
 
-      {/* Coach Notes — visible on all passes, independent of transaction */}
-      {selectedSlotNum !== null && (
+      {/* Coach Notes — hidden from normal coach-facing UI pending meaningful
+          functionality. Underlying data store, exports, and tests are
+          unchanged; only the in-page panel is suppressed. Dev mode keeps it
+          available for inspection. */}
+      {isDevMode() && selectedSlotNum !== null && (
         <CoachNotesPanel selectedSlotNum={selectedSlotNum} />
       )}
 
