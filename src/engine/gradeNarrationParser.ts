@@ -374,10 +374,11 @@ export function parseGradeNarration(
       continue;
     }
 
-    // 2. Try single-token position (lt, c, x, y, etc.)
+    // 2. Try single-token position (lt, c, x, y, etc., or season alias like F/H)
     const tok = tokens[i];
-    if (POSITION_MAP[tok]) {
-      const field = POSITION_MAP[tok];
+    const singleField = resolveSingleTokenPosition(tok);
+    if (singleField) {
+      const field = singleField;
       const gradeStart = skipFiller(i + 1);
       const gr = readGrade(gradeStart);
       if (gr && "value" in gr) {
