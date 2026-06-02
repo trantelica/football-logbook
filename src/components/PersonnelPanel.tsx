@@ -191,32 +191,9 @@ export function PersonnelPanel() {
         </div>
       )}
 
-      {/* Play Context Header — Read-only */}
-      <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Lock className="h-3 w-3 text-muted-foreground" />
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-            Play Context (Read-Only)
-          </span>
-          {selectedSlotNum && (
-            <Badge variant="secondary" className="text-[10px] font-mono h-5 px-1.5">
-              Play #{selectedSlotNum}
-            </Badge>
-          )}
-        </div>
-        <div className="grid grid-cols-4 gap-x-4 gap-y-1">
-          {CONTEXT_FIELDS.map(({ key, label }) => {
-            const val = c[key];
-            const display = val != null && val !== "" ? String(val) : "—";
-            return (
-              <div key={key} className="flex flex-col">
-                <span className="text-[9px] text-muted-foreground uppercase">{label}</span>
-                <span className="text-xs font-mono font-medium">{display}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Play Context Header — intentionally removed. Duplicated the global
+          PlayContextHeader rendered above the pass content. Personnel logic,
+          carry-forward, and parse provenance are unchanged. */}
 
       {!isOffense ? (
         <div className="text-xs text-muted-foreground italic px-2">
