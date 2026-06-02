@@ -163,7 +163,10 @@ export function normalizeGradePatchKeys(input: Record<string, number>): Record<s
  * (skipping fillers) for a grade value. When "the <number>" appears and
  * the number is 1-4, treat it as a numeric position (grade1..grade4).
  */
-export function parseGradeNarration(input: string): GradeParseResult {
+export function parseGradeNarration(
+  input: string,
+  aliasMap?: PositionAliasMap | null,
+): GradeParseResult {
   const patch: Record<string, number> = {};
   const report: GradeParseEntry[] = [];
 
@@ -171,11 +174,26 @@ export function parseGradeNarration(input: string): GradeParseResult {
 
   // Narrow STT normalization: "left tackled" → "left tackle" (Pass 3 only).
   // Strictly word-boundary-scoped; no fuzzy matching.
-  const normalizedInput = input.replace(/\bleft\s+tackled\b/gi, "left tackle");
+  let normalizedInput = input.replace(/\bleft\s+tackled\b/gi, "left tackle");
+  // Narrow STT normalization: short-token "X in the Y" → "X and the Y"
+  // (e.g. "X in the H" dictated for "X and the H"). Scoped to ≤2-letter
+  // alpha tokens on both sides so it cannot rewrite normal prose.
+  normalizedInput = normalizedInput.replace(
+    /\b([a-z]{1,2})\s+in\s+the\s+([a-z]{1,2})\b/gi,
+    "$1 and the $2",
+  );
   const raw = normalizedInput.toLowerCase().replace(/[,;.\n]/g, " ").replace(/\s+/g, " ").trim();
   const tokens = tokenise(raw);
 
-  let i = 0;
+  /** Resolve a single token to a grade field via POSITION_MAP, else alias map. */
+  function resolveSingleTokenPosition(tok: string): string | null {
+    if (POSITION_MAP[tok]) return POSITION_MAP[tok];
+    if (aliasMap) {
+      const posField = resolveToCanonicalPos(tok, aliasMap);
+      if (posField && POS_TO_GRADE[posField]) return POS_TO_GRADE[posField];
+    }
+    return null;
+  }
 
   /** Try to match a multi-word phrase starting at position i. */
   function tryMultiWord(): { phrase: string; consumed: number } | null {
