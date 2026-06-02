@@ -262,7 +262,93 @@ export function parseGradeNarration(
   // Collected pairs before conflict resolution
   const pairs: { field: string; value: number; clause: string }[] = [];
 
+  let i = 0;
+
+  // ── Group expansion pre-handler ───────────────────────────────────────
+  // Recognises phrases like:
+  //   "O line ... each get a one"
+  //   "O line and Y ... each get a one"
+  //   "X and the H get a two"
+  // Requires either an O-line anchor OR ≥2 positions joined by "and".
+  function tryGroupExpansion(start: number):
+    | { fields: string[]; value: number; consumed: number }
+    | null {
+    let j = start;
+    const fields = new Set<string>();
+    let hadOLine = false;
+    let positionCount = 0;
+    let sawAnd = false;
+
+    const GROUP_FILLERS = new Set([
+      "all", "of", "the", "positions", "position", "each", "both",
+      "our", "a", "an",
+    ]);
+
+    while (j < tokens.length) {
+      const t = tokens[j];
+      if (t === "oline") { OLINE_FIELDS.forEach(f => fields.add(f)); hadOLine = true; j++; continue; }
+      if ((t === "o" || t === "offensive") && tokens[j + 1] === "line") {
+        OLINE_FIELDS.forEach(f => fields.add(f));
+        hadOLine = true; j += 2; continue;
+      }
+      let matchedMW = false;
+      for (const mw of MULTI_WORD_POSITIONS) {
+        if (!POSITION_MAP[mw]) continue;
+        const parts = mw.split(" ");
+        if (j + parts.length > tokens.length) continue;
+        let ok = true;
+        for (let k = 0; k < parts.length; k++) {
+          if (tokens[j + k] !== parts[k]) { ok = false; break; }
+        }
+        if (ok) {
+          fields.add(POSITION_MAP[mw]);
+          positionCount++;
+          j += parts.length;
+          matchedMW = true;
+          break;
+        }
+      }
+      if (matchedMW) continue;
+      const sf = resolveSingleTokenPosition(t);
+      if (sf) {
+        fields.add(sf);
+        positionCount++;
+        j++;
+        continue;
+      }
+      if (t === "and") { sawAnd = true; j++; continue; }
+      if (GROUP_FILLERS.has(t)) { j++; continue; }
+      break;
+    }
+
+    if (!hadOLine && !(positionCount >= 2 && sawAnd)) return null;
+    if (fields.size < 2) return null;
+
+    let k = j;
+    while (k < tokens.length && k - j < 4 &&
+      tokens[k] !== "get" && tokens[k] !== "gets" && tokens[k] !== "got") {
+      if (!["each", "all", "should", "be", "a", "an", "the"].includes(tokens[k])) break;
+      k++;
+    }
+    if (tokens[k] === "get" || tokens[k] === "gets" || tokens[k] === "got") k++;
+    else return null;
+    while (k < tokens.length && ["a", "an", "the"].includes(tokens[k])) k++;
+    const gr = readGrade(k);
+    if (!gr || !("value" in gr)) return null;
+    return { fields: [...fields], value: gr.value, consumed: (k + gr.consumed) - start };
+  }
+
   while (i < tokens.length) {
+    // 0. Try group expansion first
+    const grp = tryGroupExpansion(i);
+    if (grp) {
+      const clause = tokens.slice(i, i + grp.consumed).join(" ");
+      for (const f of grp.fields) {
+        pairs.push({ field: f, value: grp.value, clause });
+      }
+      i += grp.consumed;
+      continue;
+    }
     // 1. Try multi-word position
     const mw = tryMultiWord();
     if (mw && POSITION_MAP[mw.phrase]) {
