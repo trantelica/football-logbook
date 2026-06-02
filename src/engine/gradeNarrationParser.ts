@@ -16,6 +16,17 @@
  */
 
 import { GRADE_FIELDS, GRADE_LABELS } from "./personnel";
+import type { PositionAliasMap } from "./positionAliases";
+
+/** posX → gradeX (for alias-based position resolution). */
+const POS_TO_GRADE: Record<string, string> = {
+  posLT: "gradeLT", posLG: "gradeLG", posC: "gradeC", posRG: "gradeRG", posRT: "gradeRT",
+  posX: "gradeX", posY: "gradeY",
+  pos1: "grade1", pos2: "grade2", pos3: "grade3", pos4: "grade4",
+};
+
+/** O-line group expansion target fields. */
+const OLINE_FIELDS = ["gradeLT", "gradeLG", "gradeC", "gradeRG", "gradeRT"];
 
 export interface GradeParseEntry {
   rawClause: string;
@@ -152,7 +163,10 @@ export function normalizeGradePatchKeys(input: Record<string, number>): Record<s
  * (skipping fillers) for a grade value. When "the <number>" appears and
  * the number is 1-4, treat it as a numeric position (grade1..grade4).
  */
-export function parseGradeNarration(input: string): GradeParseResult {
+export function parseGradeNarration(
+  input: string,
+  aliasMap?: PositionAliasMap | null,
+): GradeParseResult {
   const patch: Record<string, number> = {};
   const report: GradeParseEntry[] = [];
 
@@ -160,11 +174,37 @@ export function parseGradeNarration(input: string): GradeParseResult {
 
   // Narrow STT normalization: "left tackled" → "left tackle" (Pass 3 only).
   // Strictly word-boundary-scoped; no fuzzy matching.
-  const normalizedInput = input.replace(/\bleft\s+tackled\b/gi, "left tackle");
+  let normalizedInput = input.replace(/\bleft\s+tackled\b/gi, "left tackle");
+  // Narrow STT normalization: short-token "X in the Y" → "X and the Y"
+  // (e.g. "X in the H" dictated for "X and the H"). Scoped to ≤2-letter
+  // alpha tokens on both sides so it cannot rewrite normal prose.
+  normalizedInput = normalizedInput.replace(
+    /\b([a-z]{1,2})\s+in\s+the\s+([a-z]{1,2})\b/gi,
+    "$1 and the $2",
+  );
   const raw = normalizedInput.toLowerCase().replace(/[,;.\n]/g, " ").replace(/\s+/g, " ").trim();
   const tokens = tokenise(raw);
 
-  let i = 0;
+  /**
+   * Resolve a single token to a grade field via POSITION_MAP, else alias map.
+   * Only consults aliasMap entries explicitly (not canonical labels) so that
+   * numeric tokens "1".."4" continue to flow through numeric-position
+   * disambiguation logic rather than being silently treated as positions.
+   */
+  function resolveSingleTokenPosition(tok: string): string | null {
+    if (POSITION_MAP[tok]) return POSITION_MAP[tok];
+    if (aliasMap) {
+      const upper = tok.trim().toUpperCase();
+      if (!upper) return null;
+      for (const [posField, alias] of Object.entries(aliasMap)) {
+        if (!alias) continue;
+        if (String(alias).trim().toUpperCase() === upper && POS_TO_GRADE[posField]) {
+          return POS_TO_GRADE[posField];
+        }
+      }
+    }
+    return null;
+  }
 
   /** Try to match a multi-word phrase starting at position i. */
   function tryMultiWord(): { phrase: string; consumed: number } | null {
@@ -233,7 +273,93 @@ export function parseGradeNarration(input: string): GradeParseResult {
   // Collected pairs before conflict resolution
   const pairs: { field: string; value: number; clause: string }[] = [];
 
+  let i = 0;
+
+  // ── Group expansion pre-handler ───────────────────────────────────────
+  // Recognises phrases like:
+  //   "O line ... each get a one"
+  //   "O line and Y ... each get a one"
+  //   "X and the H get a two"
+  // Requires either an O-line anchor OR ≥2 positions joined by "and".
+  function tryGroupExpansion(start: number):
+    | { fields: string[]; value: number; consumed: number }
+    | null {
+    let j = start;
+    const fields = new Set<string>();
+    let hadOLine = false;
+    let positionCount = 0;
+    let sawAnd = false;
+
+    const GROUP_FILLERS = new Set([
+      "all", "of", "the", "positions", "position", "each", "both",
+      "our", "a", "an",
+    ]);
+
+    while (j < tokens.length) {
+      const t = tokens[j];
+      if (t === "oline") { OLINE_FIELDS.forEach(f => fields.add(f)); hadOLine = true; j++; continue; }
+      if ((t === "o" || t === "offensive") && tokens[j + 1] === "line") {
+        OLINE_FIELDS.forEach(f => fields.add(f));
+        hadOLine = true; j += 2; continue;
+      }
+      let matchedMW = false;
+      for (const mw of MULTI_WORD_POSITIONS) {
+        if (!POSITION_MAP[mw]) continue;
+        const parts = mw.split(" ");
+        if (j + parts.length > tokens.length) continue;
+        let ok = true;
+        for (let k = 0; k < parts.length; k++) {
+          if (tokens[j + k] !== parts[k]) { ok = false; break; }
+        }
+        if (ok) {
+          fields.add(POSITION_MAP[mw]);
+          positionCount++;
+          j += parts.length;
+          matchedMW = true;
+          break;
+        }
+      }
+      if (matchedMW) continue;
+      const sf = resolveSingleTokenPosition(t);
+      if (sf) {
+        fields.add(sf);
+        positionCount++;
+        j++;
+        continue;
+      }
+      if (t === "and") { sawAnd = true; j++; continue; }
+      if (GROUP_FILLERS.has(t)) { j++; continue; }
+      break;
+    }
+
+    if (!hadOLine && !(positionCount >= 2 && sawAnd)) return null;
+    if (fields.size < 2) return null;
+
+    let k = j;
+    while (k < tokens.length && k - j < 4 &&
+      tokens[k] !== "get" && tokens[k] !== "gets" && tokens[k] !== "got") {
+      if (!["each", "all", "should", "be", "a", "an", "the"].includes(tokens[k])) break;
+      k++;
+    }
+    if (tokens[k] === "get" || tokens[k] === "gets" || tokens[k] === "got") k++;
+    else return null;
+    while (k < tokens.length && ["a", "an", "the"].includes(tokens[k])) k++;
+    const gr = readGrade(k);
+    if (!gr || !("value" in gr)) return null;
+    return { fields: [...fields], value: gr.value, consumed: (k + gr.consumed) - start };
+  }
+
   while (i < tokens.length) {
+    // 0. Try group expansion first
+    const grp = tryGroupExpansion(i);
+    if (grp) {
+      const clause = tokens.slice(i, i + grp.consumed).join(" ");
+      for (const f of grp.fields) {
+        pairs.push({ field: f, value: grp.value, clause });
+      }
+      i += grp.consumed;
+      continue;
+    }
     // 1. Try multi-word position
     const mw = tryMultiWord();
     if (mw && POSITION_MAP[mw.phrase]) {
@@ -259,10 +385,11 @@ export function parseGradeNarration(input: string): GradeParseResult {
       continue;
     }
 
-    // 2. Try single-token position (lt, c, x, y, etc.)
+    // 2. Try single-token position (lt, c, x, y, etc., or season alias like F/H)
     const tok = tokens[i];
-    if (POSITION_MAP[tok]) {
-      const field = POSITION_MAP[tok];
+    const singleField = resolveSingleTokenPosition(tok);
+    if (singleField) {
+      const field = singleField;
       const gradeStart = skipFiller(i + 1);
       const gr = readGrade(gradeStart);
       if (gr && "value" in gr) {
