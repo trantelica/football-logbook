@@ -16,6 +16,17 @@
  */
 
 import { GRADE_FIELDS, GRADE_LABELS } from "./personnel";
+import { resolveToCanonicalPos, type PositionAliasMap } from "./positionAliases";
+
+/** posX → gradeX (for alias-based position resolution). */
+const POS_TO_GRADE: Record<string, string> = {
+  posLT: "gradeLT", posLG: "gradeLG", posC: "gradeC", posRG: "gradeRG", posRT: "gradeRT",
+  posX: "gradeX", posY: "gradeY",
+  pos1: "grade1", pos2: "grade2", pos3: "grade3", pos4: "grade4",
+};
+
+/** O-line group expansion target fields. */
+const OLINE_FIELDS = ["gradeLT", "gradeLG", "gradeC", "gradeRG", "gradeRT"];
 
 export interface GradeParseEntry {
   rawClause: string;
