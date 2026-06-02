@@ -392,10 +392,12 @@ export function BlockingPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Section 1: Banner */}
-      <div className="rounded px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-        <div className="text-xs font-semibold uppercase tracking-wider">Pass 3 — Blocking & Grading</div>
-        <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Applies to Offense plays only</div>
+      {/* Section 1: Quiet pass-helper eyebrow (normalized; no green callout) */}
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Pass 3 · Blocking &amp; Grading
+        </span>
+        <span className="text-[10px] text-muted-foreground">Offense plays only</span>
       </div>
 
       {/* Gate banners */}
