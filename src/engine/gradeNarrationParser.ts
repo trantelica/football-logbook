@@ -185,12 +185,23 @@ export function parseGradeNarration(
   const raw = normalizedInput.toLowerCase().replace(/[,;.\n]/g, " ").replace(/\s+/g, " ").trim();
   const tokens = tokenise(raw);
 
-  /** Resolve a single token to a grade field via POSITION_MAP, else alias map. */
+  /**
+   * Resolve a single token to a grade field via POSITION_MAP, else alias map.
+   * Only consults aliasMap entries explicitly (not canonical labels) so that
+   * numeric tokens "1".."4" continue to flow through numeric-position
+   * disambiguation logic rather than being silently treated as positions.
+   */
   function resolveSingleTokenPosition(tok: string): string | null {
     if (POSITION_MAP[tok]) return POSITION_MAP[tok];
     if (aliasMap) {
-      const posField = resolveToCanonicalPos(tok, aliasMap);
-      if (posField && POS_TO_GRADE[posField]) return POS_TO_GRADE[posField];
+      const upper = tok.trim().toUpperCase();
+      if (!upper) return null;
+      for (const [posField, alias] of Object.entries(aliasMap)) {
+        if (!alias) continue;
+        if (String(alias).trim().toUpperCase() === upper && POS_TO_GRADE[posField]) {
+          return POS_TO_GRADE[posField];
+        }
+      }
     }
     return null;
   }
