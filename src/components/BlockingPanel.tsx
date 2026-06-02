@@ -524,29 +524,11 @@ export function BlockingPanel() {
         </div>
       )}
 
-      {/* Section 3: Play Context (read-only from committedRow) */}
-      {committedRow && (
-        <div className="space-y-1">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Play Context</div>
-          <div className="grid grid-cols-4 gap-2">
-            <div className="text-xs">
-              <span className="text-muted-foreground">Play #</span>
-              <Badge variant="secondary" className="ml-1 font-mono text-[11px]">
-                <Lock className="h-2.5 w-2.5 mr-0.5" />{selectedSlotNum}
-              </Badge>
-            </div>
-            {CONTEXT_FIELDS.map(({ key, label }) => {
-              const val = cr?.[key];
-              return (
-                <div key={key} className="text-xs">
-                  <span className="text-muted-foreground">{label}: </span>
-                  <span className="font-mono font-medium">{val != null ? String(val) : "—"}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Section 3: Play Context — intentionally removed. The global
+          PlayContextHeader above the pass content already surfaces playNum /
+          qtr / odk / dn / dist / yardLn / hash / offForm / offPlay, so this
+          duplicate in-panel context block was redundant. Committed row data
+          is unchanged. */}
 
       {/* Section 4: Personnel (committed) — intentionally hidden in Pass 3.
           Each grade control already shows the assigned #jersey / name beneath
