@@ -271,9 +271,12 @@ export function parseGradeNarration(
   }
 
   // Collected pairs before conflict resolution
-  const pairs: { field: string; value: number; clause: string }[] = [];
+  const pairs: { field: string; value: number; clause: string; override?: boolean }[] = [];
 
   let i = 0;
+  // Tracks fields most recently assigned by a group expansion, so a following
+  // "except <position> ..." clause can override (not conflict with) the group.
+  let lastGroupFields: Set<string> | null = null;
 
   // ── Group expansion pre-handler ───────────────────────────────────────
   // Recognises phrases like:
