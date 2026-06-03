@@ -533,7 +533,7 @@ export function parseGradeNarration(
   }
 
   // ── Conflict detection ────────────────────────────────────────────────
-  const seen = new Map<string, { value: number; clause: string }[]>();
+  const seen = new Map<string, { value: number; clause: string; override?: boolean }[]>();
   for (const p of pairs) {
     if (!seen.has(p.field)) seen.set(p.field, []);
     seen.get(p.field)!.push(p);
@@ -544,6 +544,14 @@ export function parseGradeNarration(
       patch[field] = entries[0].value;
       report.push({ rawClause: entries[0].clause, canonicalField: field, value: entries[0].value, status: "matched" });
     } else {
+      const overrides = entries.filter(e => e.override);
+      if (overrides.length > 0) {
+        // Exception clause wins over group assignment(s); take the last override.
+        const winner = overrides[overrides.length - 1];
+        patch[field] = winner.value;
+        report.push({ rawClause: winner.clause, canonicalField: field, value: winner.value, status: "matched" });
+        continue;
+      }
       const uniqueValues = new Set(entries.map(e => e.value));
       if (uniqueValues.size === 1) {
         // Same value repeated — no real conflict
