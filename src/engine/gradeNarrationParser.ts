@@ -352,7 +352,60 @@ export function parseGradeNarration(
     return { fields: [...fields], value: gr.value, consumed: (k + gr.consumed) - start };
   }
 
+  // ── Exception clause parser ───────────────────────────────────────────
+  // Recognises "except [for] <position> [who/that/which] [should] gets/get/got
+  // [a] <grade>" immediately following a group expansion. The named position
+  // overrides the group-assigned value (not a conflict).
+  const EXCEPT_FILLERS = new Set([
+    "for", "the", "a", "an", "our",
+  ]);
+  const EXCEPT_VERB_FILLERS = new Set([
+    "who", "that", "which", "should", "be", "will", "must", "shall",
+    "a", "an", "the",
+  ]);
+  function tryExceptionClause(start: number):
+    | { field: string; value: number; consumed: number }
+    | null {
+    let j = start;
+    if (tokens[j] !== "except" && tokens[j] !== "but") return null;
+    j++;
+    while (j < tokens.length && EXCEPT_FILLERS.has(tokens[j])) j++;
+    // Resolve a position (multi-word, single, or numeric "the <n> position").
+    let field: string | null = null;
+    let consumedPos = 0;
+    for (const mw of MULTI_WORD_POSITIONS) {
+      if (!POSITION_MAP[mw]) continue;
+      const parts = mw.split(" ");
+      if (j + parts.length > tokens.length) continue;
+      let ok = true;
+      for (let k = 0; k < parts.length; k++) {
+        if (tokens[j + k] !== parts[k]) { ok = false; break; }
+      }
+      if (ok) { field = POSITION_MAP[mw]; consumedPos = parts.length; break; }
+    }
+    if (!field) {
+      const sf = resolveSingleTokenPosition(tokens[j]);
+      if (sf) { field = sf; consumedPos = 1; }
+    }
+    if (!field) return null;
+    let k = j + consumedPos;
+    while (k < tokens.length && (EXCEPT_VERB_FILLERS.has(tokens[k]) || tokens[k] === "get" || tokens[k] === "gets" || tokens[k] === "got")) k++;
+    const gr = readGrade(k);
+    if (!gr || !("value" in gr)) return null;
+    return { field, value: gr.value, consumed: (k + gr.consumed) - start };
+  }
+
   while (i < tokens.length) {
+    // 0a. Exception clause attached to a prior group expansion.
+    if (lastGroupFields && (tokens[i] === "except" || tokens[i] === "but")) {
+      const exc = tryExceptionClause(i);
+      if (exc && lastGroupFields.has(exc.field)) {
+        const clause = tokens.slice(i, i + exc.consumed).join(" ");
+        pairs.push({ field: exc.field, value: exc.value, clause, override: true });
+        i += exc.consumed;
+        continue;
+      }
+    }
     // 0. Try group expansion first
     const grp = tryGroupExpansion(i);
     if (grp) {
@@ -360,6 +413,7 @@ export function parseGradeNarration(
       for (const f of grp.fields) {
         pairs.push({ field: f, value: grp.value, clause });
       }
+      lastGroupFields = new Set(grp.fields);
       i += grp.consumed;
       continue;
     }
