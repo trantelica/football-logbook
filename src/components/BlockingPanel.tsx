@@ -23,12 +23,13 @@ import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarr
 import { parseGradeBulkCommand, computeBulkFillPatch } from "@/engine/gradeBulkCommand";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
+import { fetchAiGradeProposal, type AiGradeConflict } from "@/engine/aiGradeClient";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal, Info } from "lucide-react";
+import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal, Info, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
