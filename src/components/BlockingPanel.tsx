@@ -603,6 +603,25 @@ export function BlockingPanel() {
                 <Wand2 className="h-3 w-3" />
                 Update Proposal
               </Button>
+              {hasUnresolvedGradeFields && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleAiAssist}
+                  disabled={
+                    gradesDisabled ||
+                    !narrationText.trim() ||
+                    listening ||
+                    aiBusy
+                  }
+                  title="Ask AI to propose grades for unresolved fields. Advisory; never overwrites parser-resolved grades."
+                  data-testid="pass3-ai-assist"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {aiBusy ? "AI…" : "AI assist"}
+                </Button>
+              )}
             </div>
           </div>
           {lastReport && lastReport.length > 0 && (
@@ -626,6 +645,33 @@ export function BlockingPanel() {
                   </div>
                 );
               })()}
+            </div>
+          )}
+          {aiError && (
+            <div className="rounded border border-destructive/40 bg-destructive/10 p-2 text-[10px] text-destructive">
+              <span className="font-semibold">AI assist error: </span>
+              {aiError}
+            </div>
+          )}
+          {aiConflicts.length > 0 && (
+            <div
+              className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-2 space-y-1"
+              data-testid="pass3-ai-conflicts"
+            >
+              <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-3 w-3" />
+                AI disagreed with parser on {aiConflicts.length} field(s) — coach review required
+              </div>
+              <ul className="text-[10px] text-amber-800 dark:text-amber-300 pl-4 list-disc font-mono">
+                {aiConflicts.map((cf) => (
+                  <li key={cf.field}>
+                    {GRADE_LABELS[cf.field] ?? cf.field}: parser {cf.parserValue} ≠ AI {cf.aiValue}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80">
+                Parser value kept. Edit the grade manually to accept AI's suggestion.
+              </p>
             </div>
           )}
         </div>
