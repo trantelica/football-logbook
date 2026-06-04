@@ -23,12 +23,13 @@ import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarr
 import { parseGradeBulkCommand, computeBulkFillPatch } from "@/engine/gradeBulkCommand";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
+import { fetchAiGradeProposal, type AiGradeConflict } from "@/engine/aiGradeClient";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal, Info } from "lucide-react";
+import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal, Info, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +109,7 @@ export function BlockingPanel() {
     state,
     touchedFields,
     deterministicParseFields,
+    aiProposedFields,
     proposalMeta,
   } = useTransaction();
   const { roster } = useRoster();
@@ -165,6 +167,19 @@ export function BlockingPanel() {
   const narrationText = dictatedText;
   const setNarrationText = setDictatedText;
   const [lastReport, setLastReport] = useState<ReturnType<typeof parseGradeNarration>["report"] | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiConflicts, setAiConflicts] = useState<AiGradeConflict[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [lastAiAppliedCount, setLastAiAppliedCount] = useState<number | null>(null);
+
+  // Unresolved grade fields = canonical grade fields with no value in candidate.
+  const unresolvedGradeFields = React.useMemo(() => {
+    return GRADE_FIELDS.filter((f) => {
+      const v = (c as Record<string, unknown>)[f];
+      return v == null || v === "";
+    });
+  }, [c]);
+  const hasUnresolvedGradeFields = unresolvedGradeFields.length > 0;
 
   const handleApplyNarration = useCallback(() => {
     const trimmed = narrationText.trim();
@@ -241,7 +256,76 @@ export function BlockingPanel() {
   const handleClearNarration = useCallback(() => {
     clearDictation();
     setLastReport(null);
+    setAiConflicts([]);
+    setAiError(null);
+    setLastAiAppliedCount(null);
   }, [clearDictation]);
+
+  // ── Pass 3 AI Assist — coach-initiated only; advisory only ─────────────
+  const handleAiAssist = useCallback(async () => {
+    const trimmed = narrationText.trim();
+    if (!trimmed || gradesDisabled || !hasUnresolvedGradeFields) return;
+    setAiBusy(true);
+    setAiError(null);
+    setAiConflicts([]);
+    setLastAiAppliedCount(null);
+    try {
+      // Snapshot of grade fields the deterministic parser already resolved.
+      const parserPatch: Record<string, number> = {};
+      for (const gf of GRADE_FIELDS) {
+        if (!deterministicParseFields.has(gf)) continue;
+        const v = (c as Record<string, unknown>)[gf];
+        if (v == null || v === "") continue;
+        const n = Number(v);
+        if (Number.isFinite(n)) parserPatch[gf] = n;
+      }
+      const labels: Record<string, string> = {};
+      for (const gf of GRADE_FIELDS) labels[gf] = GRADE_LABELS[gf];
+      const res = await fetchAiGradeProposal({
+        narrationText: trimmed,
+        parserPatch,
+        unresolvedFields: unresolvedGradeFields,
+        positionAliases: aliasMap,
+        positionLabels: labels,
+      });
+      if (res.error) {
+        setAiError(res.error);
+        toast.error(res.error);
+        return;
+      }
+      setAiConflicts(res.conflicts);
+      const keys = Object.keys(res.patch);
+      if (keys.length === 0 && res.conflicts.length === 0) {
+        toast.info("AI assist returned no new grade suggestions.");
+        setLastAiAppliedCount(0);
+        return;
+      }
+      if (keys.length > 0) {
+        const aiEvidence = Object.fromEntries(
+          keys.map((f) => [f, { snippet: trimmed }]),
+        );
+        applySystemPatch(res.patch, {
+          fillOnly: true,
+          source: "ai_proposed",
+          evidence: aiEvidence,
+        });
+      }
+      setLastAiAppliedCount(keys.length);
+      const conflictNote = res.conflicts.length > 0
+        ? ` ${res.conflicts.length} conflict(s) need coach review.`
+        : "";
+      toast.success(`AI assist proposed ${keys.length} grade(s).${conflictNote}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "AI assist failed.";
+      setAiError(msg);
+      toast.error(msg);
+    } finally {
+      setAiBusy(false);
+    }
+  }, [
+    narrationText, gradesDisabled, hasUnresolvedGradeFields, deterministicParseFields,
+    c, unresolvedGradeFields, aliasMap, applySystemPatch,
+  ]);
 
   // ── Provenance badge helper (exact match with DraftPanel pattern) ──────
   const renderGradeProvenance = (fieldName: string): React.ReactNode => {
@@ -257,6 +341,29 @@ export function BlockingPanel() {
             </TooltipTrigger>
             <TooltipContent>
               <p>From transcript parse. Editable.</p>
+              {meta?.transcriptEvidence && (
+                <p className="text-[10px] mt-1 opacity-80 font-mono">
+                  <Info className="h-2.5 w-2.5 inline mr-0.5" />
+                  "{meta.transcriptEvidence}"
+                </p>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+    if (aiProposedFields.has(fieldName)) {
+      const meta = proposalMeta.get(fieldName);
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                <Sparkles className="h-2.5 w-2.5" />AI
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Proposed by AI assist. Coach-editable; not yet committed.</p>
               {meta?.transcriptEvidence && (
                 <p className="text-[10px] mt-1 opacity-80 font-mono">
                   <Info className="h-2.5 w-2.5 inline mr-0.5" />
@@ -496,6 +603,25 @@ export function BlockingPanel() {
                 <Wand2 className="h-3 w-3" />
                 Update Proposal
               </Button>
+              {hasUnresolvedGradeFields && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={handleAiAssist}
+                  disabled={
+                    gradesDisabled ||
+                    !narrationText.trim() ||
+                    listening ||
+                    aiBusy
+                  }
+                  title="Ask AI to propose grades for unresolved fields. Advisory; never overwrites parser-resolved grades."
+                  data-testid="pass3-ai-assist"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {aiBusy ? "AI…" : "AI assist"}
+                </Button>
+              )}
             </div>
           </div>
           {lastReport && lastReport.length > 0 && (
@@ -519,6 +645,33 @@ export function BlockingPanel() {
                   </div>
                 );
               })()}
+            </div>
+          )}
+          {aiError && (
+            <div className="rounded border border-destructive/40 bg-destructive/10 p-2 text-[10px] text-destructive">
+              <span className="font-semibold">AI assist error: </span>
+              {aiError}
+            </div>
+          )}
+          {aiConflicts.length > 0 && (
+            <div
+              className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-2 space-y-1"
+              data-testid="pass3-ai-conflicts"
+            >
+              <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-3 w-3" />
+                AI disagreed with parser on {aiConflicts.length} field(s) — coach review required
+              </div>
+              <ul className="text-[10px] text-amber-800 dark:text-amber-300 pl-4 list-disc font-mono">
+                {aiConflicts.map((cf) => (
+                  <li key={cf.field}>
+                    {GRADE_LABELS[cf.field] ?? cf.field}: parser {cf.parserValue} ≠ AI {cf.aiValue}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80">
+                Parser value kept. Edit the grade manually to accept AI's suggestion.
+              </p>
             </div>
           )}
         </div>
