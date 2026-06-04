@@ -109,6 +109,7 @@ export function BlockingPanel() {
     state,
     touchedFields,
     deterministicParseFields,
+    aiProposedFields,
     proposalMeta,
   } = useTransaction();
   const { roster } = useRoster();
