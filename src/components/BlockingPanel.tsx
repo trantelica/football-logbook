@@ -167,6 +167,19 @@ export function BlockingPanel() {
   const narrationText = dictatedText;
   const setNarrationText = setDictatedText;
   const [lastReport, setLastReport] = useState<ReturnType<typeof parseGradeNarration>["report"] | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiConflicts, setAiConflicts] = useState<AiGradeConflict[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [lastAiAppliedCount, setLastAiAppliedCount] = useState<number | null>(null);
+
+  // Unresolved grade fields = canonical grade fields with no value in candidate.
+  const unresolvedGradeFields = React.useMemo(() => {
+    return GRADE_FIELDS.filter((f) => {
+      const v = (c as Record<string, unknown>)[f];
+      return v == null || v === "";
+    });
+  }, [c]);
+  const hasUnresolvedGradeFields = unresolvedGradeFields.length > 0;
 
   const handleApplyNarration = useCallback(() => {
     const trimmed = narrationText.trim();
