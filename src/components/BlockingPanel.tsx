@@ -256,7 +256,76 @@ export function BlockingPanel() {
   const handleClearNarration = useCallback(() => {
     clearDictation();
     setLastReport(null);
+    setAiConflicts([]);
+    setAiError(null);
+    setLastAiAppliedCount(null);
   }, [clearDictation]);
+
+  // ── Pass 3 AI Assist — coach-initiated only; advisory only ─────────────
+  const handleAiAssist = useCallback(async () => {
+    const trimmed = narrationText.trim();
+    if (!trimmed || gradesDisabled || !hasUnresolvedGradeFields) return;
+    setAiBusy(true);
+    setAiError(null);
+    setAiConflicts([]);
+    setLastAiAppliedCount(null);
+    try {
+      // Snapshot of grade fields the deterministic parser already resolved.
+      const parserPatch: Record<string, number> = {};
+      for (const gf of GRADE_FIELDS) {
+        if (!deterministicParseFields.has(gf)) continue;
+        const v = (c as Record<string, unknown>)[gf];
+        if (v == null || v === "") continue;
+        const n = Number(v);
+        if (Number.isFinite(n)) parserPatch[gf] = n;
+      }
+      const labels: Record<string, string> = {};
+      for (const gf of GRADE_FIELDS) labels[gf] = GRADE_LABELS[gf];
+      const res = await fetchAiGradeProposal({
+        narrationText: trimmed,
+        parserPatch,
+        unresolvedFields: unresolvedGradeFields,
+        positionAliases: aliasMap,
+        positionLabels: labels,
+      });
+      if (res.error) {
+        setAiError(res.error);
+        toast.error(res.error);
+        return;
+      }
+      setAiConflicts(res.conflicts);
+      const keys = Object.keys(res.patch);
+      if (keys.length === 0 && res.conflicts.length === 0) {
+        toast.info("AI assist returned no new grade suggestions.");
+        setLastAiAppliedCount(0);
+        return;
+      }
+      if (keys.length > 0) {
+        const aiEvidence = Object.fromEntries(
+          keys.map((f) => [f, { snippet: trimmed }]),
+        );
+        applySystemPatch(res.patch, {
+          fillOnly: true,
+          source: "ai_proposed",
+          evidence: aiEvidence,
+        });
+      }
+      setLastAiAppliedCount(keys.length);
+      const conflictNote = res.conflicts.length > 0
+        ? ` ${res.conflicts.length} conflict(s) need coach review.`
+        : "";
+      toast.success(`AI assist proposed ${keys.length} grade(s).${conflictNote}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "AI assist failed.";
+      setAiError(msg);
+      toast.error(msg);
+    } finally {
+      setAiBusy(false);
+    }
+  }, [
+    narrationText, gradesDisabled, hasUnresolvedGradeFields, deterministicParseFields,
+    c, unresolvedGradeFields, aliasMap, applySystemPatch,
+  ]);
 
   // ── Provenance badge helper (exact match with DraftPanel pattern) ──────
   const renderGradeProvenance = (fieldName: string): React.ReactNode => {
@@ -272,6 +341,29 @@ export function BlockingPanel() {
             </TooltipTrigger>
             <TooltipContent>
               <p>From transcript parse. Editable.</p>
+              {meta?.transcriptEvidence && (
+                <p className="text-[10px] mt-1 opacity-80 font-mono">
+                  <Info className="h-2.5 w-2.5 inline mr-0.5" />
+                  "{meta.transcriptEvidence}"
+                </p>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+    if (aiProposedFields.has(fieldName)) {
+      const meta = proposalMeta.get(fieldName);
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                <Sparkles className="h-2.5 w-2.5" />AI
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Proposed by AI assist. Coach-editable; not yet committed.</p>
               {meta?.transcriptEvidence && (
                 <p className="text-[10px] mt-1 opacity-80 font-mono">
                   <Info className="h-2.5 w-2.5 inline mr-0.5" />
