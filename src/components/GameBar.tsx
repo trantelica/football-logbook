@@ -68,9 +68,14 @@ export function GameBar() {
     <>
       <header className="flex items-center gap-2 border-b bg-card px-4 py-2">
         {/* Brand */}
-        <h1 className="text-sm font-bold tracking-wide uppercase text-muted-foreground">
-          Football Engine
-        </h1>
+        <div className="flex flex-col">
+          <h1 className="text-sm font-bold tracking-wide uppercase text-muted-foreground leading-none">
+            Hudl Up! -loader
+          </h1>
+          <span className="text-[10px] tracking-wide uppercase text-muted-foreground/60 leading-none mt-0.5">
+            AI Video Technician
+          </span>
+        </div>
 
         <div className="mx-2 h-5 w-px bg-border" />
 
