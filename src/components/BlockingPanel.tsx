@@ -181,7 +181,78 @@ export function BlockingPanel() {
   }, [c]);
   const hasUnresolvedGradeFields = unresolvedGradeFields.length > 0;
 
-  const handleApplyNarration = useCallback(() => {
+  // Run Pass 3 AI assist scoped to grade fields still unresolved after the
+  // deterministic parser ran in this Update Proposal click.
+  // `parserResolvedNow` is the patch the parser just applied (authoritative
+  // for this run — applySystemPatch's React state hasn't flushed yet).
+  const runAiAssistAfterParser = useCallback(
+    async (trimmed: string, parserResolvedNow: Record<string, number>) => {
+      const unresolvedAfter = GRADE_FIELDS.filter((f) => {
+        if (Object.prototype.hasOwnProperty.call(parserResolvedNow, f)) return false;
+        const v = (c as Record<string, unknown>)[f];
+        return v == null || v === "";
+      });
+      if (unresolvedAfter.length === 0) return;
+
+      setAiBusy(true);
+      setAiError(null);
+      setAiConflicts([]);
+      setLastAiAppliedCount(null);
+      try {
+        const parserPatch: Record<string, number> = { ...parserResolvedNow };
+        for (const gf of GRADE_FIELDS) {
+          if (Object.prototype.hasOwnProperty.call(parserPatch, gf)) continue;
+          if (!deterministicParseFields.has(gf)) continue;
+          const v = (c as Record<string, unknown>)[gf];
+          if (v == null || v === "") continue;
+          const n = Number(v);
+          if (Number.isFinite(n)) parserPatch[gf] = n;
+        }
+        const labels: Record<string, string> = {};
+        for (const gf of GRADE_FIELDS) labels[gf] = GRADE_LABELS[gf];
+        const res = await fetchAiGradeProposal({
+          narrationText: trimmed,
+          parserPatch,
+          unresolvedFields: unresolvedAfter,
+          positionAliases: aliasMap,
+          positionLabels: labels,
+        });
+        if (res.error) {
+          setAiError(res.error);
+          toast.error(res.error);
+          return;
+        }
+        setAiConflicts(res.conflicts);
+        const keys = Object.keys(res.patch);
+        if (keys.length > 0) {
+          const aiEvidence = Object.fromEntries(
+            keys.map((f) => [f, { snippet: trimmed }]),
+          );
+          applySystemPatch(res.patch, {
+            fillOnly: true,
+            source: "ai_proposed",
+            evidence: aiEvidence,
+          });
+        }
+        setLastAiAppliedCount(keys.length);
+        if (keys.length > 0 || res.conflicts.length > 0) {
+          const conflictNote = res.conflicts.length > 0
+            ? ` ${res.conflicts.length} conflict(s) need coach review.`
+            : "";
+          toast.success(`AI assist proposed ${keys.length} grade(s).${conflictNote}`);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "AI assist failed.";
+        setAiError(msg);
+        toast.error(msg);
+      } finally {
+        setAiBusy(false);
+      }
+    },
+    [c, deterministicParseFields, aliasMap, applySystemPatch],
+  );
+
+  const handleApplyNarration = useCallback(async () => {
     const trimmed = narrationText.trim();
     if (!trimmed) return;
     if (gradesDisabled) {
@@ -223,7 +294,8 @@ export function BlockingPanel() {
         evidence: bulkEvidence,
       });
       toast.success(`Applied grade ${bulk.value} to ${targets.length} empty field(s).`);
-      return; // do not also run per-clause parser
+      // Bulk fill consumes empty grades; nothing meaningful for AI to add.
+      return;
     }
 
     // ── Normal per-clause grade narration ───────────────────────────────
@@ -231,27 +303,38 @@ export function BlockingPanel() {
     const normalizedPatch = normalizeGradePatchKeys(patch);
     setLastReport(report);
     const matchedCount = report.filter((r) => r.status === "matched").length;
-    if (matchedCount === 0) {
+    const parserResolvedNow: Record<string, number> = {};
+    if (matchedCount > 0) {
+      const evidence = Object.fromEntries(
+        report
+          .filter((entry) => entry.status === "matched" && entry.canonicalField)
+          .map((entry) => [entry.canonicalField as string, { snippet: entry.rawClause }]),
+      );
+      applySystemPatch(normalizedPatch, {
+        fillOnly: false,
+        source: "deterministic_parse",
+        evidence,
+      });
+      for (const [k, v] of Object.entries(normalizedPatch)) {
+        const n = Number(v);
+        if (Number.isFinite(n)) parserResolvedNow[k] = n;
+      }
+      const blockedCount = report.length - matchedCount;
+      toast.success(
+        blockedCount > 0
+          ? `Applied ${matchedCount} grade(s) to proposal. ${blockedCount} clause(s) skipped.`
+          : `Applied ${matchedCount} grade(s) to proposal.`,
+      );
+    } else {
       toast.info("No grade entries recognized.");
-      return;
     }
-    const evidence = Object.fromEntries(
-      report
-        .filter((entry) => entry.status === "matched" && entry.canonicalField)
-        .map((entry) => [entry.canonicalField as string, { snippet: entry.rawClause }]),
-    );
-    applySystemPatch(normalizedPatch, {
-      fillOnly: false,
-      source: "deterministic_parse",
-      evidence,
-    });
-    const blockedCount = report.length - matchedCount;
-    toast.success(
-      blockedCount > 0
-        ? `Applied ${matchedCount} grade(s) to proposal. ${blockedCount} clause(s) skipped.`
-        : `Applied ${matchedCount} grade(s) to proposal.`,
-    );
-  }, [narrationText, gradesDisabled, applySystemPatch, aliasMap, cr, c]);
+
+    // ── Auto-chain Pass 3 AI assist for remaining unresolved grade fields ─
+    await runAiAssistAfterParser(trimmed, parserResolvedNow);
+  }, [
+    narrationText, gradesDisabled, applySystemPatch, aliasMap, cr, c,
+    runAiAssistAfterParser,
+  ]);
 
   const handleClearNarration = useCallback(() => {
     clearDictation();
