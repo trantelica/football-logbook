@@ -680,11 +680,11 @@ export function BlockingPanel() {
                 variant="default"
                 className="h-7 text-xs gap-1"
                 onClick={handleApplyNarration}
-                disabled={gradesDisabled || !narrationText.trim() || listening}
-                title="Parse grade narration and update proposal. No commit."
+                disabled={gradesDisabled || !narrationText.trim() || listening || aiBusy}
+                title="Parse grade narration, then auto-run AI assist for any remaining unresolved grades. No commit."
               >
                 <Wand2 className="h-3 w-3" />
-                Update Proposal
+                {aiBusy ? "Updating…" : "Update Proposal"}
               </Button>
               {hasUnresolvedGradeFields && (
                 <Button
@@ -698,11 +698,11 @@ export function BlockingPanel() {
                     listening ||
                     aiBusy
                   }
-                  title="Ask AI to propose grades for unresolved fields. Advisory; never overwrites parser-resolved grades."
+                  title="Re-run AI assist for unresolved grade fields. Advisory; never overwrites parser-resolved grades."
                   data-testid="pass3-ai-assist"
                 >
                   <Sparkles className="h-3 w-3" />
-                  {aiBusy ? "AI…" : "AI assist"}
+                  {aiBusy ? "AI…" : "AI retry"}
                 </Button>
               )}
             </div>
