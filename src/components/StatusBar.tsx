@@ -516,6 +516,7 @@ export function StatusBar() {
         accept=".json"
         className="hidden"
         onChange={handleSeasonFileSelected}
+      />
       <input
         ref={archiveFileInputRef}
         type="file"
@@ -523,6 +524,8 @@ export function StatusBar() {
         className="hidden"
         onChange={handleArchiveFileSelected}
       />
+
+
 
 
       <PreflightErrorDialog
