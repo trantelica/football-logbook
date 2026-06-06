@@ -569,7 +569,7 @@ export function StatusBar() {
 
 // ── Preflight Error Dialog ──
 
-type AnyError = ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError;
+type AnyError = ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError;
 
 function isPlayError(e: AnyError): e is ExportError | ArchiveError {
   return "playNumber" in e;
