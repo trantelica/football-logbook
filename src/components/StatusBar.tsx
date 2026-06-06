@@ -59,7 +59,7 @@ export function StatusBar() {
   const { state, candidate, committedPlays, inlineErrors, commitErrors } =
     useTransaction();
 
-  const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError)[]>([]);
+  const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError)[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [preflightTitle, setPreflightTitle] = useState("Export Blocked");
 
@@ -80,8 +80,18 @@ export function StatusBar() {
     gameCount: number;
   } | null>(null);
 
+  // Session archive import state
+  const [archiveImportOpen, setArchiveImportOpen] = useState(false);
+  const [pendingArchiveImport, setPendingArchiveImport] = useState<{
+    normalized: NormalizedSessionArchive;
+    restoredLabel: string;
+    playCount: number;
+    noteCount: number;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const seasonFileInputRef = useRef<HTMLInputElement>(null);
+  const archiveFileInputRef = useRef<HTMLInputElement>(null);
 
   const errors = { ...inlineErrors, ...commitErrors };
   const errorCount = Object.keys(errors).length;
