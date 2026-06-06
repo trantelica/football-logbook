@@ -550,6 +550,19 @@ export function StatusBar() {
         sourceLabel={pendingSeasonImport?.sourceLabel ?? ""}
         gameCount={pendingSeasonImport?.gameCount ?? 0}
       />
+
+      <ImportSessionArchiveDialog
+        open={archiveImportOpen}
+        onOpenChange={setArchiveImportOpen}
+        onConfirm={handleConfirmArchiveImport}
+        sourceOpponent={pendingArchiveImport?.normalized.opponent ?? null}
+        sourceDate={pendingArchiveImport?.normalized.date ?? null}
+        sourceGameId={pendingArchiveImport?.normalized.sourceGameId ?? ""}
+        restoredLabel={pendingArchiveImport?.restoredLabel ?? ""}
+        playCount={pendingArchiveImport?.playCount ?? 0}
+        noteCount={pendingArchiveImport?.noteCount ?? 0}
+        targetSeasonLabel={activeSeason?.label ?? ""}
+      />
     </>
   );
 }
