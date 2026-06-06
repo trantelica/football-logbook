@@ -370,6 +370,70 @@ export function StatusBar() {
     }
   };
 
+  // ── Session Archive Import (restore-only) ──
+  const handleLoadSessionArchive = () => {
+    if (!activeSeason) {
+      toast.error("No active season — create or select a season first");
+      return;
+    }
+    archiveFileInputRef.current?.click();
+  };
+
+  const handleArchiveFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (archiveFileInputRef.current) archiveFileInputRef.current.value = "";
+    if (!file || !activeSeason) return;
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+
+      const validation = validateSessionArchiveImport(payload);
+      if (!validation.valid) {
+        setPreflightTitle("Session Restore Blocked");
+        setPreflightErrors(validation.errors);
+        setPreflightOpen(true);
+        return;
+      }
+
+      const normalized = normalizeSessionArchiveImport(payload);
+      const existingGames = await getGamesBySeason(activeSeason.seasonId);
+      const restoredLabel = buildRestoredOpponentLabel(
+        normalized.opponent,
+        existingGames.map((g) => g.opponent),
+      );
+
+      setPendingArchiveImport({
+        normalized,
+        restoredLabel,
+        playCount: normalized.plays.length,
+        noteCount: normalized.notes.length,
+      });
+      setArchiveImportOpen(true);
+    } catch (err) {
+      toast.error(`Session restore failed: ${err instanceof Error ? err.message : "Invalid JSON file"}`);
+    }
+  };
+
+  const handleConfirmArchiveImport = async () => {
+    if (!activeSeason || !pendingArchiveImport) return;
+    try {
+      const { newGameId } = await importSessionArchiveAsNewGame(
+        pendingArchiveImport.normalized,
+        activeSeason.seasonId,
+        pendingArchiveImport.restoredLabel,
+      );
+      await reloadGames();
+      await setActiveGameById(newGameId);
+
+      setArchiveImportOpen(false);
+      setPendingArchiveImport(null);
+      toast.success(`Session restored as "${pendingArchiveImport.restoredLabel}"`);
+    } catch (err) {
+      toast.error(`Session restore failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
   return (
     <>
       <footer className="flex items-center gap-3 border-t bg-card px-4 py-1.5 text-xs text-muted-foreground">
