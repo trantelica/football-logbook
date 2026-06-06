@@ -14,6 +14,7 @@ import {
   getAllLookups, getRosterBySeason,
   importLookupsReplaceOnly,
   buildSeasonPackageExport, importSeasonPackageNewSeason,
+  importSessionArchiveAsNewGame, getGamesBySeason,
 } from "@/engine/db";
 import {
   toHudlCsv, toNotesCsv, validateForExport,
@@ -25,6 +26,11 @@ import {
   type ArchiveError,
 } from "@/engine/sessionArchiveExport";
 import {
+  validateSessionArchiveImport, normalizeSessionArchiveImport,
+  buildRestoredOpponentLabel,
+  type NormalizedSessionArchive, type ArchiveImportValidationError,
+} from "@/engine/sessionArchiveImport";
+import {
   buildLookupsExport, validateLookupsImport, normalizeLookupsImport,
   type ImportValidationError,
 } from "@/engine/lookupTransfer";
@@ -35,7 +41,7 @@ import {
 import { slugify, dateStamp } from "@/engine/filenameHelpers";
 import { SCHEMA_VERSION } from "@/engine/schema";
 import { cn } from "@/lib/utils";
-import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus } from "lucide-react";
+import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore } from "lucide-react";
 import { toast } from "sonner";
 
 const STATE_LABELS: Record<string, string> = {
@@ -53,7 +59,7 @@ export function StatusBar() {
   const { state, candidate, committedPlays, inlineErrors, commitErrors } =
     useTransaction();
 
-  const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError)[]>([]);
+  const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError)[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [preflightTitle, setPreflightTitle] = useState("Export Blocked");
 
@@ -74,8 +80,18 @@ export function StatusBar() {
     gameCount: number;
   } | null>(null);
 
+  // Session archive import state
+  const [archiveImportOpen, setArchiveImportOpen] = useState(false);
+  const [pendingArchiveImport, setPendingArchiveImport] = useState<{
+    normalized: NormalizedSessionArchive;
+    restoredLabel: string;
+    playCount: number;
+    noteCount: number;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const seasonFileInputRef = useRef<HTMLInputElement>(null);
+  const archiveFileInputRef = useRef<HTMLInputElement>(null);
 
   const errors = { ...inlineErrors, ...commitErrors };
   const errorCount = Object.keys(errors).length;
@@ -354,6 +370,70 @@ export function StatusBar() {
     }
   };
 
+  // ── Session Archive Import (restore-only) ──
+  const handleLoadSessionArchive = () => {
+    if (!activeSeason) {
+      toast.error("No active season — create or select a season first");
+      return;
+    }
+    archiveFileInputRef.current?.click();
+  };
+
+  const handleArchiveFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (archiveFileInputRef.current) archiveFileInputRef.current.value = "";
+    if (!file || !activeSeason) return;
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+
+      const validation = validateSessionArchiveImport(payload);
+      if (!validation.valid) {
+        setPreflightTitle("Session Restore Blocked");
+        setPreflightErrors(validation.errors);
+        setPreflightOpen(true);
+        return;
+      }
+
+      const normalized = normalizeSessionArchiveImport(payload);
+      const existingGames = await getGamesBySeason(activeSeason.seasonId);
+      const restoredLabel = buildRestoredOpponentLabel(
+        normalized.opponent,
+        existingGames.map((g) => g.opponent),
+      );
+
+      setPendingArchiveImport({
+        normalized,
+        restoredLabel,
+        playCount: normalized.plays.length,
+        noteCount: normalized.notes.length,
+      });
+      setArchiveImportOpen(true);
+    } catch (err) {
+      toast.error(`Session restore failed: ${err instanceof Error ? err.message : "Invalid JSON file"}`);
+    }
+  };
+
+  const handleConfirmArchiveImport = async () => {
+    if (!activeSeason || !pendingArchiveImport) return;
+    try {
+      const { newGameId } = await importSessionArchiveAsNewGame(
+        pendingArchiveImport.normalized,
+        activeSeason.seasonId,
+        pendingArchiveImport.restoredLabel,
+      );
+      await reloadGames();
+      await setActiveGameById(newGameId);
+
+      setArchiveImportOpen(false);
+      setPendingArchiveImport(null);
+      toast.success(`Session restored as "${pendingArchiveImport.restoredLabel}"`);
+    } catch (err) {
+      toast.error(`Session restore failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
   return (
     <>
       <footer className="flex items-center gap-3 border-t bg-card px-4 py-1.5 text-xs text-muted-foreground">
@@ -412,6 +492,10 @@ export function StatusBar() {
             <PackageOpen className="h-3 w-3" /> Export Season
           </Button>
           <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
+            onClick={handleLoadSessionArchive} disabled={!activeSeason}>
+            <ArchiveRestore className="h-3 w-3" /> Load Session
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
             onClick={handleLoadSeason}>
             <PackagePlus className="h-3 w-3" /> Load Season
           </Button>
@@ -433,6 +517,16 @@ export function StatusBar() {
         className="hidden"
         onChange={handleSeasonFileSelected}
       />
+      <input
+        ref={archiveFileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleArchiveFileSelected}
+      />
+
+
+
 
       <PreflightErrorDialog
         open={preflightOpen}
@@ -456,13 +550,26 @@ export function StatusBar() {
         sourceLabel={pendingSeasonImport?.sourceLabel ?? ""}
         gameCount={pendingSeasonImport?.gameCount ?? 0}
       />
+
+      <ImportSessionArchiveDialog
+        open={archiveImportOpen}
+        onOpenChange={setArchiveImportOpen}
+        onConfirm={handleConfirmArchiveImport}
+        sourceOpponent={pendingArchiveImport?.normalized.opponent ?? null}
+        sourceDate={pendingArchiveImport?.normalized.date ?? null}
+        sourceGameId={pendingArchiveImport?.normalized.sourceGameId ?? ""}
+        restoredLabel={pendingArchiveImport?.restoredLabel ?? ""}
+        playCount={pendingArchiveImport?.playCount ?? 0}
+        noteCount={pendingArchiveImport?.noteCount ?? 0}
+        targetSeasonLabel={activeSeason?.label ?? ""}
+      />
     </>
   );
 }
 
 // ── Preflight Error Dialog ──
 
-type AnyError = ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError;
+type AnyError = ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError;
 
 function isPlayError(e: AnyError): e is ExportError | ArchiveError {
   return "playNumber" in e;
@@ -646,5 +753,55 @@ function CopyDebugButton({ gameId }: { gameId: string }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ── Import Session Archive Confirmation Dialog ──
+
+function ImportSessionArchiveDialog({
+  open, onOpenChange, onConfirm,
+  sourceOpponent, sourceDate, sourceGameId,
+  restoredLabel, playCount, noteCount, targetSeasonLabel,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+  sourceOpponent: string | null;
+  sourceDate: string | null;
+  sourceGameId: string;
+  restoredLabel: string;
+  playCount: number;
+  noteCount: number;
+  targetSeasonLabel: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Restore Session Archive</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p className="font-medium">
+            This will create a <span className="font-semibold">NEW game</span> in the active season
+            from the imported archive. No existing game will be merged into or overwritten.
+          </p>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>Source opponent: <span className="font-mono">{sourceOpponent ?? "Unknown"}</span></p>
+            <p>Source date: <span className="font-mono">{sourceDate ?? "—"}</span></p>
+            <p>Source game ID: <span className="font-mono">{sourceGameId}</span></p>
+            <p>Committed plays: <span className="font-mono">{playCount}</span></p>
+            <p>Notes: <span className="font-mono">{noteCount}</span></p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Will be saved into season <span className="font-mono">{targetSeasonLabel}</span> as
+            <span className="font-mono"> "{restoredLabel}"</span>.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={onConfirm}>Restore</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
