@@ -892,6 +892,59 @@ export async function importSeasonPackageNewSeason(
   return { newSeasonId, newGameIds };
 }
 
+/**
+ * Phase 8.5: Session Archive Import v1 (restore-only).
+ *
+ * Restore a previously-exported session archive as a NEW local game in
+ * the given target season. Never overwrites or merges into any existing
+ * game — always generates a fresh gameId and a non-colliding opponent
+ * label (handled by caller via buildRestoredOpponentLabel).
+ *
+ * Imported plays land directly in the `plays` store (committed rows).
+ * No candidate/proposal/transient state is restored. No slot_meta or
+ * audit trail is fabricated. Season lookups/roster/config are NOT
+ * touched.
+ */
+export async function importSessionArchiveAsNewGame(
+  normalized: import("./sessionArchiveImport").NormalizedSessionArchive,
+  targetSeasonId: string,
+  restoredOpponentLabel: string,
+): Promise<{ newGameId: string }> {
+  const db = await getDB();
+  const season = await db.get("seasons", targetSeasonId) as SeasonMeta | undefined;
+  if (!season) throw new Error(`Season ${targetSeasonId} not found`);
+
+  const newGameId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const newGame: GameMeta = {
+    gameId: newGameId,
+    seasonId: targetSeasonId,
+    opponent: restoredOpponentLabel,
+    date: normalized.date ?? now.slice(0, 10),
+    createdAt: now,
+    schemaVersion: SCHEMA_VERSION,
+  };
+
+  const tx = db.transaction(["games", "plays", "coach_notes"], "readwrite");
+  await tx.objectStore("games").put(newGame);
+
+  const playStore = tx.objectStore("plays");
+  for (const p of normalized.plays) {
+    // Defense-in-depth: coerce numeric fields, force new gameId.
+    const coerced = coercePlayToSchemaTypes({ ...p, gameId: newGameId });
+    await playStore.put(coerced);
+  }
+
+  const noteStore = tx.objectStore("coach_notes");
+  for (const n of normalized.notes) {
+    await noteStore.put({ ...n, id: crypto.randomUUID(), gameId: newGameId });
+  }
+
+  await tx.done;
+  return { newGameId };
+}
+
 // ── Debug Export ──
 
 export async function buildDebugExport(gameId: string) {
