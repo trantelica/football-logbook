@@ -492,6 +492,10 @@ export function StatusBar() {
             <PackageOpen className="h-3 w-3" /> Export Season
           </Button>
           <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
+            onClick={handleLoadSessionArchive} disabled={!activeSeason}>
+            <ArchiveRestore className="h-3 w-3" /> Load Session
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
             onClick={handleLoadSeason}>
             <PackagePlus className="h-3 w-3" /> Load Season
           </Button>
