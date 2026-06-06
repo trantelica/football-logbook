@@ -755,3 +755,53 @@ function CopyDebugButton({ gameId }: { gameId: string }) {
     </>
   );
 }
+
+// ── Import Session Archive Confirmation Dialog ──
+
+function ImportSessionArchiveDialog({
+  open, onOpenChange, onConfirm,
+  sourceOpponent, sourceDate, sourceGameId,
+  restoredLabel, playCount, noteCount, targetSeasonLabel,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: () => void;
+  sourceOpponent: string | null;
+  sourceDate: string | null;
+  sourceGameId: string;
+  restoredLabel: string;
+  playCount: number;
+  noteCount: number;
+  targetSeasonLabel: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-sm">Restore Session Archive</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <p className="font-medium">
+            This will create a <span className="font-semibold">NEW game</span> in the active season
+            from the imported archive. No existing game will be merged into or overwritten.
+          </p>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>Source opponent: <span className="font-mono">{sourceOpponent ?? "Unknown"}</span></p>
+            <p>Source date: <span className="font-mono">{sourceDate ?? "—"}</span></p>
+            <p>Source game ID: <span className="font-mono">{sourceGameId}</span></p>
+            <p>Committed plays: <span className="font-mono">{playCount}</span></p>
+            <p>Notes: <span className="font-mono">{noteCount}</span></p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Will be saved into season <span className="font-mono">{targetSeasonLabel}</span> as
+            <span className="font-mono"> "{restoredLabel}"</span>.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={onConfirm}>Restore</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
