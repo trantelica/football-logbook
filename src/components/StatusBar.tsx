@@ -25,6 +25,11 @@ import {
   type ArchiveError,
 } from "@/engine/sessionArchiveExport";
 import {
+  validateSessionArchiveImport, normalizeSessionArchiveImport,
+  buildRestoredOpponentLabel,
+  type NormalizedSessionArchive, type ArchiveImportValidationError,
+} from "@/engine/sessionArchiveImport";
+import {
   buildLookupsExport, validateLookupsImport, normalizeLookupsImport,
   type ImportValidationError,
 } from "@/engine/lookupTransfer";
@@ -35,7 +40,7 @@ import {
 import { slugify, dateStamp } from "@/engine/filenameHelpers";
 import { SCHEMA_VERSION } from "@/engine/schema";
 import { cn } from "@/lib/utils";
-import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus } from "lucide-react";
+import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore } from "lucide-react";
 import { toast } from "sonner";
 
 const STATE_LABELS: Record<string, string> = {
