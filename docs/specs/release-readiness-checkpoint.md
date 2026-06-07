@@ -1,7 +1,6 @@
-# Release Readiness Checkpoint
+# Current Release Checkpoint
 
-> Documentation-only snapshot. No code changes, feature work, parser expansion, AI implementation, or archive import work is included in this checkpoint.
-> Created after acceptance of three-pass deterministic lifecycle and export / interoperability acceptance sweeps.
+> Documentation-only snapshot. Reflects the accepted baseline as of Pass 1–3, export/interoperability, session archive import v1, Pass 3 AI assist, branding polish, and coach-facing docs.
 
 ---
 
