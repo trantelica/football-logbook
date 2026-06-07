@@ -658,10 +658,10 @@ posY = 84
 
 **And** must not silently add #84 to the roster.
 
-> **PARSER-016..019 status:** **Parked — pending Pass 3 AI implementation.**
-> These cases describe Pass 3 AI assist behavior. Pass 3 AI is architecture-approved but not implemented (see `docs/specs/release-readiness-checkpoint.md`). They are retained for forward acceptance and must not be treated as active gaps in the deterministic baseline.
+> **PARSER-016..019 status:** **Accepted — active in baseline.**
+> These cases describe Pass 3 AI assist behavior. Pass 3 AI assist shipped as a scoped fallback after deterministic parser in Update Proposal. It is advisory, proposal-only, and does not silently overwrite parser-resolved fields.
 
-### PARSER-016 — Pass 3 AI Respects Grade Scope *(Parked)*
+### PARSER-016 — Pass 3 AI Respects Grade Scope
 
 **Given** Pass 3 narration:
 
@@ -679,7 +679,7 @@ gradeX = -2
 
 **And** must not update Pass 1 or Pass 2 fields.
 
-### PARSER-017 — Pass 3 STT Correction Is Context-Bound *(Parked)*
+### PARSER-017 — Pass 3 STT Correction Is Context-Bound
 
 **Given** Pass 3 narration:
 
@@ -696,7 +696,7 @@ gradeY = 1
 **Given** the same phrase appears in Pass 1  
 **Then** system must not set `gradeY`.
 
-### PARSER-018 — Pass 3 Vague Praise Does Not Set Grade *(Parked)*
+### PARSER-018 — Pass 3 Vague Praise Does Not Set Grade
 
 **Given** Pass 3 narration:
 
@@ -712,7 +712,7 @@ gradeY = 1
 
 unless the coach provides explicit grade evidence.
 
-### PARSER-019 — Pass 3 Out-of-Range Grade Blocks or Flags *(Parked)*
+### PARSER-019 — Pass 3 Out-of-Range Grade Blocks or Flags
 
 **Given** AI or parser proposes:
 

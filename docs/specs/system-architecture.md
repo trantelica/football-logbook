@@ -567,7 +567,7 @@ AI must not:
 
 The deterministic engine remains authoritative.
 
-> **Current state (per `docs/specs/release-readiness-checkpoint.md`):** No AI enrichment is active in the Pass 3 deterministic grading path. Pass 3 AI assist is architecture-approved but not implemented.
+> **Current state (per `docs/specs/release-readiness-checkpoint.md`):** Pass 3 AI assist / scoped grading fallback is active. It runs after the deterministic parser on Update Proposal when unresolved grade fields remain. Advisory, proposal-only, does not silently overwrite parser-resolved fields.
 
 ---
 

@@ -1,7 +1,6 @@
-# Release Readiness Checkpoint
+# Current Release Checkpoint
 
-> Documentation-only snapshot. No code changes, feature work, parser expansion, AI implementation, or archive import work is included in this checkpoint.
-> Created after acceptance of three-pass deterministic lifecycle and export / interoperability acceptance sweeps.
+> Documentation-only snapshot. Reflects the accepted baseline as of Pass 1–3, export/interoperability, session archive import v1, Pass 3 AI assist, branding polish, and coach-facing docs.
 
 ---
 
@@ -15,16 +14,17 @@
 | Three-pass deterministic lifecycle | Accepted | End-to-end `candidate → proposal → validate → commit → audit` accepted. |
 | Hudl CSV export | Accepted | Frozen `HUDL_HEADERS`, committed-rows-only export, null → empty cell, no transient leakage. |
 | Session archive export structure | Accepted | Pure `buildSessionArchive`, includes committed plays + lookups snapshot + schema snapshot + manifest. |
-| Session archive import / true round-trip | Parked | Not yet implemented. Export structure is forward-compatible; import will need its own acceptance pass. |
-| Pass 3 AI assist | Architecture approved, implementation deferred | Architecture slice reviewed and approved; no AI enrichment in Pass 3 deterministic path. |
+| Session archive import / restore-only v1 | Accepted | Imported archive restores as a new game with fresh gameId. No merge, no silent overwrite, no lookup/roster replacement. |
+| Pass 3 AI assist / scoped grading fallback | Accepted | One-click Update Proposal runs deterministic parser first; AI fallback fills unresolved grade fields only when parser leaves gaps. Advisory, proposal-only, no silent overwrite of parser-resolved fields. |
 
 ---
 
 ## 2. Test Health Snapshot
 
-- **Full suite baseline:** `897 / 897` passing.
+- **Full suite baseline:** `943 / 943` passing.
 - **Targeted export / interoperability tests:** `52 / 52` passing (`hudlExport.test.ts`, `sessionArchiveExport.test.ts`, `coerce.test.ts`, `seasonTransfer.test.ts`).
-- **Pass 3 deterministic parser / bulk-command tests:** Covered in per-clause parser regression and `gradeBulkCommand.test.ts` / `gradeNarrationParser.test.ts` suites (all green).
+- **Session archive import tests:** `12 / 12` passing (`sessionArchiveImport.test.ts`).
+- **Pass 3 deterministic parser / bulk-command / AI fallback tests:** Covered in per-clause parser regression and `gradeBulkCommand.test.ts` / `gradeNarrationParser.test.ts` / `aiGradeClient.test.ts` suites (all green).
 
 No regressions introduced during acceptance sweeps.
 
@@ -91,7 +91,7 @@ The following behaviors are accepted as of this checkpoint and are enforced by t
 2. **Committed rows immutable** unless changed through a defined review / overwrite path (`OverwriteReview`, `GradeOverwriteDialog`, `PossessionCheckDialog`, `TDCorrectionDialog`).
 3. **Pass ownership enforced:** Sections may only write to their owned fields. Derived fields populate downstream from governed parent values.
 4. **Pass 2 carry-forward rules:** Immediate-prior-only, Pass-2-only, personnel-only, candidate/proposal-only. No cascading forward to already-committed slots.
-5. **Pass 3 deterministic parser accepted:** Per-clause parser regression covered; bulk-empty command covered. No AI assist currently active in Pass 3.
+5. **Pass 3 deterministic parser + scoped AI fallback accepted:** Per-clause parser regression covered; bulk-empty command covered. One-click Update Proposal runs parser first, then AI fallback for unresolved grade fields only. AI is advisory and proposal-only.
 6. **Export uses committed rows only:** `getPlaysByGame()` reads the `plays` IndexedDB store, which is populated exclusively via `commitProposal` and `commitGradeFields`.
 7. **Empty / uncommitted scaffolded slots do not export:** Scaffolded slots live in `slot_meta` store; they never leak into `plays` or CSV output.
 8. **Candidate / proposal / transient state does not export:** No proposal-only or candidate-only values appear in Hudl CSV or session archive.
@@ -105,8 +105,7 @@ The following items are intentionally deferred and tracked for future planning:
 
 | Item | Status | Blocker / Reason |
 |---|---|---|
-| Session archive import / true archive round-trip | Parked | Not implemented. Export structure is stable and forward-compatible. |
-| Pass 3 AI assist implementation | Parked | Architecture approved; deferred until deterministic baseline is stable. |
+| Session archive import beyond restore-only v1 | Parked | Merge import, conflict resolution, lookup/config restore, true season/package round-trip not yet implemented. |
 | Broader UX polish sweep | Parked | Out of scope for deterministic acceptance phase. |
 | `lookupStoreVersion` true manifest stamping | Parked | Currently hard-coded as `"unknown"` in `StatusBar.tsx`; low priority. |
 
@@ -116,11 +115,10 @@ The following items are intentionally deferred and tracked for future planning:
 
 No recommendation is made here. The following tracks are available for the next planning cycle:
 
-- **Archive import** — Implement `importSessionArchive` consumer and run a true round-trip acceptance pass.
-- **Pass 3 AI assist** — Implement the approved architecture slice for AI enrichment in Pass 3 grading.
+- **Archive import v2** — Merge import, conflict resolution, lookup/config restore, true season/package round-trip.
 - **UX polish sweep** — Instrument-like aesthetic refinements, mobile responsiveness, or workflow friction reduction.
 - **Documentation / spec refresh** — Update `canonical-data-contract.md`, `multi-pass-workflow.md`, or other specs to reflect accepted state.
 
 ---
 
-*Last updated: after Export / Interoperability acceptance sweep (full suite 897/897, export tests 52/52).*
+*Last updated: after Session Archive Import v1 / Branding / Coach Docs acceptance sweep (full suite 943/943, export tests 52/52, archive import tests 12/12).*

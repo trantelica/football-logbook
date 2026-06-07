@@ -365,7 +365,7 @@ Rules:
 
 > **Status (per `docs/specs/release-readiness-checkpoint.md`):**
 > - Deterministic Pass 3 parser: **accepted and active**.
-> - Pass 3 AI assist: **architecture approved, not implemented**. Forward-looking AI sections (see §17A.14.3) describe planned behavior and are not live.
+> - Pass 3 AI assist / scoped grading fallback: **accepted and active**. One-click Update Proposal runs deterministic parser first; AI fallback fills unresolved grade fields only. Advisory, proposal-only, does not silently overwrite parser-resolved fields.
 
 ### 14.0 Deterministic Pass 3 Surface
 

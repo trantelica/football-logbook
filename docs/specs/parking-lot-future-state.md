@@ -104,8 +104,9 @@ Use these statuses:
 | FS-018 | Dedicated AI Interface Spec | Deferred | Only needed when AI integration becomes more explicit |
 | FS-019 | Product Requirements Document v2 | Deferred | Should be short strategic umbrella after core specs stabilize |
 | FS-020 | Release/change log discipline | Deferred | Useful after PR #1 spec library is accepted |
-| FS-021 | Session archive import / true round-trip | Deferred | Export structure accepted in release-readiness checkpoint; importer not implemented. Needs its own acceptance pass when promoted. |
-| FS-022 | Pass 3 AI assist implementation | Architecture approved / Deferred | Architecture slice approved; implementation parked post-checkpoint. Deterministic Pass 3 baseline must remain stable underneath. |
+| FS-021 | Session archive import / restore-only v1 | Promoted | Shipped. Restores as new game with fresh gameId; no merge, no silent overwrite. |
+| FS-022 | Pass 3 AI assist / scoped grading fallback | Promoted | Shipped. Runs after deterministic parser on Update Proposal when unresolved grade fields remain. Advisory, proposal-only, does not silently overwrite parser-resolved fields. |
+| FS-023 | Session archive import beyond restore-only v1 | Deferred | Merge import, conflict resolution, lookup/config restore, true season/package round-trip not yet implemented. |
 
 ---
 
