@@ -106,6 +106,7 @@ Use these statuses:
 | FS-020 | Release/change log discipline | Deferred | Useful after PR #1 spec library is accepted |
 | FS-021 | Session archive import / restore-only v1 | Promoted | Shipped. Restores as new game with fresh gameId; no merge, no silent overwrite. |
 | FS-022 | Pass 3 AI assist / scoped grading fallback | Promoted | Shipped. Runs after deterministic parser on Update Proposal when unresolved grade fields remain. Advisory, proposal-only, does not silently overwrite parser-resolved fields. |
+| FS-023 | Session archive import beyond restore-only v1 | Deferred | Merge import, conflict resolution, lookup/config restore, true season/package round-trip not yet implemented. |
 
 ---
 
