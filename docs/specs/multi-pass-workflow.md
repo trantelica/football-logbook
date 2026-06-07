@@ -469,7 +469,7 @@ Future Pass 3 changes should be:
 ### 8.12 Pass 3 Acceptance Status
 
 - **Pass 3 deterministic grading:** accepted per `docs/specs/release-readiness-checkpoint.md`.
-- **Pass 3 AI assist:** architecture approved, **not currently active**. Any reference to Pass 3 AI behavior in this spec or in `parser-narration.md` is forward-looking and must not be presumed live.
+- **Pass 3 AI assist / scoped grading fallback:** accepted and active. One-click Update Proposal runs deterministic parser first; AI fallback fills unresolved grade fields only. Advisory, proposal-only, does not silently overwrite parser-resolved fields.
 
 ### 8.13 Pass 3 Guardrails
 

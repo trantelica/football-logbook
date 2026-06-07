@@ -529,7 +529,7 @@ Pass 3 UX passes if:
 6. committed grade fields show persistent overwrite-aware affordance
 7. `GradeOverwriteDialog` appears on commit for any committed grade value change, with before/after values; cancel preserves the committed value and writes nothing
 8. the deterministic bulk-empty grade command (e.g., "clear all grades") surfaces a single proposal covering all active grade fields and routes committed-value changes through `GradeOverwriteDialog`
-9. no AI suggestion surface is currently rendered in Pass 3 (Pass 3 AI assist is architecture-approved but not implemented, per `docs/specs/release-readiness-checkpoint.md`)
+9. Pass 3 AI assist runs automatically after deterministic parser on Update Proposal when unresolved grade fields remain; it is advisory and proposal-only
 
 ---
 
