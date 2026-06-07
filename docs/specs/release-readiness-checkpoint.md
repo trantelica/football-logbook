@@ -91,7 +91,7 @@ The following behaviors are accepted as of this checkpoint and are enforced by t
 2. **Committed rows immutable** unless changed through a defined review / overwrite path (`OverwriteReview`, `GradeOverwriteDialog`, `PossessionCheckDialog`, `TDCorrectionDialog`).
 3. **Pass ownership enforced:** Sections may only write to their owned fields. Derived fields populate downstream from governed parent values.
 4. **Pass 2 carry-forward rules:** Immediate-prior-only, Pass-2-only, personnel-only, candidate/proposal-only. No cascading forward to already-committed slots.
-5. **Pass 3 deterministic parser accepted:** Per-clause parser regression covered; bulk-empty command covered. No AI assist currently active in Pass 3.
+5. **Pass 3 deterministic parser + scoped AI fallback accepted:** Per-clause parser regression covered; bulk-empty command covered. One-click Update Proposal runs parser first, then AI fallback for unresolved grade fields only. AI is advisory and proposal-only.
 6. **Export uses committed rows only:** `getPlaysByGame()` reads the `plays` IndexedDB store, which is populated exclusively via `commitProposal` and `commitGradeFields`.
 7. **Empty / uncommitted scaffolded slots do not export:** Scaffolded slots live in `slot_meta` store; they never leak into `plays` or CSV output.
 8. **Candidate / proposal / transient state does not export:** No proposal-only or candidate-only values appear in Hudl CSV or session archive.
