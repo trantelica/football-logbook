@@ -49,23 +49,7 @@ const Index = () => {
           <RosterProvider>
             <RawInputProvider>
               <TransactionProvider>
-                <div className="flex flex-col h-screen bg-background">
-                  <GameBar />
-
-                  <main className="flex-1 overflow-auto p-4 space-y-4">
-                    <DraftPanel />
-                    
-                    <SlotsGrid />
-                    <LookupPanel />
-                    <RosterPanel />
-                    <CommittedPlaysPanel />
-                    {/* Dev tools (portaled from DraftPanel) render here, below Committed Plays */}
-                    <div id="dev-tools-slot" />
-                  </main>
-
-                  <OverwriteReview />
-                  <StatusBar />
-                </div>
+                <AppShell />
               </TransactionProvider>
             </RawInputProvider>
           </RosterProvider>
