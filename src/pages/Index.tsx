@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { SeasonProvider } from "@/engine/seasonContext";
-import { GameProvider } from "@/engine/gameContext";
+import { GameProvider, useGameContext } from "@/engine/gameContext";
 import { LookupProvider } from "@/engine/lookupContext";
 import { RosterProvider } from "@/engine/rosterContext";
 import { RawInputProvider } from "@/engine/rawInputContext";
@@ -12,7 +13,33 @@ import { OverwriteReview } from "@/components/OverwriteReview";
 import { StatusBar } from "@/components/StatusBar";
 import { LookupPanel } from "@/components/LookupPanel";
 import { RosterPanel } from "@/components/RosterPanel";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
 
+const AppShell = () => {
+  const { activeGame } = useGameContext();
+  const [dismissed, setDismissed] = useState(false);
+  const showWelcome = !activeGame && !dismissed;
+
+  if (showWelcome) {
+    return <WelcomeScreen onBegin={() => setDismissed(true)} />;
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-background">
+      <GameBar />
+      <main className="flex-1 overflow-auto p-4 space-y-4">
+        <DraftPanel />
+        <SlotsGrid />
+        <LookupPanel />
+        <RosterPanel />
+        <CommittedPlaysPanel />
+        <div id="dev-tools-slot" />
+      </main>
+      <OverwriteReview />
+      <StatusBar />
+    </div>
+  );
+};
 
 const Index = () => {
   return (
