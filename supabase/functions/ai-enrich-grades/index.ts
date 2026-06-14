@@ -203,7 +203,7 @@ Return ONLY canonical grade* keys with integer values in [${GRADE_MIN}, ${GRADE_
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
       return new Response(
-        JSON.stringify({ error: `AI gateway error ${response.status}: ${t.slice(0, 200)}`, errorCategory: "gateway_error" }),
+        JSON.stringify({ error: "AI service error", errorCategory: "gateway_error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
