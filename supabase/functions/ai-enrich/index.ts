@@ -150,9 +150,21 @@ Deno.serve(async (req) => {
       );
     }
 
+    const MAX_INPUT_LEN = 4000;
+    if (observationText.length > MAX_INPUT_LEN) {
+      return new Response(
+        JSON.stringify({ proposal: {}, error: `Observation text too long (max ${MAX_INPUT_LEN} chars)` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      console.error("ai-enrich: LOVABLE_API_KEY missing");
+      return new Response(
+        JSON.stringify({ error: "AI service unavailable" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Build location mapping instructions if provided
@@ -344,7 +356,7 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
   } catch (e) {
     console.error("ai-enrich error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "Unexpected error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

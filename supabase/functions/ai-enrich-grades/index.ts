@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
       positionLabels,
     } = await req.json();
 
+    const MAX_INPUT_LEN = 4000;
     if (
       !narrationText ||
       typeof narrationText !== "string" ||
@@ -70,11 +71,18 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    if (narrationText.length > MAX_INPUT_LEN) {
+      return new Response(
+        JSON.stringify({ patch: {}, error: `Narration text too long (max ${MAX_INPUT_LEN} chars)`, errorCategory: "bad_request" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
+      console.error("ai-enrich-grades: LOVABLE_API_KEY missing");
       return new Response(
-        JSON.stringify({ error: "AI grades: LOVABLE_API_KEY is not configured", errorCategory: "auth" }),
+        JSON.stringify({ error: "AI service unavailable", errorCategory: "auth" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -195,7 +203,7 @@ Return ONLY canonical grade* keys with integer values in [${GRADE_MIN}, ${GRADE_
       const t = await response.text();
       console.error("AI gateway error:", response.status, t);
       return new Response(
-        JSON.stringify({ error: `AI gateway error ${response.status}: ${t.slice(0, 200)}`, errorCategory: "gateway_error" }),
+        JSON.stringify({ error: "AI service error", errorCategory: "gateway_error" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -256,7 +264,7 @@ Return ONLY canonical grade* keys with integer values in [${GRADE_MIN}, ${GRADE_
   } catch (e) {
     console.error("ai-enrich-grades error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error", errorCategory: "server_exception" }),
+      JSON.stringify({ error: "Unexpected error", errorCategory: "server_exception" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
