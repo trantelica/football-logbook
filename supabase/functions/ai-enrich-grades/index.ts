@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
       positionLabels,
     } = await req.json();
 
+    const MAX_INPUT_LEN = 4000;
     if (
       !narrationText ||
       typeof narrationText !== "string" ||
@@ -70,11 +71,18 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    if (narrationText.length > MAX_INPUT_LEN) {
+      return new Response(
+        JSON.stringify({ patch: {}, error: `Narration text too long (max ${MAX_INPUT_LEN} chars)`, errorCategory: "bad_request" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
+      console.error("ai-enrich-grades: LOVABLE_API_KEY missing");
       return new Response(
-        JSON.stringify({ error: "AI grades: LOVABLE_API_KEY is not configured", errorCategory: "auth" }),
+        JSON.stringify({ error: "AI service unavailable", errorCategory: "auth" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
