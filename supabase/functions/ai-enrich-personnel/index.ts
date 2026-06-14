@@ -246,7 +246,7 @@ Return ONLY canonical pos* keys you can confidently infer. Omit everything else.
   } catch (e) {
     console.error("ai-enrich-personnel error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error", errorCategory: "server_exception" }),
+      JSON.stringify({ error: "Unexpected error", errorCategory: "server_exception" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
