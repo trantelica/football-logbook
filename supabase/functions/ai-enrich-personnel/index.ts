@@ -79,10 +79,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    const MAX_INPUT_LEN = 4000;
+    if (observationText.length > MAX_INPUT_LEN) {
+      return new Response(
+        JSON.stringify({ patch: {}, error: `Observation text too long (max ${MAX_INPUT_LEN} chars)`, errorCategory: "bad_request" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
+      console.error("ai-enrich-personnel: LOVABLE_API_KEY missing");
       return new Response(
-        JSON.stringify({ error: "AI personnel: LOVABLE_API_KEY is not configured", errorCategory: "auth" }),
+        JSON.stringify({ error: "AI service unavailable", errorCategory: "auth" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
