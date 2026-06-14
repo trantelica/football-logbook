@@ -356,7 +356,7 @@ Return ONLY a JSON object with values you can confidently infer from the coach's
   } catch (e) {
     console.error("ai-enrich error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: "Unexpected error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
