@@ -23,7 +23,8 @@ function gameOf(totalPlays: number): PlayRecord[] {
 function fullyLoggedPlay(base: PlayRecord): PlayRecord {
   return {
     ...base,
-    dn: 1, dist: 10, yardLn: -25, hash: "M",
+    // dn is a string in PlayRecord ("1".."4"), dist/yardLn are numbers.
+    dn: "1", dist: 10, yardLn: -25, hash: "M",
     offForm: "Black", offPlay: "26 Punch", motion: "3 Across",
     result: "Rush", gainLoss: 4, eff: "Y", rusher: 4,
     offStrength: "R", personnel: "21", playType: "Run", playDir: "R", motionDir: "L",

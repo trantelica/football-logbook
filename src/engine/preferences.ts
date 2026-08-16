@@ -36,9 +36,11 @@ export interface DevicePreferences {
 }
 
 export const DEFAULT_PREFERENCES: DevicePreferences = {
-  // Default to the two moments a coach must never miss, without narrating
-  // every keystroke. Coaches who want the full loop opt into it.
-  audioFeedback: "critical",
+  // Ships silent. An app that starts talking unprompted is startling, and the
+  // coach may well be sitting in a shared film room. Spoken feedback is the
+  // feature that best serves the eyes-on-video workflow, but it is opt-in:
+  // enable it in Workspace settings.
+  audioFeedback: "off",
   speechRate: 1.25,
   theme: "system",
 };

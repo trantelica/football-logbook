@@ -20,7 +20,13 @@ const AUDIO_OPTIONS: Array<{
   label: string;
   hint: string;
 }> = [
-  { value: "off", label: "Silent", hint: "No spoken feedback." },
+  {
+    value: "off",
+    label: "Silent",
+    // Silent is the default, so this line is most coaches' first encounter with
+    // the feature. Say what turning it on buys them, not just what off means.
+    hint: "No spoken feedback. Turn this on to confirm commits without looking away from the film.",
+  },
   {
     value: "critical",
     label: "Essential",
