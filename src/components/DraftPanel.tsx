@@ -22,6 +22,7 @@ import { useRoster } from "@/engine/rosterContext";
 import { useRawInput } from "@/engine/rawInputContext";
 import { useSeason } from "@/engine/seasonContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
+import { SECTIONS, getOwningSection } from "@/engine/sectionOwnership";
 import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
 import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot, ArrowRightLeft, Info, AlertCircle, ShieldAlert, Link } from "lucide-react";
@@ -1026,6 +1027,67 @@ export function DraftPanel() {
     }
   };
 
+  /**
+   * Pass 1 proposal, grouped to mirror the capture sections.
+   *
+   * This was a flat grid of every Pass-1 field, so the coach dictated in three
+   * named sections on the left and then verified one undifferentiated list on
+   * the right — checking their work in a different order than they spoke it.
+   * Grouping is by getOwningSection(), the same map that scopes parsing and
+   * Clear, so the review surface cannot disagree with the capture surface.
+   *
+   * Derived fields (strength, personnel, play type/direction, motion direction)
+   * belong to no section — they are resolved downstream from governed lookups.
+   * The UX spec requires lookup-derived values be visible before commit, so
+   * they get their own group, but only once something has resolved: six empty
+   * placeholders on every play is clutter, not provenance.
+   */
+  const renderPass1Proposal = () => {
+    const pass1Fields = playSchema.filter((f) => f.defaultPassEntry <= 1);
+    const c = candidate as Record<string, unknown>;
+
+    // playNum owns no section either, but it is slot identity rather than a
+    // derived value — and it is always populated, which would keep the derived
+    // group permanently expanded. It already appears in the PlayHUD and as the
+    // Play badge, so it does not need a third slot here.
+    const derived = pass1Fields.filter(
+      (f) => !getOwningSection(f.name) && f.name !== "playNum",
+    );
+    const anyDerivedResolved = derived.some(
+      (f) => c[f.name] !== null && c[f.name] !== undefined && c[f.name] !== "",
+    );
+
+    return (
+      <div className="space-y-3">
+        {SECTIONS.map((section) => {
+          const fields = pass1Fields.filter((f) => getOwningSection(f.name) === section.id);
+          if (fields.length === 0) return null;
+          return (
+            <section key={section.id}>
+              <h4 className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                {section.title}
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {fields.map((f) => renderField(f.name, isProposal))}
+              </div>
+            </section>
+          );
+        })}
+
+        {derived.length > 0 && anyDerivedResolved && (
+          <section>
+            <h4 className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Derived from lookup
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {derived.map((f) => renderField(f.name, isProposal))}
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       {stageSelector}
@@ -1190,17 +1252,7 @@ export function DraftPanel() {
         ) : activePass === 2 ? (
           <PersonnelPanel />
         ) : activePass === 1 && selectedSlotNum !== null ? (
-          <Pass1SectionPanel
-            proposalSlot={
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {playSchema
-                  // Hide fields that don't enter until Pass 2/3 (positions, grades).
-                  // Pass 1 proposal must only show Pass-0 scaffolded + Pass-1 fields.
-                  .filter((f) => f.defaultPassEntry <= 1)
-                  .map((f) => renderField(f.name, isProposal))}
-              </div>
-            }
-          />
+          <Pass1SectionPanel proposalSlot={renderPass1Proposal()} />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {playSchema.map((f) => renderField(f.name, isProposal))}
