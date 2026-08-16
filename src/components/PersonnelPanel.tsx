@@ -9,7 +9,15 @@ import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig } from "@/engine/db";
-import { PERSONNEL_POSITIONS, PERSONNEL_LABELS, ACTOR_FIELDS } from "@/engine/personnel";
+import {
+  PERSONNEL_POSITIONS,
+  PERSONNEL_LABELS,
+  ACTOR_FIELDS,
+  SLOT_GROUPS,
+  posFieldFor,
+} from "@/engine/personnel";
+import { SLOT_GROUP_GRID } from "./slotLayout";
+import { cn } from "@/lib/utils";
 import {
   getAliasFor,
   resolveToCanonicalPos,
@@ -216,56 +224,68 @@ export function PersonnelPanel() {
             );
           })()}
 
-          {/* Personnel Positions */}
-          <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+          {/* Personnel Positions — grouped by SLOT_GROUPS so the eleven players
+              sit in the same arrangement here as in Pass 3 grading. Previously
+              this was one flat grid, so the same slots appeared in a different
+              order depending on which pass the coach was in. */}
+          <div className="space-y-3">
+            <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
               Personnel Positions (11 Players)
             </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-              {PERSONNEL_POSITIONS.map((pos) => {
-                const isCarried = carriedForwardFields.has(pos);
-                const jerseyVal = c[pos] != null ? String(c[pos]) : "";
-                const playerName = jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
-                const alias = getAliasFor(pos, aliasMap);
-                return (
-                  <div key={pos} className="space-y-0.5">
-                    <ActorCombobox
-                      fieldLabel={
-                        <span className="flex items-center gap-1">
-                          <span>{PERSONNEL_LABELS[pos]}</span>
-                          {alias && (
-                            <span className="text-[9px] font-normal text-muted-foreground">
-                              ({alias})
+            {SLOT_GROUPS.map((group) => (
+              <div key={group.label} className="space-y-1">
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">
+                  {group.label}
+                </div>
+                <div className={cn("grid gap-2", SLOT_GROUP_GRID[group.columns])}>
+                  {group.slots.map((slot) => {
+                    const pos = posFieldFor(slot);
+                    const isCarried = carriedForwardFields.has(pos);
+                    const jerseyVal = c[pos] != null ? String(c[pos]) : "";
+                    const playerName =
+                      jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
+                    const alias = getAliasFor(pos, aliasMap);
+                    return (
+                      <div key={pos} className="space-y-0.5">
+                        <ActorCombobox
+                          fieldLabel={
+                            <span className="flex items-center gap-1">
+                              <span>{PERSONNEL_LABELS[pos]}</span>
+                              {alias && (
+                                <span className="text-[9px] font-normal text-muted-foreground">
+                                  ({alias})
+                                </span>
+                              )}
+                              {renderProvenance(pos)}
+                              {isCarried && !deterministicParseFields.has(pos) && (
+                                <Sparkles className="h-2.5 w-2.5 text-predicted-foreground" />
+                              )}
                             </span>
-                          )}
-                          {renderProvenance(pos)}
-                          {isCarried && !deterministicParseFields.has(pos) && (
-                            <Sparkles className="h-2.5 w-2.5 text-predicted-foreground" />
-                          )}
-                        </span>
-                      }
-                      requiredAtCommit={false}
-                      value={jerseyVal}
-                      onChange={(v) => updateField(pos, v)}
-                      roster={roster}
-                      addPlayer={addPlayer}
-                      disabled={false}
-                      inputClassName={
-                        isCarried
-                          ? "h-8 text-sm font-mono bg-predicted-muted border-predicted-border"
-                          : "h-8 text-sm font-mono"
-                      }
-                      error={errors[pos]}
-                    />
-                    {playerName && (
-                      <span className="text-[9px] text-muted-foreground truncate block pl-0.5">
-                        {playerName}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                          }
+                          requiredAtCommit={false}
+                          value={jerseyVal}
+                          onChange={(v) => updateField(pos, v)}
+                          roster={roster}
+                          addPlayer={addPlayer}
+                          disabled={false}
+                          inputClassName={
+                            isCarried
+                              ? "h-8 text-sm font-mono bg-predicted-muted border-predicted-border"
+                              : "h-8 text-sm font-mono"
+                          }
+                          error={errors[pos]}
+                        />
+                        {playerName && (
+                          <span className="text-[9px] text-muted-foreground truncate block pl-0.5">
+                            {playerName}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
 
             {/* Quick Assign by position token (canonical or alias) */}
             <QuickAssignRow

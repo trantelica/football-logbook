@@ -39,6 +39,54 @@ export const PERSONNEL_LABELS: Record<string, string> = {
 /** Actor fields that must match a personnel jersey */
 export const ACTOR_FIELDS = ["rusher", "passer", "receiver", "returner"] as const;
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Canonical slot layout
+ *
+ * The same eleven players appear in Pass 2 (who was on the field) and Pass 3
+ * (how they graded). They must be arranged identically in both, or the coach
+ * has to re-learn the board every time they change pass.
+ *
+ * The order is spatial, not alphabetical or numeric — it mirrors how the
+ * personnel actually line up, which is how a coach reads them off film:
+ *
+ *   LT LG C RG RT Y      the line, left to right, plus the tight end
+ *   X  3  2  4           split end and the backs in field order
+ *   1                    the signal caller
+ *
+ * Note the skill row is deliberately not 1-2-3-4. Sorting it numerically would
+ * be tidier on screen and wrong on the field.
+ *
+ * Canonical slot identity is the key here; display aliases (UX spec §10.1) are
+ * layered on at render time and never replace it.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Canonical slot keys, as used in PERSONNEL_LABELS / GRADE_LABELS values. */
+export type SlotKey = "LT" | "LG" | "C" | "RG" | "RT" | "X" | "Y" | "1" | "2" | "3" | "4";
+
+export interface SlotGroup {
+  /** Group heading shown above the row. */
+  label: string;
+  slots: readonly SlotKey[];
+  /** Column count at the sm breakpoint, so both passes size rows identically. */
+  columns: number;
+}
+
+export const SLOT_GROUPS: readonly SlotGroup[] = [
+  { label: "O-Line + Y", slots: ["LT", "LG", "C", "RG", "RT", "Y"], columns: 6 },
+  { label: "Skill", slots: ["X", "3", "2", "4"], columns: 4 },
+  { label: "Signal Caller", slots: ["1"], columns: 4 },
+] as const;
+
+/** Personnel field name for a slot (Pass 2). */
+export function posFieldFor(slot: SlotKey): string {
+  return `pos${slot}`;
+}
+
+/** Blocking grade field name for a slot (Pass 3). */
+export function gradeFieldFor(slot: SlotKey): string {
+  return `grade${slot}`;
+}
+
 /**
  * Check if a play is Pass 1 complete.
  * Pass 1 requires certain fields committed depending on ODK.

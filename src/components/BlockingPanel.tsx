@@ -18,7 +18,8 @@ import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig } from "@/engine/db";
-import { GRADE_FIELDS, GRADE_LABELS } from "@/engine/personnel";
+import { GRADE_FIELDS, GRADE_LABELS, SLOT_GROUPS, gradeFieldFor } from "@/engine/personnel";
+import { SLOT_GROUP_GRID } from "./slotLayout";
 import { parseGradeNarration, normalizeGradePatchKeys } from "@/engine/gradeNarrationParser";
 import { parseGradeBulkCommand, computeBulkFillPatch } from "@/engine/gradeBulkCommand";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
@@ -52,10 +53,8 @@ const CONTEXT_FIELDS = [
 
 const GRADE_OPTIONS = ["-3", "-2", "-1", "0", "1", "2", "3"];
 
-/** Ordered grade field layout: Row1 (OL+Y), Row2 (X,3,2,4), Row3 (1) */
-const GRADE_ROW_1 = ["gradeLT", "gradeLG", "gradeC", "gradeRG", "gradeRT", "gradeY"];
-const GRADE_ROW_2 = ["gradeX", "grade3", "grade2", "grade4"];
-const GRADE_ROW_3 = ["grade1"];
+/* Slot layout now comes from SLOT_GROUPS in engine/personnel so Pass 2 and
+   Pass 3 present the same eleven players in the same arrangement. */
 
 // ── Grade Visual Indicator ─────────────────────────────────────────────────
 
@@ -804,29 +803,16 @@ export function BlockingPanel() {
             </div>
           )}
 
-          {/* Row 1: OL + Y */}
-          <div className="space-y-1">
-            <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">O-Line + Y</div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-              {GRADE_ROW_1.map(renderGradeControl)}
+          {SLOT_GROUPS.map((group) => (
+            <div key={group.label} className="space-y-1">
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">
+                {group.label}
+              </div>
+              <div className={cn("grid gap-2", SLOT_GROUP_GRID[group.columns])}>
+                {group.slots.map((slot) => renderGradeControl(gradeFieldFor(slot)))}
+              </div>
             </div>
-          </div>
-
-          {/* Row 2: Skill */}
-          <div className="space-y-1">
-            <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">Skill</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {GRADE_ROW_2.map(renderGradeControl)}
-            </div>
-          </div>
-
-          {/* Row 3: QB / 1 */}
-          <div className="space-y-1">
-            <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">Signal Caller</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {GRADE_ROW_3.map(renderGradeControl)}
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
