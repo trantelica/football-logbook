@@ -20,6 +20,13 @@ export interface CoachMessage {
 export function toCoachMessage(technical: string, prevPlayNum: number): CoachMessage {
   const prev = `Play #${prevPlayNum}`;
 
+  // The first play of a game has no predecessor, so prevPlayNum is 0 and the
+  // phrasing below becomes "Play #0", which reads as a fault. Nothing is wrong:
+  // auto-fill simply has nothing to carry forward yet.
+  if (prevPlayNum < 1 && technical.includes("previous slot not available")) {
+    return { coach: "Auto-fill starts once the first play is committed.", technical };
+  }
+
   if (technical.includes("previous slot not available")) {
     return { coach: `Auto-fill paused: ${prev} is not committed yet.`, technical };
   }

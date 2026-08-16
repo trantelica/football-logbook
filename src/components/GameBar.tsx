@@ -24,6 +24,7 @@ import { useGameContext } from "@/engine/gameContext";
 import { useSeason } from "@/engine/seasonContext";
 import { StartGameDialog } from "./StartGameDialog";
 import { ConfigModeDialog } from "./ConfigModeDialog";
+import { WorkspaceSettings } from "./WorkspaceSettings";
 import { CalendarDays, Flag, Settings } from "lucide-react";
 
 export function GameBar() {
@@ -158,11 +159,14 @@ export function GameBar() {
           </>
         )}
 
-        {activeGame && (
-          <div className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground/60 font-mono">
-            {activeGame.gameId.slice(0, 8)}
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {activeGame && (
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-mono">
+              {activeGame.gameId.slice(0, 8)}
+            </span>
+          )}
+          <WorkspaceSettings />
+        </div>
       </header>
 
 

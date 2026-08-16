@@ -38,10 +38,21 @@ import {
   validateSeasonPackageImport, normalizeSeasonPackageImport,
   type SeasonImportValidationError,
 } from "@/engine/seasonTransfer";
+import { isPass1Complete } from "@/engine/personnel";
 import { slugify, dateStamp } from "@/engine/filenameHelpers";
 import { SCHEMA_VERSION } from "@/engine/schema";
 import { cn } from "@/lib/utils";
-import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore } from "lucide-react";
+import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore, MoreHorizontal } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PlayLedger } from "./PlayLedger";
+import { ReferenceDrawer } from "./ReferenceDrawer";
 import { toast } from "sonner";
 
 const STATE_LABELS: Record<string, string> = {
@@ -56,8 +67,17 @@ export function StatusBar() {
   const { activeSeason, refreshActiveSeason, reloadSeasons, setActiveSeasonById } = useSeason();
   const { reload: reloadLookups } = useLookup();
   const { reload: reloadRoster } = useRoster();
-  const { state, candidate, committedPlays, inlineErrors, commitErrors } =
+  const { state, candidate, committedPlays, slotMetaMap, inlineErrors, commitErrors } =
     useTransaction();
+
+  // `committedPlays` is every slot in the game, not the committed ones, and
+  // scaffolding pre-commits qtr/odk/series — so neither its length nor a
+  // non-empty committedFields tells you anything was logged. A fresh 40-play
+  // game reported "40 committed" with nothing entered. isPass1Complete is the
+  // real signal: the play has a result and gain/loss.
+  const loggedCount = committedPlays.filter((p) =>
+    isPass1Complete(p, slotMetaMap.get(p.playNum)),
+  ).length;
 
   const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError)[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
@@ -450,7 +470,9 @@ export function StatusBar() {
             <span className="text-muted-foreground/60">|</span>
             <span>vs {activeGame.opponent}</span>
             <span className="text-muted-foreground/60">|</span>
-            <span>{committedPlays.length} committed</span>
+            <span>
+              {loggedCount} of {committedPlays.length} logged
+            </span>
 
             {candidate.playNum && (
               <>
@@ -461,44 +483,89 @@ export function StatusBar() {
           </>
         )}
 
-        <div className="ml-auto flex gap-1">
+        {/* Inspection surfaces — reading the game, not changing it. */}
+        <div className="ml-auto flex items-center gap-4">
+          {activeGame && <PlayLedger />}
+          <ReferenceDrawer />
+
+          <span className="h-3 w-px bg-border" aria-hidden />
+
+          {/* The one export a coach runs every session gets to stay a button;
+              everything else is occasional and lives in the menu. */}
           {activeGame && (
-            <>
-              <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-                onClick={() => downloadDebugJSON(activeGame.gameId)}>
-                <Download className="h-3 w-3" /> JSON
-              </Button>
-              <CopyDebugButton gameId={activeGame.gameId} />
-              <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-                onClick={handleHudlExport} disabled={committedPlays.length === 0}>
-                <FileOutput className="h-3 w-3" /> Hudl Export
-              </Button>
-              <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-                onClick={handleSessionArchive} disabled={committedPlays.length === 0}>
-                <Archive className="h-3 w-3" /> Session Archive
-              </Button>
-            </>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 gap-1.5 text-xs"
+              onClick={handleHudlExport}
+              disabled={committedPlays.length === 0}
+              title={
+                committedPlays.length === 0
+                  ? "Start a game to create play slots"
+                  : "Exports committed plays only"
+              }
+            >
+              <FileOutput className="h-3 w-3" /> Hudl Export
+            </Button>
           )}
-          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-            onClick={handleExportLookups} disabled={!activeSeason}>
-            <DatabaseBackup className="h-3 w-3" /> Export Lookups
-          </Button>
-          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-            onClick={handleImportLookups} disabled={!activeSeason}>
-            <Upload className="h-3 w-3" /> Import Lookups
-          </Button>
-          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-            onClick={handleExportSeason} disabled={!activeSeason}>
-            <PackageOpen className="h-3 w-3" /> Export Season
-          </Button>
-          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-            onClick={handleLoadSessionArchive} disabled={!activeSeason}>
-            <ArchiveRestore className="h-3 w-3" /> Load Session
-          </Button>
-          <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs"
-            onClick={handleLoadSeason}>
-            <PackagePlus className="h-3 w-3" /> Load Season
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0"
+                aria-label="Data and backup actions"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="w-56">
+              {activeGame && (
+                <>
+                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">
+                    This game
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onSelect={handleSessionArchive}
+                    disabled={committedPlays.length === 0}
+                  >
+                    <Archive className="mr-2 h-3.5 w-3.5" /> Session Archive
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => downloadDebugJSON(activeGame.gameId)}>
+                    <Download className="mr-2 h-3.5 w-3.5" /> Debug JSON
+                  </DropdownMenuItem>
+                  <CopyDebugMenuItem gameId={activeGame.gameId} />
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">
+                Season
+              </DropdownMenuLabel>
+              <DropdownMenuItem onSelect={handleExportLookups} disabled={!activeSeason}>
+                <DatabaseBackup className="mr-2 h-3.5 w-3.5" /> Export lookups
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleImportLookups} disabled={!activeSeason}>
+                <Upload className="mr-2 h-3.5 w-3.5" /> Import lookups
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleExportSeason} disabled={!activeSeason}>
+                <PackageOpen className="mr-2 h-3.5 w-3.5" /> Export season
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">
+                Restore
+              </DropdownMenuLabel>
+              <DropdownMenuItem onSelect={handleLoadSessionArchive} disabled={!activeSeason}>
+                <ArchiveRestore className="mr-2 h-3.5 w-3.5" /> Load session
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleLoadSeason}>
+                <PackagePlus className="mr-2 h-3.5 w-3.5" /> Load season
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </footer>
 
@@ -713,7 +780,16 @@ function ImportSeasonConfirmDialog({
 
 // ── Copy Debug Button with clipboard fallback ──
 
-function CopyDebugButton({ gameId }: { gameId: string }) {
+/**
+ * Copy-debug menu item.
+ *
+ * Kept as its own component so the clipboard fallback survives: when the
+ * browser denies clipboard access, the JSON is shown in a dialog to copy by
+ * hand rather than failing silently. The dialog is rendered as a sibling of the
+ * menu item — not inside the menu — because the dropdown unmounts its content
+ * on select, which would tear the dialog down as it opened.
+ */
+function CopyDebugMenuItem({ gameId }: { gameId: string }) {
   const [fallbackOpen, setFallbackOpen] = useState(false);
   const [jsonContent, setJsonContent] = useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -736,9 +812,9 @@ function CopyDebugButton({ gameId }: { gameId: string }) {
 
   return (
     <>
-      <Button size="sm" variant="ghost" className="h-6 gap-1 text-xs" onClick={handleCopy}>
-        <Clipboard className="h-3 w-3" /> Copy
-      </Button>
+      <DropdownMenuItem onSelect={() => void handleCopy()}>
+        <Clipboard className="mr-2 h-3.5 w-3.5" /> Copy debug JSON
+      </DropdownMenuItem>
       <Dialog open={fallbackOpen} onOpenChange={setFallbackOpen}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>

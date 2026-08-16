@@ -43,7 +43,6 @@ import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
 import { Pass1SectionPanel } from "./Pass1SectionPanel";
-import { PlayContextHeader } from "./PlayContextHeader";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -228,7 +227,10 @@ export function DraftPanel() {
         {stageSelector}
         <div className="rounded-lg border-2 border-muted p-8 flex flex-col items-center justify-center gap-2 text-muted-foreground">
           <MousePointerClick className="h-8 w-8 opacity-50" />
-          <p className="text-sm font-medium">Select a slot from the grid below to begin editing.</p>
+          <p className="text-sm font-medium">Choose a play from the rail to begin.</p>
+          <p className="text-xs text-muted-foreground/80">
+            Then press <kbd className="kbd">S</kbd> to dictate the situation.
+          </p>
         </div>
       </div>
     );
@@ -1028,8 +1030,8 @@ export function DraftPanel() {
     <>
       {stageSelector}
 
-      <PlayContextHeader />
-
+      {/* Play context now lives in the persistent PlayHUD above the workspace,
+          where it stays visible while this panel scrolls. */}
 
 
       

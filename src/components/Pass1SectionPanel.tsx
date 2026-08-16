@@ -60,6 +60,7 @@ import { useTransaction, type SystemPatchCollision } from "@/engine/transaction"
 import { useLookup } from "@/engine/lookupContext";
 import { useGameContext } from "@/engine/gameContext";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
+import { usePreferences } from "@/engine/preferencesContext";
 import { parseRawInput } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "@/engine/governedValueNormalize";
@@ -216,6 +217,27 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   /** Single shared dictation hook; we route its output to whichever section is recording. */
   const recording = useTranscriptCapture();
   const recordingForRef = useRef<SectionId | null>(null);
+
+  /**
+   * Mic-transition audio.
+   *
+   * Two jobs, both tied to `recording.listening`:
+   *
+   *   1. Tell the preferences context the mic is live, so spoken announcements
+   *      are suppressed and cannot be transcribed back as coach narration.
+   *   2. Play a short rising/falling tone so the coach knows the mic armed or
+   *      stopped without looking away from the film. A tone is used rather than
+   *      a spoken word precisely because it carries nothing transcribable.
+   */
+  const { cue, setMicLive } = usePreferences();
+  const wasListeningRef = useRef(false);
+  useEffect(() => {
+    if (recording.listening === wasListeningRef.current) return;
+    wasListeningRef.current = recording.listening;
+    setMicLive(recording.listening);
+    cue(recording.listening ? "armed" : "stopped");
+  }, [recording.listening, setMicLive, cue]);
+
   /** Snapshot of section.text at the moment dictation started for that section. */
   const baseTextBeforeDictationRef = useRef<string>("");
   /**
