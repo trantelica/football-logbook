@@ -48,7 +48,6 @@ import {
   Pencil,
   PencilOff,
   Loader2,
-  Keyboard,
   Flag,
   ChevronRight,
   LogOut,
@@ -61,6 +60,7 @@ import { useLookup } from "@/engine/lookupContext";
 import { useGameContext } from "@/engine/gameContext";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
 import { usePreferences } from "@/engine/preferencesContext";
+import { KeyboardLegend } from "./KeyboardLegend";
 import { parseRawInput } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "@/engine/governedValueNormalize";
@@ -1499,16 +1499,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     <div className="space-y-3">
       {/* Mode bar */}
       <div className="flex items-center justify-between rounded-md border border-border/50 px-3 py-1.5 bg-muted/30">
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <Keyboard className="h-3 w-3" />
-          <span>
-            {textEditing ? (
-              "Text Editing ON — type freely. Esc to exit."
-            ) : (
-              <>Shortcuts: <kbd className="kbd">S</kbd> <kbd className="kbd">D</kbd> <kbd className="kbd">R</kbd> dictate · <kbd className="kbd">U</kbd> update · <kbd className="kbd">C</kbd> clear · <kbd className="kbd">F</kbd> finish · <kbd className="kbd">N</kbd> commit & next · <kbd className="kbd">L</kbd> commit & leave</>
-            )}
-          </span>
-        </div>
+        <KeyboardLegend textEditing={textEditing} />
         <Button
           size="sm"
           variant={textEditing ? "default" : "outline"}
