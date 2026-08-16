@@ -6,6 +6,12 @@ import { describe, it, expect } from "vitest";
 import { toCoachMessage, toCoachMessages } from "@/engine/predictionMessages";
 
 describe("toCoachMessage", () => {
+  it("does not blame a nonexistent Play #0 on the first play of a game", () => {
+    const msg = toCoachMessage("Prediction suspended: previous slot not available", 0);
+    expect(msg.coach).toBe("Auto-fill starts once the first play is committed.");
+    expect(msg.coach).not.toContain("#0");
+  });
+
   it("maps 'previous slot not available'", () => {
     const msg = toCoachMessage("Prediction suspended: previous slot not available", 5);
     expect(msg.coach).toBe("Auto-fill paused: Play #5 is not committed yet.");

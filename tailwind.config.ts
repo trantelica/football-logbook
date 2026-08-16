@@ -83,6 +83,27 @@ export default {
           foreground: "hsl(var(--info-foreground))",
           muted: "hsl(var(--info-muted))",
         },
+        /* Provenance — where a proposed value came from (UX spec §6).
+           These were previously raw palette colours (violet/emerald/sky)
+           repeated inline with dark: variants across three panels. */
+        predicted: {
+          DEFAULT: "hsl(var(--predicted))",
+          foreground: "hsl(var(--predicted-foreground))",
+          muted: "hsl(var(--predicted-muted))",
+          border: "hsl(var(--predicted-border))",
+        },
+        parsed: {
+          DEFAULT: "hsl(var(--parsed))",
+          foreground: "hsl(var(--parsed-foreground))",
+          muted: "hsl(var(--parsed-muted))",
+          border: "hsl(var(--parsed-border))",
+        },
+        ai: {
+          DEFAULT: "hsl(var(--ai))",
+          foreground: "hsl(var(--ai-foreground))",
+          muted: "hsl(var(--ai-muted))",
+          border: "hsl(var(--ai-border))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

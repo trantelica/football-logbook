@@ -48,7 +48,6 @@ import {
   Pencil,
   PencilOff,
   Loader2,
-  Keyboard,
   Flag,
   ChevronRight,
   LogOut,
@@ -60,6 +59,8 @@ import { useTransaction, type SystemPatchCollision } from "@/engine/transaction"
 import { useLookup } from "@/engine/lookupContext";
 import { useGameContext } from "@/engine/gameContext";
 import { useTranscriptCapture } from "@/hooks/useTranscriptCapture";
+import { usePreferences } from "@/engine/preferencesContext";
+import { KeyboardLegend } from "./KeyboardLegend";
 import { parseRawInput } from "@/engine/rawInputParser";
 import { normalizeTranscriptForParse } from "@/engine/transcriptNormalize";
 import { normalizeGovernedCandidate, normalizeGovernedCandidateForField } from "@/engine/governedValueNormalize";
@@ -216,6 +217,27 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   /** Single shared dictation hook; we route its output to whichever section is recording. */
   const recording = useTranscriptCapture();
   const recordingForRef = useRef<SectionId | null>(null);
+
+  /**
+   * Mic-transition audio.
+   *
+   * Two jobs, both tied to `recording.listening`:
+   *
+   *   1. Tell the preferences context the mic is live, so spoken announcements
+   *      are suppressed and cannot be transcribed back as coach narration.
+   *   2. Play a short rising/falling tone so the coach knows the mic armed or
+   *      stopped without looking away from the film. A tone is used rather than
+   *      a spoken word precisely because it carries nothing transcribable.
+   */
+  const { cue, setMicLive } = usePreferences();
+  const wasListeningRef = useRef(false);
+  useEffect(() => {
+    if (recording.listening === wasListeningRef.current) return;
+    wasListeningRef.current = recording.listening;
+    setMicLive(recording.listening);
+    cue(recording.listening ? "armed" : "stopped");
+  }, [recording.listening, setMicLive, cue]);
+
   /** Snapshot of section.text at the moment dictation started for that section. */
   const baseTextBeforeDictationRef = useRef<string>("");
   /**
@@ -1477,16 +1499,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     <div className="space-y-3">
       {/* Mode bar */}
       <div className="flex items-center justify-between rounded-md border border-border/50 px-3 py-1.5 bg-muted/30">
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <Keyboard className="h-3 w-3" />
-          <span>
-            {textEditing ? (
-              "Text Editing ON — type freely. Esc to exit."
-            ) : (
-              <>Shortcuts: <kbd className="kbd">S</kbd> <kbd className="kbd">D</kbd> <kbd className="kbd">R</kbd> dictate · <kbd className="kbd">U</kbd> update · <kbd className="kbd">C</kbd> clear · <kbd className="kbd">F</kbd> finish · <kbd className="kbd">N</kbd> commit & next · <kbd className="kbd">L</kbd> commit & leave</>
-            )}
-          </span>
-        </div>
+        <KeyboardLegend textEditing={textEditing} />
         <Button
           size="sm"
           variant={textEditing ? "default" : "outline"}

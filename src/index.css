@@ -60,6 +60,24 @@
 
     --field-touched: 208 52% 88%;
 
+    /* Provenance — where a proposed value came from (UX spec §6).
+       Hues match what the panels already used inline, now named once:
+       violet = deterministic prediction, emerald = parser, sky = AI. */
+    --predicted: 262 60% 45%;
+    --predicted-foreground: 262 60% 30%;
+    --predicted-muted: 262 60% 96%;
+    --predicted-border: 262 45% 78%;
+
+    --parsed: 152 55% 34%;
+    --parsed-foreground: 152 55% 24%;
+    --parsed-muted: 152 50% 95%;
+    --parsed-border: 152 40% 72%;
+
+    --ai: 202 75% 40%;
+    --ai-foreground: 202 75% 28%;
+    --ai-muted: 202 70% 95%;
+    --ai-border: 202 55% 74%;
+
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -121,6 +139,24 @@
     --info-muted: 215 30% 16%;
 
     --field-touched: 208 25% 20%;
+
+    /* Provenance — dark. Lifted lightness for legibility on a dark ground,
+       muted backfills dropped to near-surface so tinted fields read as a
+       subtle wash rather than a block of colour. */
+    --predicted: 262 70% 74%;
+    --predicted-foreground: 262 70% 80%;
+    --predicted-muted: 262 40% 17%;
+    --predicted-border: 262 35% 38%;
+
+    --parsed: 152 55% 60%;
+    --parsed-foreground: 152 55% 66%;
+    --parsed-muted: 152 32% 14%;
+    --parsed-border: 152 30% 32%;
+
+    --ai: 202 80% 66%;
+    --ai-foreground: 202 80% 72%;
+    --ai-muted: 202 42% 15%;
+    --ai-border: 202 38% 36%;
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;

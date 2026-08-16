@@ -5,8 +5,9 @@
  * Supports both legacy (free-form) and initialized (slot-based) games.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 
+import { loadLastSession, resolveRestorableGame, saveLastSession } from "./lastSession";
 import type { GameMeta, GameInitConfig, ODKBlock, QuarterMapping, SlotMeta, PatMode } from "./types";
 import { SCHEMA_VERSION } from "./schema";
 import {
@@ -74,6 +75,35 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setHasDraft(false);
     setGameInitConfig(null);
   }, [seasonId]);
+
+  /**
+   * Reopen the game the coach last had loaded — once, on startup.
+   *
+   * Guarded by a ref rather than by state because the effect above clears the
+   * active game on every seasonId change, including the initial "" -> restored
+   * transition. Without the guard this would also fire on a deliberate season
+   * switch and drag the previous game back in.
+   *
+   * resolveRestorableGame re-checks that the game still exists and still
+   * belongs to this season, so a deleted or rehomed game degrades to no
+   * restore rather than pairing one season's lookups with another's plays.
+   */
+  const attemptedGameRestoreRef = useRef(false);
+  useEffect(() => {
+    if (attemptedGameRestoreRef.current) return;
+    if (!seasonId || games.length === 0) return;
+    attemptedGameRestoreRef.current = true;
+    const restored = resolveRestorableGame(games, seasonId, loadLastSession());
+    if (restored) setActiveGame(restored);
+  }, [seasonId, games]);
+
+  // Persist the game half of the pointer. Deselecting a game keeps the season
+  // so the coach reopens to the right season's game list.
+  useEffect(() => {
+    if (!seasonId) return;
+    if (!attemptedGameRestoreRef.current) return;
+    saveLastSession({ seasonId, gameId: activeGame?.gameId ?? null });
+  }, [seasonId, activeGame?.gameId]);
 
   // Load init config when active game changes
   useEffect(() => {

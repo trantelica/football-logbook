@@ -9,7 +9,15 @@ import { useTransaction } from "@/engine/transaction";
 import { useRoster } from "@/engine/rosterContext";
 import { useSeason } from "@/engine/seasonContext";
 import { getSeasonConfig } from "@/engine/db";
-import { PERSONNEL_POSITIONS, PERSONNEL_LABELS, ACTOR_FIELDS } from "@/engine/personnel";
+import {
+  PERSONNEL_POSITIONS,
+  PERSONNEL_LABELS,
+  ACTOR_FIELDS,
+  SLOT_GROUPS,
+  posFieldFor,
+} from "@/engine/personnel";
+import { SLOT_GROUP_GRID } from "./slotLayout";
+import { cn } from "@/lib/utils";
 import {
   getAliasFor,
   resolveToCanonicalPos,
@@ -131,7 +139,7 @@ export function PersonnelPanel() {
           {committed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-info shrink-0" />
               </TooltipTrigger>
               <TooltipContent><p className="text-xs">Committed</p></TooltipContent>
             </Tooltip>
@@ -139,7 +147,7 @@ export function PersonnelPanel() {
           {isParsed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-parsed-foreground bg-parsed-muted rounded px-1">
                   <Terminal className="h-2.5 w-2.5" />Parse
                 </span>
               </TooltipTrigger>
@@ -152,7 +160,7 @@ export function PersonnelPanel() {
           {isPred && !isParsed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-predicted-foreground bg-predicted-muted rounded px-1">
                   <Sparkles className="h-2.5 w-2.5" />Pred
                 </span>
               </TooltipTrigger>
@@ -162,7 +170,7 @@ export function PersonnelPanel() {
           {isCF && !isParsed && !isPred && !isAi && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-proposal bg-proposal-muted rounded px-1">
                   <ArrowRightLeft className="h-2.5 w-2.5" />CF
                 </span>
               </TooltipTrigger>
@@ -170,7 +178,7 @@ export function PersonnelPanel() {
             </Tooltip>
           )}
           {isAi && (
-            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-ai-foreground bg-ai-muted rounded px-1">
               AI
             </span>
           )}
@@ -183,7 +191,7 @@ export function PersonnelPanel() {
     <div className="space-y-4">
       {/* Carry-forward banner */}
       {carriedForwardFields.size > 0 && carriedForwardFromPlayNum != null && (
-        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-predicted-muted text-predicted-foreground border border-predicted-border">
           <ArrowRight className="h-3.5 w-3.5 shrink-0" />
           <span>
             Carried forward from Play #{carriedForwardFromPlayNum} — {carriedForwardFields.size} field(s) seeded. Edit any field to override.
@@ -207,7 +215,7 @@ export function PersonnelPanel() {
             const narrationPosCount = PERSONNEL_POSITIONS.filter((p) => deterministicParseFields.has(p)).length;
             if (narrationPosCount === 0) return null;
             return (
-              <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-parsed-muted text-parsed-foreground border border-parsed-border">
                 <Terminal className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   {narrationPosCount} personnel slot(s) updated from narration. Proposal only — not yet committed.
@@ -216,56 +224,68 @@ export function PersonnelPanel() {
             );
           })()}
 
-          {/* Personnel Positions */}
-          <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+          {/* Personnel Positions — grouped by SLOT_GROUPS so the eleven players
+              sit in the same arrangement here as in Pass 3 grading. Previously
+              this was one flat grid, so the same slots appeared in a different
+              order depending on which pass the coach was in. */}
+          <div className="space-y-3">
+            <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
               Personnel Positions (11 Players)
             </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-              {PERSONNEL_POSITIONS.map((pos) => {
-                const isCarried = carriedForwardFields.has(pos);
-                const jerseyVal = c[pos] != null ? String(c[pos]) : "";
-                const playerName = jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
-                const alias = getAliasFor(pos, aliasMap);
-                return (
-                  <div key={pos} className="space-y-0.5">
-                    <ActorCombobox
-                      fieldLabel={
-                        <span className="flex items-center gap-1">
-                          <span>{PERSONNEL_LABELS[pos]}</span>
-                          {alias && (
-                            <span className="text-[9px] font-normal text-muted-foreground">
-                              ({alias})
+            {SLOT_GROUPS.map((group) => (
+              <div key={group.label} className="space-y-1">
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium">
+                  {group.label}
+                </div>
+                <div className={cn("grid gap-2", SLOT_GROUP_GRID[group.columns])}>
+                  {group.slots.map((slot) => {
+                    const pos = posFieldFor(slot);
+                    const isCarried = carriedForwardFields.has(pos);
+                    const jerseyVal = c[pos] != null ? String(c[pos]) : "";
+                    const playerName =
+                      jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
+                    const alias = getAliasFor(pos, aliasMap);
+                    return (
+                      <div key={pos} className="space-y-0.5">
+                        <ActorCombobox
+                          fieldLabel={
+                            <span className="flex items-center gap-1">
+                              <span>{PERSONNEL_LABELS[pos]}</span>
+                              {alias && (
+                                <span className="text-[9px] font-normal text-muted-foreground">
+                                  ({alias})
+                                </span>
+                              )}
+                              {renderProvenance(pos)}
+                              {isCarried && !deterministicParseFields.has(pos) && (
+                                <Sparkles className="h-2.5 w-2.5 text-predicted-foreground" />
+                              )}
                             </span>
-                          )}
-                          {renderProvenance(pos)}
-                          {isCarried && !deterministicParseFields.has(pos) && (
-                            <Sparkles className="h-2.5 w-2.5 text-violet-500" />
-                          )}
-                        </span>
-                      }
-                      requiredAtCommit={false}
-                      value={jerseyVal}
-                      onChange={(v) => updateField(pos, v)}
-                      roster={roster}
-                      addPlayer={addPlayer}
-                      disabled={false}
-                      inputClassName={
-                        isCarried
-                          ? "h-8 text-sm font-mono bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700"
-                          : "h-8 text-sm font-mono"
-                      }
-                      error={errors[pos]}
-                    />
-                    {playerName && (
-                      <span className="text-[9px] text-muted-foreground truncate block pl-0.5">
-                        {playerName}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                          }
+                          requiredAtCommit={false}
+                          value={jerseyVal}
+                          onChange={(v) => updateField(pos, v)}
+                          roster={roster}
+                          addPlayer={addPlayer}
+                          disabled={false}
+                          inputClassName={
+                            isCarried
+                              ? "h-8 text-sm font-mono bg-predicted-muted border-predicted-border"
+                              : "h-8 text-sm font-mono"
+                          }
+                          error={errors[pos]}
+                        />
+                        {playerName && (
+                          <span className="text-[9px] text-muted-foreground truncate block pl-0.5">
+                            {playerName}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
 
             {/* Quick Assign by position token (canonical or alias) */}
             <QuickAssignRow

@@ -8,6 +8,12 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 
 import type { SeasonMeta } from "./types";
 import { createSeason as dbCreateSeason, getAllSeasons, getSeason, initDefaultLookups } from "./db";
+import {
+  clearLastSession,
+  loadLastSession,
+  resolveRestorableSeason,
+  saveLastSession,
+} from "./lastSession";
 import { playSchema } from "./schema";
 
 interface SeasonContextValue {
@@ -29,6 +35,8 @@ interface SeasonContextValue {
   /** Config mode flag — blocks commit/propose while true */
   configMode: boolean;
   setConfigMode: (v: boolean) => void;
+  /** True until the stored last-session pointer has been resolved on startup. */
+  restoringSession: boolean;
 }
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
@@ -45,9 +53,46 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
   const [hasDraft, setHasDraft] = useState(false);
   const [configMode, setConfigMode] = useState(false);
 
+  /**
+   * True until the stored last-session pointer has been resolved (or found
+   * absent). The app shell waits on this so a restored session does not flash
+   * the welcome screen on the way in.
+   */
+  const [restoringSession, setRestoringSession] = useState(true);
+
   useEffect(() => {
-    getAllSeasons().then(setSeasons);
+    let cancelled = false;
+    getAllSeasons().then((all) => {
+      if (cancelled) return;
+      setSeasons(all);
+      // Reopen the season the coach last had loaded. A deleted or unknown
+      // season simply yields no restore rather than blocking startup.
+      const restored = resolveRestorableSeason(all, loadLastSession());
+      if (restored) setActiveSeason(restored);
+      setRestoringSession(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Persist the pointer whenever the active season changes. The game half is
+  // written by GameProvider, which owns the game id.
+  useEffect(() => {
+    if (restoringSession) return;
+    if (activeSeason) {
+      const existing = loadLastSession();
+      saveLastSession({
+        seasonId: activeSeason.seasonId,
+        // Switching seasons invalidates the remembered game — GameProvider
+        // clears the active game on season change, so the pointer must not
+        // keep naming a game from the previous season.
+        gameId: existing?.seasonId === activeSeason.seasonId ? existing.gameId : null,
+      });
+    } else {
+      clearLastSession();
+    }
+  }, [activeSeason, restoringSession]);
 
   const createNewSeason = useCallback(async (label: string): Promise<SeasonMeta> => {
     const meta: SeasonMeta = {
@@ -134,6 +179,7 @@ export function SeasonProvider({ children }: { children: React.ReactNode }) {
         setActiveSeasonById,
         configMode,
         setConfigMode,
+        restoringSession,
       }}
     >
       {children}

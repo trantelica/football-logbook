@@ -64,7 +64,7 @@ export function PATTryDialog({ open, lockedTry, onConfirm, onCancel }: PATTryDia
         {/* Try type selection */}
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Try Type {tryLocked && <span className="text-sky-600 dark:text-sky-400 normal-case">(carried from penalty)</span>}
+            Try Type {tryLocked && <span className="text-ai-foreground normal-case">(carried from penalty)</span>}
           </p>
           <div className="flex gap-3">
             {TRY_OPTIONS.map((opt) => (
