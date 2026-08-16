@@ -111,10 +111,17 @@ export function PlayLedger() {
         <SheetHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-3">
           <div>
             <SheetTitle className="text-sm">Play Ledger</SheetTitle>
-            {/* States the count only. Deliberately makes no promise about what
-                the export contains: toHudlCsv currently writes every slot,
-                including empty ones, so "nothing will export yet" would be
-                false. Revisit once export filtering is settled. */}
+            {/* Counts logged plays. Deliberately does NOT say anything like
+                "only committed plays will export", because the export
+                intentionally emits a row for every slot.
+
+                That is by design, not a gap: Hudl aligns CSV rows to video
+                clips by play number, so the export has to cover all N clips in
+                the session. Unlogged slots still carry playNum/qtr/odk/series
+                from scaffolding, which is exactly what a D or K clip needs —
+                those are out of scope for Pass 1-3 logging but are still real
+                clips in the film. Filtering the export to logged plays would
+                desynchronize the CSV from the clip list. Do not "fix" this. */}
             <p className="mt-0.5 text-xs text-muted-foreground">
               {committedCount} of {committedPlays.length} plays logged
             </p>
