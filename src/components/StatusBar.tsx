@@ -82,6 +82,8 @@ export function StatusBar() {
   const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError)[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [preflightTitle, setPreflightTitle] = useState("Export Blocked");
+  // Hudl export reports issues after writing the files; imports still refuse.
+  const [preflightVariant, setPreflightVariant] = useState<"error" | "warning">("error");
 
   // Lookup import confirmation state
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
@@ -112,6 +114,25 @@ export function StatusBar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const seasonFileInputRef = useRef<HTMLInputElement>(null);
   const archiveFileInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Open the preflight dialog.
+   *
+   * Single entry point so `variant` is always set alongside the title. Imports
+   * refuse and report "error"; Hudl export writes its files first and reports
+   * "warning". A caller that set the title but forgot the variant would leak
+   * the previous one — a genuine import failure rendering as a soft warning.
+   */
+  const showPreflight = (
+    title: string,
+    errs: (ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError)[],
+    variant: "error" | "warning",
+  ) => {
+    setPreflightTitle(title);
+    setPreflightVariant(variant);
+    setPreflightErrors(errs);
+    setPreflightOpen(true);
+  };
 
   const errors = { ...inlineErrors, ...commitErrors };
   const errorCount = Object.keys(errors).length;
@@ -145,13 +166,14 @@ export function StatusBar() {
         getPlaysByGame(activeGame.gameId),
         getCoachNotesByGame(activeGame.gameId),
       ]);
+      // Validation is advisory, not a gate. It previously returned early on any
+      // issue, so a single out-of-enum value anywhere in the game produced no
+      // files at all — the coach lost the whole export because of one field.
+      // The CSV must reflect what is actually in the database; problems are
+      // reported after the files are written so they can be fixed and
+      // re-exported.
       const validation = validateForExport(plays);
-      if (!validation.valid) {
-        setPreflightTitle("Export Blocked");
-        setPreflightErrors(validation.errors);
-        setPreflightOpen(true);
-        return;
-      }
+
       let seasonRevision = 0;
       if (activeSeason) {
         const season = await getSeason(activeSeason.seasonId);
@@ -177,7 +199,15 @@ export function StatusBar() {
       triggerDownload(playsCsv, playsFile, "text/csv");
       triggerDownload(notesCsv, notesFile, "text/csv");
       triggerDownload(JSON.stringify(manifest, null, 2), manifestFile, "application/json");
-      toast.success("Hudl export complete — 3 files downloaded");
+
+      if (!validation.valid) {
+        showPreflight("Exported with issues", validation.errors, "warning");
+        toast.warning(
+          `Exported ${plays.length} rows — ${validation.errors.length} field issue${validation.errors.length === 1 ? "" : "s"} to review`,
+        );
+      } else {
+        toast.success(`Hudl export complete — ${plays.length} rows, 3 files`);
+      }
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
@@ -197,9 +227,7 @@ export function StatusBar() {
       ]);
       const validation = validateArchiveMinimum(plays);
       if (!validation.valid) {
-        setPreflightTitle("Session Archive Blocked");
-        setPreflightErrors(validation.errors);
-        setPreflightOpen(true);
+        showPreflight("Session Archive Blocked", validation.errors, "error");
         return;
       }
       const findLookup = (name: string) => lookupTables.find((t) => t.fieldName === name) ?? null;
@@ -276,9 +304,7 @@ export function StatusBar() {
 
       const validation = validateLookupsImport(payload);
       if (!validation.valid) {
-        setPreflightTitle("Import Blocked");
-        setPreflightErrors(validation.errors);
-        setPreflightOpen(true);
+        showPreflight("Import Blocked", validation.errors, "error");
         return;
       }
 
@@ -349,9 +375,7 @@ export function StatusBar() {
 
       const validation = validateSeasonPackageImport(payload);
       if (!validation.valid) {
-        setPreflightTitle("Season Import Blocked");
-        setPreflightErrors(validation.errors);
-        setPreflightOpen(true);
+        showPreflight("Season Import Blocked", validation.errors, "error");
         return;
       }
 
@@ -410,9 +434,7 @@ export function StatusBar() {
 
       const validation = validateSessionArchiveImport(payload);
       if (!validation.valid) {
-        setPreflightTitle("Session Restore Blocked");
-        setPreflightErrors(validation.errors);
-        setPreflightOpen(true);
+        showPreflight("Session Restore Blocked", validation.errors, "error");
         return;
       }
 
@@ -600,6 +622,7 @@ export function StatusBar() {
         onOpenChange={setPreflightOpen}
         errors={preflightErrors}
         title={preflightTitle}
+        variant={preflightVariant}
       />
 
       <ImportConfirmDialog
@@ -643,12 +666,18 @@ function isPlayError(e: AnyError): e is ExportError | ArchiveError {
 }
 
 function PreflightErrorDialog({
-  open, onOpenChange, errors, title,
+  open, onOpenChange, errors, title, variant = "error",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   errors: AnyError[];
   title?: string;
+  /**
+   * "error"   — the operation was refused (imports, which must not half-apply).
+   * "warning" — the operation completed and these are things to review. Hudl
+   *             export uses this: the files are already written.
+   */
+  variant?: "error" | "warning";
 }) {
   // Separate play-grouped errors from path-based errors
   const playErrors = errors.filter(isPlayError);
@@ -665,9 +694,19 @@ function PreflightErrorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[70vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-sm text-destructive">
-            {title ?? "Export Blocked"} — {errors.length} error{errors.length !== 1 ? "s" : ""}
+          <DialogTitle
+            className={cn("text-sm", variant === "warning" ? "text-proposal" : "text-destructive")}
+          >
+            {title ?? "Export Blocked"} — {errors.length}{" "}
+            {variant === "warning" ? "issue" : "error"}
+            {errors.length !== 1 ? "s" : ""}
           </DialogTitle>
+          {variant === "warning" && (
+            <p className="text-xs text-muted-foreground">
+              The files downloaded and contain every row in the database. Fix these
+              fields and re-export if the values matter to your report.
+            </p>
+          )}
         </DialogHeader>
         <ScrollArea className="flex-1 min-h-0">
           <div className="space-y-3 pr-4 text-xs">
