@@ -111,9 +111,12 @@ export function PlayLedger() {
         <SheetHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-3">
           <div>
             <SheetTitle className="text-sm">Play Ledger</SheetTitle>
+            {/* States the count only. Deliberately makes no promise about what
+                the export contains: toHudlCsv currently writes every slot,
+                including empty ones, so "nothing will export yet" would be
+                false. Revisit once export filtering is settled. */}
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {committedCount} of {committedPlays.length} committed
-              {committedCount === 0 && " — nothing will export yet"}
+              {committedCount} of {committedPlays.length} plays logged
             </p>
           </div>
 

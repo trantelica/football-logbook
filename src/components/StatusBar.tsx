@@ -502,7 +502,7 @@ export function StatusBar() {
               title={
                 committedPlays.length === 0
                   ? "Start a game to create play slots"
-                  : "Exports committed plays only"
+                  : "Download the Hudl plays CSV"
               }
             >
               <FileOutput className="h-3 w-3" /> Hudl Export
