@@ -365,7 +365,7 @@ export function DraftPanel() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-info shrink-0" />
               </TooltipTrigger>
               <TooltipContent><p>Committed</p></TooltipContent>
             </Tooltip>
@@ -375,7 +375,7 @@ export function DraftPanel() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-predicted-foreground bg-predicted-muted rounded px-1">
                   <Sparkles className="h-2.5 w-2.5" />
                   Pred
                 </span>
@@ -388,7 +388,7 @@ export function DraftPanel() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-proposal bg-proposal-muted rounded px-1">
                   <ArrowRightLeft className="h-2.5 w-2.5" />
                   CF
                 </span>
@@ -401,7 +401,7 @@ export function DraftPanel() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-info bg-info-muted rounded px-1">
                   <Link className="h-2.5 w-2.5" />Lookup
                 </span>
               </TooltipTrigger>
@@ -413,7 +413,7 @@ export function DraftPanel() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-parsed-foreground bg-parsed-muted rounded px-1">
                   <Terminal className="h-2.5 w-2.5" />Parse
                 </span>
               </TooltipTrigger>
@@ -433,7 +433,7 @@ export function DraftPanel() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-ai-foreground bg-ai-muted rounded px-1">
                   <Bot className="h-2.5 w-2.5" />AI
                 </span>
               </TooltipTrigger>
@@ -462,7 +462,7 @@ export function DraftPanel() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-info shrink-0" />
           </TooltipTrigger>
           <TooltipContent><p>Committed</p></TooltipContent>
         </Tooltip>
@@ -484,7 +484,7 @@ export function DraftPanel() {
     });
     if (displayStatus === "unresolved") {
       return (
-        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+        <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-proposal bg-proposal-muted rounded px-1">
           <AlertCircle className="h-2.5 w-2.5" />
           Needs review
         </span>
@@ -515,7 +515,7 @@ export function DraftPanel() {
               "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded px-1",
               meta.status === "governance_blocked"
                 ? "text-destructive bg-destructive/10"
-                : "text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
+                : "text-proposal bg-proposal-muted"
             )}>
               {meta.status === "governance_blocked" ? (
                 <><ShieldAlert className="h-2.5 w-2.5" />Gov</>
@@ -601,9 +601,9 @@ export function DraftPanel() {
     const parsed = deterministicParseFields.has(fieldName);
     const inputClasses = cn(
       "h-8 text-sm font-mono",
-      predicted && !touched && !error && "bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700",
-      parsed && !touched && !error && !predicted && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
-      aiProposed && !touched && !error && !predicted && !parsed && "bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-700",
+      predicted && !touched && !error && "bg-predicted-muted border-predicted-border",
+      parsed && !touched && !error && !predicted && "bg-parsed-muted border-parsed-border",
+      aiProposed && !touched && !error && !predicted && !parsed && "bg-ai-muted border-ai-border",
       touched && !error && !predicted && !aiProposed && !parsed && "bg-field-touched",
       error && "border-destructive"
     );
@@ -638,7 +638,7 @@ export function DraftPanel() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-parsed-foreground bg-parsed-muted rounded px-1">
                             <Terminal className="h-2.5 w-2.5" />Parse
                           </span>
                         </TooltipTrigger>
@@ -657,7 +657,7 @@ export function DraftPanel() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-ai-foreground bg-ai-muted rounded px-1">
                             <Bot className="h-2.5 w-2.5" />AI
                           </span>
                         </TooltipTrigger>
@@ -676,7 +676,7 @@ export function DraftPanel() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-predicted-foreground bg-predicted-muted rounded px-1">
                             Pred
                           </span>
                         </TooltipTrigger>
@@ -1119,7 +1119,7 @@ export function DraftPanel() {
 
         {/* Scaffolded warning banner */}
         {scaffoldedWarning && (
-          <div className="flex items-start gap-2 text-xs rounded px-3 py-2 bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+          <div className="flex items-start gap-2 text-xs rounded px-3 py-2 bg-proposal/15 text-proposal-foreground border border-proposal/30">
             <span className="flex-1">
               Changing this value may create inconsistency with seeded structure. Downstream plays are not changed automatically.
             </span>
@@ -1136,7 +1136,7 @@ export function DraftPanel() {
 
         {/* PAT context indicator */}
         {patContext && (
-          <div className="text-xs rounded px-3 py-2 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800 font-medium space-y-1">
+          <div className="text-xs rounded px-3 py-2 bg-ai-muted text-ai-foreground border border-ai-border font-medium space-y-1">
             <div className="flex items-center justify-between">
               <span>
                 PAT Attempt {candidate.patTry === "1" ? "(Going for 1 — Extra Pt.)" : candidate.patTry === "2" ? "(Going for 2 — 2 Pt.)" : "— select try type"}
@@ -1160,7 +1160,7 @@ export function DraftPanel() {
 
         {/* Adjustment banner — shown in proposal state when normalization changed values */}
         {isProposal && adjustments.length > 0 && (
-          <div className="flex flex-col gap-0.5 text-xs rounded px-3 py-2 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+          <div className="flex flex-col gap-0.5 text-xs rounded px-3 py-2 bg-proposal-muted text-proposal-foreground border border-proposal/40">
             {adjustments.map((msg, i) => (
               <p key={i}>{msg}</p>
             ))}
@@ -1496,8 +1496,8 @@ export function DraftPanel() {
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
             Developer tools
           </div>
-          <details className="rounded-md border border-dashed border-amber-400/40 bg-amber-50/20 dark:bg-amber-950/10">
-            <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 font-semibold">
+          <details className="rounded-md border border-dashed border-proposal/40 bg-proposal-muted/50">
+            <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-proposal-foreground font-semibold">
               Dev: Phase 10 smoke test
             </summary>
             <div className="p-2">
@@ -1505,8 +1505,8 @@ export function DraftPanel() {
             </div>
           </details>
           {activePass >= 1 && selectedSlotNum !== null && (
-            <details className="rounded-md border border-dashed border-sky-400/50 bg-sky-50/20 dark:bg-sky-950/10">
-              <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-sky-700 dark:text-sky-300 font-semibold">
+            <details className="rounded-md border border-dashed border-ai/50 bg-ai-muted/50">
+              <summary className="cursor-pointer select-none px-2 py-1 text-[10px] uppercase tracking-wider text-ai-foreground font-semibold">
                 Dev: AI patch testing
               </summary>
               <div className="p-2 space-y-2">
@@ -1514,7 +1514,7 @@ export function DraftPanel() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+                    className="h-7 text-xs gap-1 border-ai-border"
                     disabled={isProposal}
                     onClick={() => {
                       const collisions = applySystemPatch(
@@ -1554,7 +1554,7 @@ export function DraftPanel() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+                    className="h-7 text-xs gap-1 border-ai-border"
                     disabled={isProposal}
                     onClick={() => {
                       applySystemPatch(
@@ -1570,7 +1570,7 @@ export function DraftPanel() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-xs gap-1 border-sky-300 dark:border-sky-700"
+                    className="h-7 text-xs gap-1 border-ai-border"
                     disabled={isProposal}
                     onClick={() => {
                       const collisions = applySystemPatch(
@@ -1616,7 +1616,7 @@ function PredictionBanner({ coachMessages, technicalExplanations }: {
   const [showTechnical, setShowTechnical] = React.useState(false);
 
   return (
-    <div className="flex flex-col gap-1 text-xs rounded px-3 py-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+    <div className="flex flex-col gap-1 text-xs rounded px-3 py-2 bg-predicted-muted text-predicted-foreground border border-predicted-border">
       <div className="flex items-start gap-2">
         <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
         <div className="flex-1 space-y-0.5">
@@ -1635,7 +1635,7 @@ function PredictionBanner({ coachMessages, technicalExplanations }: {
         )}
       </div>
       {showTechnical && (
-        <div className="ml-5 mt-1 text-[10px] opacity-60 space-y-0.5 font-mono border-t border-violet-200 dark:border-violet-700 pt-1">
+        <div className="ml-5 mt-1 text-[10px] opacity-60 space-y-0.5 font-mono border-t border-predicted-border pt-1">
           {technicalExplanations.map((t, i) => (
             <p key={i}>{t}</p>
           ))}

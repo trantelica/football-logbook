@@ -73,13 +73,13 @@ function GradeIndicator({ value }: { value: number | null | undefined }) {
   if (value === 0) {
     return (
       <span className={cn(INDICATOR_BOX)}>
-        <span className="inline-flex items-center justify-center w-3 h-3 rounded-full bg-yellow-400/80 dark:bg-yellow-500/60 border border-yellow-500/40" title="0" />
+        <span className="inline-flex items-center justify-center w-3 h-3 rounded-full bg-muted-foreground/40 border border-muted-foreground/30" title="0" />
       </span>
     );
   }
   const abs = Math.min(Math.abs(value), 3);
   const positive = value > 0;
-  const color = positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
+  const color = positive ? "text-parsed-foreground" : "text-warning";
   return (
     <span className={cn(INDICATOR_BOX, color)} title={String(value)}>
       {Array.from({ length: abs }, (_, i) => (
@@ -418,7 +418,7 @@ export function BlockingPanel() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-parsed-foreground bg-parsed-muted rounded px-1">
                 <Terminal className="h-2.5 w-2.5" />Parse
               </span>
             </TooltipTrigger>
@@ -441,7 +441,7 @@ export function BlockingPanel() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-predicted-foreground bg-predicted-muted rounded px-1">
                 <Sparkles className="h-2.5 w-2.5" />AI
               </span>
             </TooltipTrigger>
@@ -523,7 +523,7 @@ export function BlockingPanel() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded px-1">
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-proposal-foreground bg-proposal-muted border border-proposal/40 rounded px-1">
                     <AlertTriangle className="h-2.5 w-2.5" />Overwrite
                   </span>
                 </TooltipTrigger>
@@ -546,9 +546,9 @@ export function BlockingPanel() {
         >
           <SelectTrigger className={cn(
             "h-8 text-sm font-mono [&>span:first-child]:flex [&>span:first-child]:items-center [&>span:first-child]:justify-between [&>span:first-child]:w-full [&>span:first-child]:!line-clamp-none [&>span:first-child]:!overflow-visible",
-            isParsed && !isTouched && !error && !isOverwrite && "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700",
+            isParsed && !isTouched && !error && !isOverwrite && "bg-parsed-muted border-parsed-border",
             isTouched && !error && !isOverwrite && "bg-field-touched",
-            isOverwrite && !error && "bg-amber-50 dark:bg-amber-950/30 border-amber-400 dark:border-amber-700",
+            isOverwrite && !error && "bg-proposal-muted border-proposal/40",
             error && "border-destructive",
           )}>
             {/* Custom display: numeric value left, single indicator right */}
@@ -571,7 +571,7 @@ export function BlockingPanel() {
           </SelectContent>
         </Select>
         {isOverwrite && committedNum != null && numValue != null && (
-          <p className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">
+          <p className="text-[10px] text-proposal-foreground font-mono">
             Committed: {committedNum} → Proposed: {numValue}
           </p>
         )}
@@ -592,7 +592,7 @@ export function BlockingPanel() {
 
       {/* Gate banners */}
       {noCommittedRow && (
-        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-proposal/15 text-proposal-foreground border border-proposal/30">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           Commit Pass 1 first to enable grading.
         </div>
@@ -738,21 +738,21 @@ export function BlockingPanel() {
           )}
           {aiConflicts.length > 0 && (
             <div
-              className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-2 space-y-1"
+              className="rounded border border-proposal/40 bg-proposal-muted p-2 space-y-1"
               data-testid="pass3-ai-conflicts"
             >
-              <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-1 text-[10px] font-semibold text-proposal-foreground">
                 <AlertTriangle className="h-3 w-3" />
                 AI disagreed with parser on {aiConflicts.length} field(s) — coach review required
               </div>
-              <ul className="text-[10px] text-amber-800 dark:text-amber-300 pl-4 list-disc font-mono">
+              <ul className="text-[10px] text-proposal-foreground pl-4 list-disc font-mono">
                 {aiConflicts.map((cf) => (
                   <li key={cf.field}>
                     {GRADE_LABELS[cf.field] ?? cf.field}: parser {cf.parserValue} ≠ AI {cf.aiValue}
                   </li>
                 ))}
               </ul>
-              <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80">
+              <p className="text-[10px] text-proposal-foreground/80">
                 Parser value kept. Edit the grade manually to accept AI's suggestion.
               </p>
             </div>
@@ -778,14 +778,14 @@ export function BlockingPanel() {
           <div className="flex items-center justify-between gap-2">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Blocking Grades</div>
             {overwriteDiffs.length > 0 && (
-              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">
+              <span className="text-[10px] text-proposal-foreground font-mono">
                 {overwriteDiffs.length} overwrite{overwriteDiffs.length === 1 ? "" : "s"} pending
               </span>
             )}
           </div>
 
           {overwriteDiffs.length > 0 && (
-            <div className="rounded border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300">
+            <div className="rounded border border-proposal/40 bg-proposal-muted px-3 py-2 text-[11px] text-proposal-foreground">
               <div className="flex items-center gap-1.5 font-semibold mb-1">
                 <AlertTriangle className="h-3 w-3" />
                 This proposal changes committed grades
@@ -793,12 +793,12 @@ export function BlockingPanel() {
               <div className="font-mono text-[10px] leading-snug">
                 {overwriteDiffs.map((d, idx) => (
                   <span key={d.field}>
-                    {idx > 0 && <span className="text-amber-600/70">, </span>}
+                    {idx > 0 && <span className="text-proposal-foreground/70">, </span>}
                     {d.label} {d.before} → {d.after}
                   </span>
                 ))}
               </div>
-              <div className="text-[10px] mt-1 text-amber-700/80 dark:text-amber-400/80">
+              <div className="text-[10px] mt-1 text-proposal-foreground/80">
                 You'll be asked to confirm on Commit.
               </div>
             </div>

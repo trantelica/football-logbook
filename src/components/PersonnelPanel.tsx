@@ -131,7 +131,7 @@ export function PersonnelPanel() {
           {committed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-info shrink-0" />
               </TooltipTrigger>
               <TooltipContent><p className="text-xs">Committed</p></TooltipContent>
             </Tooltip>
@@ -139,7 +139,7 @@ export function PersonnelPanel() {
           {isParsed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-parsed-foreground bg-parsed-muted rounded px-1">
                   <Terminal className="h-2.5 w-2.5" />Parse
                 </span>
               </TooltipTrigger>
@@ -152,7 +152,7 @@ export function PersonnelPanel() {
           {isPred && !isParsed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-predicted-foreground bg-predicted-muted rounded px-1">
                   <Sparkles className="h-2.5 w-2.5" />Pred
                 </span>
               </TooltipTrigger>
@@ -162,7 +162,7 @@ export function PersonnelPanel() {
           {isCF && !isParsed && !isPred && !isAi && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded px-1">
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-proposal bg-proposal-muted rounded px-1">
                   <ArrowRightLeft className="h-2.5 w-2.5" />CF
                 </span>
               </TooltipTrigger>
@@ -170,7 +170,7 @@ export function PersonnelPanel() {
             </Tooltip>
           )}
           {isAi && (
-            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 rounded px-1">
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-ai-foreground bg-ai-muted rounded px-1">
               AI
             </span>
           )}
@@ -183,7 +183,7 @@ export function PersonnelPanel() {
     <div className="space-y-4">
       {/* Carry-forward banner */}
       {carriedForwardFields.size > 0 && carriedForwardFromPlayNum != null && (
-        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-predicted-muted text-predicted-foreground border border-predicted-border">
           <ArrowRight className="h-3.5 w-3.5 shrink-0" />
           <span>
             Carried forward from Play #{carriedForwardFromPlayNum} — {carriedForwardFields.size} field(s) seeded. Edit any field to override.
@@ -207,7 +207,7 @@ export function PersonnelPanel() {
             const narrationPosCount = PERSONNEL_POSITIONS.filter((p) => deterministicParseFields.has(p)).length;
             if (narrationPosCount === 0) return null;
             return (
-              <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-parsed-muted text-parsed-foreground border border-parsed-border">
                 <Terminal className="h-3.5 w-3.5 shrink-0" />
                 <span>
                   {narrationPosCount} personnel slot(s) updated from narration. Proposal only — not yet committed.
@@ -240,7 +240,7 @@ export function PersonnelPanel() {
                           )}
                           {renderProvenance(pos)}
                           {isCarried && !deterministicParseFields.has(pos) && (
-                            <Sparkles className="h-2.5 w-2.5 text-violet-500" />
+                            <Sparkles className="h-2.5 w-2.5 text-predicted-foreground" />
                           )}
                         </span>
                       }
@@ -252,7 +252,7 @@ export function PersonnelPanel() {
                       disabled={false}
                       inputClassName={
                         isCarried
-                          ? "h-8 text-sm font-mono bg-violet-50 dark:bg-violet-950/30 border-violet-300 dark:border-violet-700"
+                          ? "h-8 text-sm font-mono bg-predicted-muted border-predicted-border"
                           : "h-8 text-sm font-mono"
                       }
                       error={errors[pos]}
