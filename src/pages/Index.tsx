@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SeasonProvider } from "@/engine/seasonContext";
+import { SeasonProvider, useSeason } from "@/engine/seasonContext";
 import { GameProvider, useGameContext } from "@/engine/gameContext";
 import { LookupProvider } from "@/engine/lookupContext";
 import { RosterProvider } from "@/engine/rosterContext";
@@ -37,7 +37,16 @@ import { WelcomeScreen } from "@/components/WelcomeScreen";
  */
 const AppShell = () => {
   const { activeGame } = useGameContext();
+  const { restoringSession } = useSeason();
   const [dismissed, setDismissed] = useState(false);
+
+  // Reading seasons and games is async, so activeGame is briefly null even when
+  // a session is about to be restored. Rendering the welcome screen during that
+  // window would flash it on every launch for a returning coach.
+  if (restoringSession) {
+    return <div className="h-screen bg-background" aria-busy="true" />;
+  }
+
   const showWelcome = !activeGame && !dismissed;
 
   if (showWelcome) {
