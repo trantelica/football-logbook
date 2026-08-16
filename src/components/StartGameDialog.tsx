@@ -4,7 +4,7 @@
  * Field size and PAT mode are read-only from season config (9.1.2).
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +64,17 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
   const [errors, setErrors] = useState<InitValidationError[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
+  /**
+   * Clear validation errors as soon as the coach changes any input they refer to.
+   *
+   * Errors were only ever replaced on the next submit, so deleting the offending
+   * block left "Block 2: start must be <= end" on screen with no Block 2 —
+   * the form appeared broken while actually being valid.
+   */
+  useEffect(() => {
+    setErrors((prev) => (prev.length ? [] : prev));
+  }, [totalPlays, q1Start, q2Start, q3Start, q4Start, odkBlocks]);
+
   const resetForm = () => {
     setOpponent("");
     setDate(new Date().toISOString().slice(0, 10));
@@ -112,7 +123,12 @@ export function StartGameDialog({ open, onOpenChange }: StartGameDialogProps) {
     setOdkBlocks((prev) => {
       const lastBlock = prev[prev.length - 1];
       const nextStart = lastBlock ? lastBlock.endPlay + 1 : 1;
-      return [...prev, { odk: "O", startPlay: nextStart, endPlay: 0 }];
+      // End at the last play rather than 0. A block created with endPlay 0 is
+      // born failing "start must be <= end", so the coach was shown a validation
+      // error for a row they had not filled in yet.
+      const n = parseInt(totalPlays, 10);
+      const nextEnd = Number.isFinite(n) && n >= nextStart ? n : nextStart;
+      return [...prev, { odk: "O", startPlay: nextStart, endPlay: nextEnd }];
     });
   };
 
