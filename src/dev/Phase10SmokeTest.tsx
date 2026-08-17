@@ -185,7 +185,7 @@ export function Phase10SmokeTest() {
 
   if (txnRef.current.selectedSlotNum === null) {
     return (
-      <Card className="border-dashed border-amber-500/50">
+      <Card className="border-dashed border-proposal/50">
         <CardContent className="py-3 text-xs text-muted-foreground text-center">
           Select a slot first to run Phase 10 smoke test.
         </CardContent>
@@ -197,9 +197,9 @@ export function Phase10SmokeTest() {
   const failed = results.length - passed;
 
   return (
-    <Card className="border-dashed border-amber-500/50">
+    <Card className="border-dashed border-proposal/50">
       <CardHeader className="py-2 px-3">
-        <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+        <CardTitle className="text-xs font-semibold flex items-center gap-1.5 text-proposal-foreground">
           <FlaskConical className="h-3.5 w-3.5" />
           Phase 10 Smoke Test
         </CardTitle>
@@ -208,7 +208,7 @@ export function Phase10SmokeTest() {
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-xs w-full border-amber-400 dark:border-amber-600"
+          className="h-7 text-xs w-full border-proposal/40"
           onClick={runTests}
           disabled={running}
         >
@@ -226,7 +226,7 @@ export function Phase10SmokeTest() {
                 <div key={r.id} className="py-1">
                   <div className="flex items-start gap-1.5">
                     {r.ok ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-green-600 dark:text-green-400" />
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-committed" />
                     ) : (
                       <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
                     )}
