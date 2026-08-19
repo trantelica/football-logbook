@@ -67,27 +67,37 @@ export function GameBar() {
 
   return (
     <>
-      <header className="flex items-center gap-2 border-b bg-card px-4 py-2">
-        {/* Brand */}
-        <div className="flex flex-col">
-          <h1 className="text-sm font-bold tracking-wide uppercase text-muted-foreground leading-none">
+      {/*
+        Single row that must never wrap or overflow.
+
+        This was a plain flex row of fixed-width children, so below ~1100px it
+        wrapped to two rows (costing 32px of the vertical space the work surface
+        needs) and below ~900px it overflowed and the page scrolled sideways.
+
+        Everything here now either shrinks, drops its label, or is marked
+        shrink-0 as deliberately protected.
+      */}
+      <header className="flex min-w-0 items-center gap-2 border-b bg-card px-3 py-2 sm:px-4">
+        {/* Brand — the subtitle is decorative and goes first when space is tight. */}
+        <div className="flex shrink-0 flex-col">
+          <h1 className="text-sm font-bold uppercase leading-none tracking-wide text-muted-foreground">
             Hudl Up! -loader
           </h1>
-          <span className="text-[10px] tracking-wide uppercase text-muted-foreground/60 leading-none mt-0.5">
+          <span className="mt-0.5 hidden text-[10px] uppercase leading-none tracking-wide text-muted-foreground/60 lg:block">
             AI Video Technician
           </span>
         </div>
 
-        <div className="mx-2 h-5 w-px bg-border" />
+        <div className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:block" />
 
         {/* Season group */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
           {seasons.length > 0 && (
             <Select
               value={activeSeason?.seasonId ?? ""}
               onValueChange={(v) => switchSeason(v)}
             >
-              <SelectTrigger className="w-[180px] h-8 text-sm">
+              <SelectTrigger className="h-8 w-[128px] min-w-0 text-sm lg:w-[180px]">
                 <SelectValue placeholder="Select season…" />
               </SelectTrigger>
               <SelectContent>
@@ -100,41 +110,46 @@ export function GameBar() {
             </Select>
           )}
 
+          {/* Below lg the labels drop and these become icon buttons. title=
+              keeps them identifiable, and the accessible name survives. */}
           <Button
             size="sm"
             variant="outline"
-            className="h-8 gap-1"
+            className="h-8 shrink-0 gap-1 px-2 lg:px-3"
             onClick={() => setNewSeasonOpen(true)}
+            title="New Season"
           >
             <CalendarDays className="h-3.5 w-3.5" />
-            New Season
+            <span className="hidden lg:inline">New Season</span>
           </Button>
 
           {activeSeason && (
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 gap-1 text-muted-foreground"
+              className="h-8 shrink-0 gap-1 px-2 text-muted-foreground lg:px-3"
               onClick={() => setConfigOpen(true)}
+              title="Season configuration"
             >
               <Settings className="h-3.5 w-3.5" />
-              Config
+              <span className="hidden lg:inline">Config</span>
             </Button>
           )}
         </div>
 
         {activeSeason && (
           <>
-            <div className="mx-2 h-5 w-px bg-border" />
+            <div className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:block" />
 
-            {/* Game group */}
-            <div className="flex items-center gap-1.5">
+            {/* Game group — the select is the one element allowed to take up
+                slack, since opponent names vary in length. */}
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <Select
                 value={activeGame?.gameId ?? ""}
                 onValueChange={(v) => switchGame(v)}
                 disabled={seasonGames.length === 0}
               >
-                <SelectTrigger className="w-[220px] h-8 text-sm">
+                <SelectTrigger className="h-8 w-full min-w-0 max-w-[220px] text-sm">
                   <SelectValue placeholder={seasonGames.length === 0 ? "No games yet" : "Select game…"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -149,19 +164,21 @@ export function GameBar() {
               <Button
                 size="sm"
                 variant="default"
-                className="h-8 gap-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="h-8 shrink-0 gap-1 bg-primary px-2 text-primary-foreground hover:bg-primary/90 lg:px-3"
                 onClick={() => setStartGameOpen(true)}
+                title="Start Game"
               >
                 <Flag className="h-3.5 w-3.5" />
-                Start Game
+                <span className="hidden lg:inline">Start Game</span>
               </Button>
             </div>
           </>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* Debug identifier — first thing to go when space is tight. */}
           {activeGame && (
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-mono">
+            <span className="hidden font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60 xl:inline">
               {activeGame.gameId.slice(0, 8)}
             </span>
           )}

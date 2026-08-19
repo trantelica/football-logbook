@@ -135,6 +135,45 @@ Imports are the opposite and must stay that way: they refuse on validation failu
 
 ---
 
-## 9. Final Operating Rule
+## 9. Responsive Behaviour — Read Before Changing
+
+The app targets desktop and laptop film review. It must remain usable in a
+laptop window that is not maximized, which in practice means roughly 900–1150px.
+
+**The capture/review split holds to `md` (768px), not `lg`.** See
+`Pass1SectionPanel`. The point of the side-by-side layout is that the coach
+watches the proposal fill in *while* they speak. Stacked, verification becomes a
+scroll and the dictate-and-verify loop breaks. This split was originally at `lg`
+(1024px), so a non-maximized laptop window silently lost the adjacency.
+
+> **Do not raise the split back to `lg`,** and do not stack the columns to gain
+> horizontal room for a new field. Narrow the fields instead.
+
+**The header must never wrap or overflow.** `GameBar` is a single row whose
+children either shrink, drop their label below `lg`, or are explicitly
+`shrink-0`. It previously had fixed-width children and no `min-w-0`, so below
+~1100px it wrapped to two rows and below ~900px the page scrolled sideways.
+Vertical space is what the work surface lives on, and nothing should ever scroll
+horizontally.
+
+> **Do not add a fixed-width child to `GameBar`** without giving it `min-w-0` or
+> a responsive width. Verify at 886px, which is where it used to break.
+
+Label-dropping is the standard degradation: keep the icon, keep `title=`, hide
+the text at a breakpoint. Applied in `GameBar` (below `lg`) and the Pass 1
+section-card actions (below `xl`).
+
+### 9.1 Below 768px is out of scope, deliberately
+
+Touch devices are not addressed, and this is a design decision rather than an
+omission. The eyes-off workflow depends on single-key shortcuts —
+`S`/`D`/`R`/`U`/`F`/`N` — which do not exist without a keyboard. Making the
+layout technically fit a phone while quietly breaking that loop would be worse
+than an honest minimum width. Tablet support needs its own interaction model,
+starting with what replaces the keyboard.
+
+---
+
+## 10. Final Operating Rule
 
 The interface should move fast, but it should never make the coach wonder what just happened — and it should not make them look away from the film to find out.

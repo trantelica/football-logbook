@@ -1511,9 +1511,18 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/*
+        Capture (left) and review (right) must stay side by side as far down as
+        possible. The point of the split is that the coach watches the proposal
+        fill in while they speak; stacked, verification becomes a scroll and the
+        loop breaks.
+
+        This previously split at lg (1024px), so a laptop window that was not
+        maximized silently lost the adjacency. It now holds to md (768px).
+      */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-5 md:gap-4">
         {/* Left column: Section cards */}
-        <div className="lg:col-span-2 space-y-3">
+        <div className="space-y-3 md:col-span-2">
           {SECTIONS.map((section) => {
             const isRec = recording.listening && recordingForRef.current === section.id;
             return (
@@ -1539,8 +1548,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         </div>
 
         {/* Right column: Unified Proposal Candidate (sticky) */}
-        <div className="lg:col-span-3">
-          <div className="lg:sticky lg:top-2 space-y-3">
+        <div className="md:col-span-3">
+          <div className="space-y-3 md:sticky md:top-2">
             <div className="rounded-lg border border-border/60 p-3 bg-background space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1715,39 +1724,43 @@ function SectionCard(props: SectionCardProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-1">
+        {/* Labels drop below xl. Keeping capture and review side by side down to
+            768px narrows this column, and "Update Proposal" was clipping to
+            "Upd…". Icons plus title= stay unambiguous; the keyboard path
+            (S/D/R, U, C) is unaffected either way. */}
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             size="sm"
             variant={isRecording ? "destructive" : "outline"}
-            className="h-7 text-xs gap-1"
+            className="h-7 gap-1 px-2 text-xs xl:px-3"
             onClick={(e) => { e.stopPropagation(); onDictate(); }}
             disabled={isProposal}
             title={`Dictate (${section.dictateKey})`}
           >
             {isRecording ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-            {isRecording ? "Stop" : "Dictate"}
+            <span className="hidden xl:inline">{isRecording ? "Stop" : "Dictate"}</span>
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-xs gap-1"
+            className="h-7 gap-1 px-2 text-xs xl:px-3"
             onClick={(e) => { e.stopPropagation(); onUpdate(); }}
             disabled={busy || isProposal || (!state.text.trim() && !isRecording)}
             title="Update Proposal (U)"
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Update Proposal
+            <span className="hidden xl:inline">Update Proposal</span>
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 text-xs gap-1 text-muted-foreground"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground xl:px-3"
             onClick={(e) => { e.stopPropagation(); onClear(); }}
             disabled={isProposal}
             title="Clear (C)"
           >
             <Trash2 className="h-3 w-3" />
-            Clear
+            <span className="hidden xl:inline">Clear</span>
           </Button>
         </div>
       </div>

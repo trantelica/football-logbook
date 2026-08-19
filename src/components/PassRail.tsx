@@ -103,7 +103,10 @@ export function PassRail() {
   return (
     <nav
       aria-label="Play navigator"
-      className="flex h-full w-[188px] shrink-0 flex-col border-r bg-card"
+      // Narrows before the work surface does. At 900px a fixed 188px rail is
+      // over a fifth of the window, and the rail only needs to show a play
+      // number, a short situation, and three progress pips.
+      className="flex h-full w-[132px] shrink-0 flex-col border-r bg-card lg:w-[188px]"
     >
       <div className="border-b px-3 py-2.5">
         <div className="flex items-baseline justify-between">
