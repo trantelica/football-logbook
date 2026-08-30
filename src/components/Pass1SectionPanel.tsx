@@ -1565,18 +1565,16 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                 <div className="pt-1 border-t border-border/40">{proposalActions}</div>
               ) : null}
               <div className="flex flex-wrap gap-2 pt-2 border-t border-border/40">
+                {/*
+                  "Review Proposal" occupies the first position while drafting,
+                  so whatever leads this branch lands under the cursor the
+                  instant it is clicked. That used to be "Back to Edit", which
+                  tore the assembled proposal back down on an accidental
+                  double-tap. Commit & Next leads instead: a double-tap now
+                  commits, which is recoverable through overwrite review.
+                */}
                 {isProposal ? (
                   <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 gap-1"
-                      onClick={backToEdit}
-                      title="Return proposal to editable candidate mode"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Back to Edit
-                    </Button>
                     <Button size="sm" className="h-8 gap-1" onClick={() => void handleCommitAndNext()}>
                       <ChevronRight className="h-3.5 w-3.5" />
                       Commit & Next
@@ -1586,6 +1584,16 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                       <LogOut className="h-3.5 w-3.5" />
                       Commit & Leave
                       <kbd className="kbd ml-1">L</kbd>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1"
+                      onClick={backToEdit}
+                      title="Return proposal to editable candidate mode"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Back to Edit
                     </Button>
                   </>
                 ) : (

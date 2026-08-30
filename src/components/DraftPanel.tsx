@@ -1293,36 +1293,22 @@ export function DraftPanel() {
                   </Button>
                 </>
               )}
-              {selectedSlotNum !== null && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="gap-1 text-xs"
-                  onClick={handleNextSlot}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                  Next Slot
-                </Button>
-              )}
+              {/*
+                Order matters here, not just grouping.
+
+                "Review Proposal" is only rendered while drafting, so whatever
+                comes first in the proposal branch lands under the cursor the
+                instant it is clicked. That used to be "Next Slot", which
+                navigates away and abandons the assembled proposal — an
+                accidental double-tap destroyed the work.
+
+                The commit action now occupies that position. A double-tap
+                commits, which is recoverable through overwrite review;
+                navigating away was not. "Next Slot" moves to the end of the
+                row, furthest from the primary action.
+              */}
               {isProposal && !pass1SectionOwnsActions && (
                 <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1"
-                    onClick={backToEdit}
-                  >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Back to Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                    onClick={() => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }}
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                    Commit
-                  </Button>
                   {isSlotMode && (
                     <Button
                       size="sm"
@@ -1333,7 +1319,36 @@ export function DraftPanel() {
                       Commit & Next
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
+                    onClick={() => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Commit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    onClick={backToEdit}
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to Edit
+                  </Button>
                 </>
+              )}
+
+              {selectedSlotNum !== null && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1 text-xs"
+                  onClick={handleNextSlot}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  Next Slot
+                </Button>
               )}
             </div>
           );
