@@ -337,14 +337,25 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     setAiEvidenceByField({});
     setLookupDerivedFields(new Set());
     if (gameId) {
-      getPlaysByGame(gameId).then((plays) =>
-        setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum))
-      );
-      getAllSlotMetaForGame(gameId).then((metas) => {
-        const map = new Map<number, SlotMeta>();
-        for (const m of metas) map.set(m.playNum, m);
-        setSlotMetaMap(map);
-      });
+      // Surface load failures. These previously had no rejection handler, so a
+      // failed read left committedPlays empty and silent — the rail showed 0/0
+      // and the status bar reported nothing logged, indistinguishable from a
+      // genuinely empty game.
+      getPlaysByGame(gameId)
+        .then((plays) => setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum)))
+        .catch((err) => {
+          console.error("Failed to load plays for game", gameId, err);
+          toast.error("Could not load plays for this game. Try reloading.");
+        });
+      getAllSlotMetaForGame(gameId)
+        .then((metas) => {
+          const map = new Map<number, SlotMeta>();
+          for (const m of metas) map.set(m.playNum, m);
+          setSlotMetaMap(map);
+        })
+        .catch((err) => {
+          console.error("Failed to load slot metadata for game", gameId, err);
+        });
     } else {
       setCommittedPlays([]);
       setSlotMetaMap(new Map());
