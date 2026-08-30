@@ -37,6 +37,13 @@ Rules:
 2. `PlayLedger` does inspection only, on demand. It is not navigation.
 3. Reference data (lookups, roster) lives in `ReferenceDrawer`, satisfying UX spec §19 — maintenance must be visually separate from logging.
 4. The `min-h-0` on the flex row is load-bearing. Without it the scroll regions size to content and the page itself scrolls.
+5. **A commit action leads the proposal action row.** "Review Proposal" renders
+   only while drafting, so whatever leads the proposal branch lands under the
+   cursor the instant it is clicked. That used to be "Next Slot" (Pass 0/2/3),
+   which navigates away and abandons the proposal, and "Back to Edit" (Pass 1),
+   which tears it down — an accidental double-tap destroyed work either way.
+   "Next Slot" belongs at the end of the row. A double-tap now commits, which is
+   recoverable through overwrite review; the alternatives were not.
 
 ---
 
@@ -121,6 +128,42 @@ Imports are the opposite and must stay that way: they refuse on validation failu
 ### 7.3 The notes CSV is header-only today
 
 `hudl_notes_*.csv` contains only a header because Coach Notes are hidden from the coach-facing UI (`docs/coach/known-limits.md` §2). That is expected, not a failure. It should be revisited when notes are exposed.
+
+### 7.4 Downloads must be sequenced, and object URLs must outlive the click
+
+A 93-play export once delivered the manifest and neither CSV. The data was fine
+— the manifest reported `"plays": 93` — and the files were generated and then
+lost at the download layer. Two separate causes, both in `triggerDownload`:
+
+1. `URL.revokeObjectURL` was called synchronously after `a.click()`. The browser
+   reads the blob asynchronously, so revoking raced that read. The 214-byte
+   manifest survived; the ~6KB plays CSV did not.
+2. All three files were requested in one tick. Browsers treat that as a single
+   action — Safari honours roughly one programmatic download per user gesture —
+   so only the last call reached disk.
+
+> **Do not revoke an object URL in the same tick as the click,** and **do not
+> fire multiple downloads synchronously.** Use `triggerDownloadSequence`, which
+> staggers them. Keep the plays CSV first so a browser permitting a single
+> download still delivers the file that matters.
+
+`src/test/triggerDownload.test.ts` guards both. The export takes ~2.5s by
+design; that is the stagger, not a hang.
+
+Downloads are never guaranteed — a coach can deny them for the site outright —
+so **Copy plays CSV** exists in the data menu as a fallback. Do not remove it
+without another way to recover a game's work.
+
+### 7.5 Do not gate the export buttons on in-memory play state
+
+The Hudl Export button was once disabled on `committedPlays.length === 0`. That
+list lives in the transaction context, starts empty, and fills asynchronously —
+while `handleHudlExport` never reads it, querying the database directly. The
+button was therefore dead during the load window, dead for a game with no
+scaffolded slots, and dead permanently if that load rejected.
+
+> **Having an active game is the only precondition.** Let the handler decide the
+> rest.
 
 ---
 
