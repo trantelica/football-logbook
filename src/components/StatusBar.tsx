@@ -520,12 +520,15 @@ export function StatusBar() {
               variant="ghost"
               className="h-6 gap-1.5 text-xs"
               onClick={handleHudlExport}
-              disabled={committedPlays.length === 0}
-              title={
-                committedPlays.length === 0
-                  ? "Start a game to create play slots"
-                  : "Download the Hudl plays CSV"
-              }
+              // Deliberately ungated beyond having a game. This was disabled on
+              // committedPlays.length === 0, but the handler does not read
+              // committedPlays at all — it queries the database directly. That
+              // in-memory list starts empty and fills asynchronously, so the
+              // button was dead during the load window, dead for a game with no
+              // scaffolded slots, and dead forever if the load ever rejected.
+              // The export must reflect what is in the database, so let the
+              // handler decide.
+              title="Download the Hudl plays CSV"
             >
               <FileOutput className="h-3 w-3" /> Hudl Export
             </Button>
@@ -549,10 +552,10 @@ export function StatusBar() {
                   <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">
                     This game
                   </DropdownMenuLabel>
-                  <DropdownMenuItem
-                    onSelect={handleSessionArchive}
-                    disabled={committedPlays.length === 0}
-                  >
+                  {/* Also ungated: validateArchiveMinimum inside the handler
+                      is the real check, and it explains why. A dead menu item
+                      explains nothing. */}
+                  <DropdownMenuItem onSelect={handleSessionArchive}>
                     <Archive className="mr-2 h-3.5 w-3.5" /> Session Archive
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => downloadDebugJSON(activeGame.gameId)}>

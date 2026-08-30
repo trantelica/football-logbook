@@ -18,18 +18,13 @@ import {
 } from "@/engine/personnel";
 import { SLOT_GROUP_GRID } from "./slotLayout";
 import { cn } from "@/lib/utils";
-import {
-  getAliasFor,
-  resolveToCanonicalPos,
-  type PositionAliasMap,
-} from "@/engine/positionAliases";
+import { getAliasFor, type PositionAliasMap } from "@/engine/positionAliases";
 import { ActorCombobox } from "./ActorCombobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Lock, AlertTriangle, ArrowRight, Sparkles, Plus, Terminal, ArrowRightLeft } from "lucide-react";
+import { Lock, AlertTriangle, ArrowRight, Sparkles, Terminal, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
@@ -286,12 +281,6 @@ export function PersonnelPanel() {
                 </div>
               </div>
             ))}
-
-            {/* Quick Assign by position token (canonical or alias) */}
-            <QuickAssignRow
-              aliasMap={aliasMap}
-              onAssign={(canonicalField, jersey) => updateField(canonicalField, jersey)}
-            />
           </div>
 
           {/* Actor Integrity Section */}
@@ -450,87 +439,6 @@ function ActorFixCard({
           Set
         </Button>
       </div>
-    </div>
-  );
-}
-
-/**
- * QuickAssignRow — small helper letting coaches assign by position TOKEN
- * (canonical label like "1"/"RG" or any configured alias like "QB"/"F").
- *
- * Always writes to the canonical pos* field. Aliases are translation only.
- */
-function QuickAssignRow({
-  aliasMap,
-  onAssign,
-}: {
-  aliasMap: PositionAliasMap;
-  onAssign: (canonicalField: string, jersey: string) => void;
-}) {
-  const [token, setToken] = useState("");
-  const [jersey, setJersey] = useState("");
-
-  const resolved = resolveToCanonicalPos(token, aliasMap);
-  const tokenInvalid = token.trim().length > 0 && !resolved;
-  const jerseyNum = Number(jersey);
-  const jerseyOk = jersey.trim() !== "" && Number.isInteger(jerseyNum) && jerseyNum >= 0;
-
-  const handleAdd = () => {
-    if (!resolved || !jerseyOk) return;
-    onAssign(resolved, String(jerseyNum));
-    const label = PERSONNEL_LABELS[resolved as keyof typeof PERSONNEL_LABELS] ?? resolved;
-    const alias = getAliasFor(resolved, aliasMap);
-    const slotDisplay = alias ? `${label} (${alias})` : label;
-    toast.success(`Assigned #${jerseyNum} to ${slotDisplay}`);
-    setToken("");
-    setJersey("");
-  };
-
-  return (
-    <div className="mt-3 rounded border border-dashed border-border/60 bg-muted/20 p-2">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-          Quick Assign
-        </span>
-        <Input
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="Position (e.g. 1, QB, RG)"
-          className={`h-7 text-xs w-44 ${tokenInvalid ? "border-destructive" : ""}`}
-        />
-        <Input
-          value={jersey}
-          onChange={(e) => setJersey(e.target.value.replace(/[^0-9]/g, ""))}
-          placeholder="Jersey #"
-          inputMode="numeric"
-          className="h-7 text-xs w-24"
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-xs"
-          onClick={handleAdd}
-          disabled={!resolved || !jerseyOk}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          Add
-        </Button>
-        {resolved && (() => {
-          const label = PERSONNEL_LABELS[resolved as keyof typeof PERSONNEL_LABELS] ?? resolved;
-          const alias = getAliasFor(resolved, aliasMap);
-          return (
-            <span className="text-[10px] text-muted-foreground">
-              → {alias ? `${label} (${alias})` : label}
-            </span>
-          );
-        })()}
-        {tokenInvalid && (
-          <span className="text-[10px] text-destructive">Unknown position token</span>
-        )}
-      </div>
-      <p className="text-[9px] text-muted-foreground mt-1">
-        Aliases resolve to canonical positions. Stored data stays canonical.
-      </p>
     </div>
   );
 }

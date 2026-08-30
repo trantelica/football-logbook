@@ -111,3 +111,28 @@ describe("validateForExport is advisory", () => {
     expect(rowFor(csv, 1)[columnIndex("LT")]).toBe("77");
   });
 });
+
+describe("export with no play rows", () => {
+  /**
+   * The Hudl Export button used to be disabled on `committedPlays.length === 0`.
+   * That list lives in the transaction context, starts empty, and fills
+   * asynchronously — while the export handler never reads it, querying the
+   * database directly instead. So the button was dead during the load window,
+   * dead for a game with no scaffolded slots, and dead permanently if the load
+   * rejected, even when the database had rows to export.
+   *
+   * The gate is gone. These pin the behaviour it was hiding: an empty play list
+   * is a valid input that produces a valid, header-only file.
+   */
+  it("produces the header row and nothing else", () => {
+    const csv = toHudlCsv([]);
+    expect(csv.split("\n")).toHaveLength(1);
+    expect(csv).toBe(HUDL_HEADERS.map((h) => h.label).join(","));
+  });
+
+  it("reports no errors, so an empty game exports cleanly rather than warning", () => {
+    const validation = validateForExport([]);
+    expect(validation.valid).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+});
