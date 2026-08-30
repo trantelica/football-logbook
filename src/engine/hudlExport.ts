@@ -336,6 +336,27 @@ export function buildExportManifest(params: {
 
 // ── Download Helper ──
 
+/**
+ * How long an object URL is kept alive after the click that starts a download.
+ *
+ * The browser reads the blob asynchronously. Revoking synchronously after
+ * `click()` races that read and the download is silently lost — which is
+ * exactly what happened: the 214-byte manifest survived while the plays CSV
+ * did not. Object URLs are cheap and the page is short-lived, so this is
+ * deliberately generous.
+ */
+const OBJECT_URL_TTL_MS = 60_000;
+
+/**
+ * Gap between downloads in a sequence.
+ *
+ * Browsers treat rapid programmatic downloads as one action. Safari in
+ * particular honours roughly one per user gesture, so three synchronous calls
+ * collapsed to the last one and only the manifest reached disk. Staggering
+ * gives each file its own turn.
+ */
+export const DOWNLOAD_SEQUENCE_GAP_MS = 800;
+
 export function triggerDownload(
   content: string,
   filename: string,
@@ -346,8 +367,34 @@ export function triggerDownload(
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Keep both the anchor and the object URL alive; see OBJECT_URL_TTL_MS.
+  setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, OBJECT_URL_TTL_MS);
+}
+
+export interface DownloadFile {
+  content: string;
+  filename: string;
+  mimeType: string;
+}
+
+/**
+ * Download several files, one at a time.
+ *
+ * Order matters: put the file the coach actually needs first, so that a browser
+ * which permits only one download still delivers the important one.
+ */
+export async function triggerDownloadSequence(
+  files: ReadonlyArray<DownloadFile>,
+  gapMs: number = DOWNLOAD_SEQUENCE_GAP_MS,
+): Promise<void> {
+  for (let i = 0; i < files.length; i++) {
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, gapMs));
+    triggerDownload(files[i].content, files[i].filename, files[i].mimeType);
+  }
 }
