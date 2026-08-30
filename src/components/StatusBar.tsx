@@ -18,7 +18,7 @@ import {
 } from "@/engine/db";
 import {
   toHudlCsv, toNotesCsv, validateForExport,
-  buildExportManifest, triggerDownload,
+  buildExportManifest, triggerDownload, triggerDownloadSequence,
   type ExportError,
 } from "@/engine/hudlExport";
 import {
@@ -196,9 +196,20 @@ export function StatusBar() {
       const notesFile = `hudl_notes_${oppSlug}_${gameDate}.csv`;
       const manifestFile = `hudl_manifest_${oppSlug}_${gameDate}_schema-${SCHEMA_VERSION}.json`;
 
-      triggerDownload(playsCsv, playsFile, "text/csv");
-      triggerDownload(notesCsv, notesFile, "text/csv");
-      triggerDownload(JSON.stringify(manifest, null, 2), manifestFile, "application/json");
+      // Sequenced, not fired in one tick. Three synchronous downloads were
+      // collapsed by the browser into roughly one, and the manifest — being
+      // last — was the only file that reached disk. The plays CSV leads so that
+      // a browser permitting a single download still delivers the one that
+      // matters.
+      await triggerDownloadSequence([
+        { content: playsCsv, filename: playsFile, mimeType: "text/csv" },
+        { content: notesCsv, filename: notesFile, mimeType: "text/csv" },
+        {
+          content: JSON.stringify(manifest, null, 2),
+          filename: manifestFile,
+          mimeType: "application/json",
+        },
+      ]);
 
       if (!validation.valid) {
         showPreflight("Exported with issues", validation.errors, "warning");
@@ -210,6 +221,29 @@ export function StatusBar() {
       }
     } catch (err) {
       toast.error(`Export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  /**
+   * Clipboard fallback for the plays CSV.
+   *
+   * Browser downloads are not guaranteed: Safari permits roughly one
+   * programmatic download per gesture, and a coach can deny downloads for the
+   * site entirely. When that happens the export silently produces nothing and
+   * the game's work is stranded. This path always works — paste into a file and
+   * upload that.
+   */
+  const handleCopyPlaysCsv = async () => {
+    if (!activeGame) return;
+    try {
+      const plays = await getPlaysByGame(activeGame.gameId);
+      const csv = toHudlCsv(plays);
+      await navigator.clipboard.writeText(csv);
+      toast.success(`Copied ${plays.length} rows — paste into a .csv file`);
+    } catch (err) {
+      toast.error(
+        `Could not copy: ${err instanceof Error ? err.message : "clipboard unavailable"}`,
+      );
     }
   };
 
@@ -560,6 +594,9 @@ export function StatusBar() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => downloadDebugJSON(activeGame.gameId)}>
                     <Download className="mr-2 h-3.5 w-3.5" /> Debug JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void handleCopyPlaysCsv()}>
+                    <Clipboard className="mr-2 h-3.5 w-3.5" /> Copy plays CSV
                   </DropdownMenuItem>
                   <CopyDebugMenuItem gameId={activeGame.gameId} />
                   <DropdownMenuSeparator />
