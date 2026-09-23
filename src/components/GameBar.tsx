@@ -25,6 +25,7 @@ import { useSeason } from "@/engine/seasonContext";
 import { StartGameDialog } from "./StartGameDialog";
 import { ConfigModeDialog } from "./ConfigModeDialog";
 import { WorkspaceSettings } from "./WorkspaceSettings";
+import { ThemeToggle } from "./ThemeToggle";
 import { CalendarDays, Flag, Settings } from "lucide-react";
 
 export function GameBar() {
@@ -182,6 +183,7 @@ export function GameBar() {
               {activeGame.gameId.slice(0, 8)}
             </span>
           )}
+          <ThemeToggle />
           <WorkspaceSettings />
         </div>
       </header>

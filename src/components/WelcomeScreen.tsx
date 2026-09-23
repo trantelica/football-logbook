@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface WelcomeScreenProps {
   onBegin: () => void;
@@ -7,6 +8,9 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ onBegin }: WelcomeScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground p-8">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <div className="flex flex-col items-center max-w-md text-center space-y-8">
         {/* HERO vector */}
         <div className="relative">
