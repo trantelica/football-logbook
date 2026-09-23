@@ -27,6 +27,8 @@ import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATR
 import { possessionGuardrail } from "./possession";
 import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS, findImmediatePriorPass2CompleteOffensivePlay, countCommittedPersonnel, seedPass2PersonnelIntoCandidate } from "./personnel";
+import { loadPersonnelPins, savePersonnelPins, applyPinnedPersonnel, pinsAfterEdit, type PersonnelPins } from "./personnelPins";
+
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
@@ -158,6 +160,13 @@ interface TransactionContextValue {
   // Carry-forward indicators (Pass 2)
   carriedForwardFields: Set<string>;
   carriedForwardFromPlayNum: number | null;
+
+  // Pass 2 personnel pins ("starters cascade") — proposal-only seeding
+  personnelPins: PersonnelPins;
+  pinnedSeededFields: Set<string>;
+  pinPersonnelPosition: (pos: string) => void;
+  unpinPersonnelPosition: (pos: string) => void;
+
 
   // Phase 10: Lookup-derived fields
   lookupDerivedFields: Set<string>;
