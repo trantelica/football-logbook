@@ -110,6 +110,13 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
           <p className="mt-1 text-xs text-muted-foreground">
             Single keys, no modifiers. Inactive while a dialog is open or Text Editing is on.
           </p>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+            Pass 2 and Pass 3 share the same keys where they apply: <kbd className="kbd">D</kbd> dictate,{" "}
+            <kbd className="kbd">U</kbd> update proposal, <kbd className="kbd">C</kbd> clear,{" "}
+            <kbd className="kbd">N</kbd> commit &amp; next, <kbd className="kbd">L</kbd> commit.{" "}
+            <kbd className="kbd">S</kbd> and <kbd className="kbd">R</kbd> are Pass 1 only.
+          </p>
+
         </div>
 
         <div className="space-y-4 px-4 py-3">

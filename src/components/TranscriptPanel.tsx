@@ -33,6 +33,8 @@ import { PERSONNEL_LABELS, PERSONNEL_POSITIONS } from "@/engine/personnel";
 import { fetchAiPersonnelProposal } from "@/engine/aiPersonnelClient";
 import { RosterResolveDialog, type OffRosterPending } from "@/components/RosterResolveDialog";
 import { isDevMode } from "@/engine/devMode";
+import { usePassShortcuts } from "@/engine/passShortcuts";
+
 import { toast } from "sonner";
 
 interface ParseSnapshot {
@@ -632,6 +634,24 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     }
     await runAiPersonnelFallback(sourceText, personnelOnlyDet);
   }, [isPass2Only, text, handleParse, runAiPersonnelFallback]);
+
+  /**
+   * Pass 2 single-key shortcuts — same keys and same suppression rules as
+   * Pass 1 (see src/engine/passShortcuts.ts). Capture/review only: nothing
+   * here commits. Commit keys (N/L) are owned by DraftPanel's action row.
+   */
+  usePassShortcuts({
+    enabled: isPass2Plus,
+    bindings: {
+      D: supported ? () => toggleListening() : undefined,
+      U: hasParseableText && !listening ? () => { void handleUpdateProposal(); } : undefined,
+      C: hasContent && !listening ? () => handleClear() : undefined,
+    },
+    onEscape: () => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+    },
+  });
+
 
 
   return (

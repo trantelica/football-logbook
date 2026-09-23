@@ -33,6 +33,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal, Info, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePassShortcuts } from "@/engine/passShortcuts";
+
 
 /** Map grade field → corresponding personnel position field */
 const GRADE_TO_POS: Record<string, string> = {
@@ -342,6 +344,26 @@ export function BlockingPanel() {
     setAiError(null);
     setLastAiAppliedCount(null);
   }, [clearDictation]);
+
+  /**
+   * Pass 3 single-key shortcuts — identical keys and suppression rules to
+   * Pass 1 (src/engine/passShortcuts.ts). Capture/review only; commit keys
+   * (N/L) belong to DraftPanel's action row.
+   */
+  usePassShortcuts({
+    enabled: !noCommittedRow && !notOffense,
+    bindings: {
+      D: dictationSupported && !(gradesDisabled && !listening) ? () => toggleListening() : undefined,
+      U: !gradesDisabled && narrationText.trim() !== "" && !listening && !aiBusy
+        ? () => { void handleApplyNarration(); }
+        : undefined,
+      C: narrationText !== "" && !listening ? () => handleClearNarration() : undefined,
+    },
+    onEscape: () => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+    },
+  });
+
 
   // ── Pass 3 AI Assist — coach-initiated only; advisory only ─────────────
   const handleAiAssist = useCallback(async () => {

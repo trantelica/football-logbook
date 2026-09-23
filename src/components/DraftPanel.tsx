@@ -40,6 +40,8 @@ import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
+import { usePassShortcuts } from "@/engine/passShortcuts";
+
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
@@ -904,6 +906,31 @@ export function DraftPanel() {
     }
   };
 
+  /**
+   * Pass 2/3 workflow keys. Same guard rules as Pass 1 (shared implementation
+   * in src/engine/passShortcuts.ts). Pass 1 registers its own bindings inside
+   * Pass1SectionPanel, so these are scoped to passes 2 and 3 to avoid two
+   * handlers for one key.
+   *
+   * While drafting, N/L advance to Proposal Review rather than committing
+   * blind — the coach still sees the proposal before anything is written.
+   */
+  usePassShortcuts({
+    enabled: (activePass === 2 || activePass === 3) && selectedSlotNum !== null,
+    bindings: {
+      N: isProposal
+        ? () => { void handleCommitAndNext(); }
+        : () => { reviewProposal(); },
+      L: isProposal
+        ? () => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }
+        : () => { reviewProposal(); },
+    },
+    onEscape: () => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+    },
+  });
+
+
   const handleParseAndApply = async () => {
     if (!rawInputText.trim() || selectedSlotNum === null) return;
     const result = await saveInput(selectedSlotNum, rawInputText.trim());
@@ -1270,8 +1297,20 @@ export function DraftPanel() {
          */}
         {(() => {
           const pass1SectionOwnsActions = activePass === 1 && selectedSlotNum !== null;
+          // Passes 2 and 3 put eleven player fields (plus Actor Integrity)
+          // above this row, so it used to require a full scroll to reach
+          // Commit on every play. Pin it to the bottom of the work surface
+          // for those passes. Button set, order, and enable rules unchanged.
+          const stickyActions = activePass === 2 || activePass === 3;
           return (
-            <div className="flex gap-2 pt-2 border-t border-border/30">
+            <div
+              className={cn(
+                "flex gap-2 pt-2 border-t border-border/30",
+                stickyActions &&
+                  "sticky bottom-0 z-10 -mx-4 -mb-4 px-4 pb-3 bg-card/95 backdrop-blur-sm rounded-b-lg",
+              )}
+            >
+
               {!isProposal && !pass1SectionOwnsActions && (
                 <>
                   <Button
