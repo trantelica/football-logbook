@@ -199,6 +199,17 @@ export function PersonnelPanel() {
         </div>
       )}
 
+      {/* Pinned-starter seeding banner */}
+      {pinnedSeededFields.size > 0 && (
+        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-proposal-muted text-proposal border border-proposal">
+          <Pin className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            {pinnedSeededFields.size} pinned position(s) seeded from your starters. Proposal only — replace a player to drop its pin.
+          </span>
+        </div>
+      )}
+
+
       {/* Play Context Header — intentionally removed. Duplicated the global
           PlayContextHeader rendered above the pass content. Personnel logic,
           carry-forward, and parse provenance are unchanged. */}
