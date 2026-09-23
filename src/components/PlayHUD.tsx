@@ -101,7 +101,7 @@ export function PlayHUD() {
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b bg-card px-4 py-2.5"
+      className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b bg-card px-4 py-1.5 sm:py-2.5"
       aria-label="Current play context"
     >
       {/* Play number — the primary anchor, largest thing in the strip */}
@@ -117,7 +117,7 @@ export function PlayHUD() {
       <span className="h-6 w-px bg-border" aria-hidden />
 
       {/* Situation, in coach language */}
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 sm:gap-y-1">
         {has(c.qtr) && (
           <span className="text-sm font-medium text-muted-foreground">
             {formatQuarter(c.qtr)}

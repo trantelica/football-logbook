@@ -102,7 +102,7 @@ export function PassRail() {
 
   return (
     <nav
-      aria-label="Play navigator"
+      aria-label="Play navigator" tabIndex={-1} onKeyDown={(e) => { if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); const buttons = Array.from(e.currentTarget.querySelectorAll("button:not([disabled])")); const index = buttons.indexOf(document.activeElement as HTMLButtonElement); if (e.key === "ArrowDown") { (buttons[index + 1] || buttons[0] as HTMLElement)?.focus(); } else { (buttons[index - 1] || buttons[buttons.length - 1] as HTMLElement)?.focus(); } } }}
       // Narrows before the work surface does. At 900px a fixed 188px rail is
       // over a fifth of the window, and the rail only needs to show a play
       // number, a short situation, and three progress pips.
