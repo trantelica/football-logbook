@@ -1611,6 +1611,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // committed values. No cascade, no commit, no DB writes.
       setCarriedForwardFields(new Set());
       setCarriedForwardFromPlayNum(null);
+      setPinnedSeededFields(new Set());
       if (activePass === 2 && slot.odk === "O") {
         // Use fresh DB reads (like commitAndNext) to avoid stale-closure misses
         const freshPlays = await getPlaysByGame(gameId);
@@ -1619,6 +1620,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         const slotMeta = freshMetaMap.get(playNum);
         const committedPersonnelCount = countCommittedPersonnel(slotMeta);
         if (committedPersonnelCount === 0) {
+          // Pinned starters take the position first; carry-forward then fills
+          // whatever is still empty. Both are proposal-only.
+          const { candidate: pinSeeded, pinnedFields } = applyPinnedPersonnel(
+            newCandidate as unknown as Record<string, unknown>,
+            personnelPinsRef.current,
+          );
+          newCandidate = pinSeeded as unknown as CandidateData;
+          if (pinnedFields.size > 0) setPinnedSeededFields(pinnedFields);
+
           const sourcePlay = findImmediatePriorPass2CompleteOffensivePlay(freshPlays, freshMetaMap, playNum);
           if (sourcePlay) {
             const { candidate: seeded, seededFields } = seedPass2PersonnelIntoCandidate(
@@ -1629,17 +1639,20 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             if (seededFields.size > 0) {
               setCarriedForwardFields(seededFields);
               setCarriedForwardFromPlayNum(sourcePlay.playNum);
-              // Parity with Next Slot path: reset provenance sets so seeded
-              // personnel never carries stale parser/AI/lookup attribution.
-              setDeterministicParseFields(new Set());
-              setParseEvidenceByField({});
-              setAiProposedFields(new Set());
-              setAiEvidenceByField({});
-              setLookupDerivedFields(new Set());
             }
+          }
+          if (pinnedFields.size > 0 || sourcePlay) {
+            // Parity with Next Slot path: reset provenance sets so seeded
+            // personnel never carries stale parser/AI/lookup attribution.
+            setDeterministicParseFields(new Set());
+            setParseEvidenceByField({});
+            setAiProposedFields(new Set());
+            setAiEvidenceByField({});
+            setLookupDerivedFields(new Set());
           }
         }
       }
+
 
       setCandidate(newCandidate);
       setSelectedSlotNum(playNum);
