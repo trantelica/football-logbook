@@ -199,13 +199,21 @@ export function DraftPanel() {
   usePassShortcuts({
     enabled: (activePass === 2 || activePass === 3) && selectedSlotNum !== null,
     bindings: {
-      N: isProposal
-        ? () => { void handleCommitAndNext(); }
-        : () => { reviewProposal(); },
-      L: isProposal
-        ? () => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }
-        : () => { reviewProposal(); },
+      N: () => {
+        if (state === "proposal") void handleCommitAndNext();
+        else reviewProposal();
+      },
+      L: () => {
+        if (state === "proposal") {
+          commitProposal();
+          setLastObservationText("");
+          setLastDeterministicPatch({});
+        } else {
+          reviewProposal();
+        }
+      },
     },
+
     onEscape: () => {
       (document.activeElement as HTMLElement | null)?.blur?.();
     },
