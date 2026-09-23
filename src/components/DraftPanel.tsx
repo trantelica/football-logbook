@@ -40,6 +40,8 @@ import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
+import { usePassShortcuts } from "@/engine/passShortcuts";
+
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
