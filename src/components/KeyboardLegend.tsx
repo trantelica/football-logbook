@@ -89,7 +89,7 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
         <button
           type="button"
           className="flex items-center gap-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Keyboard shortcuts"
+          aria-label="Keyboard shortcuts" title="Keyboard shortcuts (Alt+K)"
         >
           <Keyboard className="h-3 w-3" />
           <span className="flex items-center gap-2">
