@@ -270,7 +270,7 @@ export function PersonnelPanel() {
                       <div key={pos} className="space-y-0.5">
                         <ActorCombobox
                           fieldLabel={
-                            <span className="flex items-center gap-1">
+                            <span className="flex min-w-0 w-full items-center gap-1">
                               <span>{PERSONNEL_LABELS[pos]}</span>
                               {alias && (
                                 <span className="text-[9px] font-normal text-muted-foreground">
@@ -289,21 +289,22 @@ export function PersonnelPanel() {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <button
+                                     <Button
                                       type="button"
+                                       variant="ghost"
                                       aria-label={isPinned ? `Unpin ${PERSONNEL_LABELS[pos]}` : `Pin ${PERSONNEL_LABELS[pos]}`}
                                       aria-pressed={isPinned}
                                       disabled={!isPinned && !canPin}
                                       onClick={() => (isPinned ? unpinPersonnelPosition(pos) : pinPersonnelPosition(pos))}
                                       className={cn(
-                                        "ml-auto inline-flex items-center rounded p-0.5 transition-colors",
+                                         "ml-auto h-10 w-10 shrink-0 p-0 touch-manipulation",
                                         isPinned
-                                          ? "text-proposal hover:bg-proposal-muted"
-                                          : "text-muted-foreground/50 hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50",
+                                           ? "text-proposal bg-proposal-muted hover:bg-proposal-muted"
+                                           : "text-muted-foreground hover:text-foreground",
                                       )}
                                     >
-                                      {isPinned ? <Pin className="h-3 w-3" /> : <PinOff className="h-3 w-3" />}
-                                    </button>
+                                       {isPinned ? <Pin /> : <PinOff />}
+                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     <p className="text-xs">
