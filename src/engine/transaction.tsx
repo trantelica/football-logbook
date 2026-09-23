@@ -2197,6 +2197,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         nextSlot,
         carriedForwardFields,
         carriedForwardFromPlayNum,
+        personnelPins,
+        pinnedSeededFields,
+        pinPersonnelPosition,
+        unpinPersonnelPosition,
+
         tdCorrectionPending: tdCorrectionPending ? { correctedResult: tdCorrectionPending.correctedResult } : null,
         confirmTDCorrection,
         cancelTDCorrection,
