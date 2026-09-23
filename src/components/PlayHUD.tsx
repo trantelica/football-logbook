@@ -101,7 +101,7 @@ export function PlayHUD() {
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:gap-y-2 border-b bg-card px-4 py-1.5 sm:py-1.5 sm:py-2.5"
+      className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:gap-y-2 border-b bg-card px-4 py-1.5 sm:py-2.5"
       aria-label="Current play context"
     >
       {/* Play number — the primary anchor, largest thing in the strip */}
