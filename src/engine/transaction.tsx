@@ -291,6 +291,46 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
   const [lastPass2CommitPlayNum, setLastPass2CommitPlayNum] = useState<number | null>(null);
 
+  // Pass 2 personnel pins — per-game working state, proposal-only seeding.
+  const [personnelPins, setPersonnelPins] = useState<PersonnelPins>(() => loadPersonnelPins(gameId));
+  const [pinnedSeededFields, setPinnedSeededFields] = useState<Set<string>>(new Set());
+  const personnelPinsRef = useRef<PersonnelPins>(personnelPins);
+  useEffect(() => { personnelPinsRef.current = personnelPins; }, [personnelPins]);
+  useEffect(() => {
+    const loaded = loadPersonnelPins(gameId);
+    personnelPinsRef.current = loaded;
+    setPersonnelPins(loaded);
+    setPinnedSeededFields(new Set());
+  }, [gameId]);
+
+  const writePins = useCallback((next: PersonnelPins) => {
+    personnelPinsRef.current = next;
+    setPersonnelPins(next);
+    savePersonnelPins(gameId, next);
+  }, [gameId]);
+
+  /** Pin the jersey currently at this position so it cascades to later slots. */
+  const pinPersonnelPosition = useCallback((pos: string) => {
+    const val = (candidateRef.current as unknown as Record<string, unknown>)[pos];
+    const n = Number(val);
+    if (val === null || val === undefined || val === "" || !Number.isInteger(n) || n < 0) return;
+    writePins({ ...personnelPinsRef.current, [pos]: n });
+  }, [writePins]);
+
+  const unpinPersonnelPosition = useCallback((pos: string) => {
+    if (personnelPinsRef.current[pos] == null) return;
+    const next = { ...personnelPinsRef.current };
+    delete next[pos];
+    writePins(next);
+    setPinnedSeededFields((prev) => {
+      if (!prev.has(pos)) return prev;
+      const s = new Set(prev);
+      s.delete(pos);
+      return s;
+    });
+  }, [writePins]);
+
+
   // Commit counter — incremented on each successful commit for transcript lifecycle
   const [commitCount, setCommitCount] = useState(0);
 
