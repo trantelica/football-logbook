@@ -580,7 +580,28 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
+      // Pass 2 pins: replacing the player at a pinned position removes the pin.
+      {
+        const pins = personnelPinsRef.current;
+        if (pins[fieldName] != null) {
+          const nextPins = pinsAfterEdit(pins, fieldName, value);
+          if (nextPins !== pins) {
+            personnelPinsRef.current = nextPins;
+            setPersonnelPins(nextPins);
+            savePersonnelPins(gameId, nextPins);
+          }
+        }
+      }
+      setPinnedSeededFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
       // If editing a carried-forward field, remove indicator
+
       setCarriedForwardFields((prev) => {
         if (prev.has(fieldName)) {
           const next = new Set(prev);
