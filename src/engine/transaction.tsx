@@ -27,6 +27,8 @@ import { shouldEnterPATContext, getCarriedPatTry, patTryToPlayType, validatePATR
 import { possessionGuardrail } from "./possession";
 import { toast } from "sonner";
 import { validatePersonnel, computePassCompletion, PERSONNEL_POSITIONS, GRADE_FIELDS, findImmediatePriorPass2CompleteOffensivePlay, countCommittedPersonnel, seedPass2PersonnelIntoCandidate } from "./personnel";
+import { loadPersonnelPins, savePersonnelPins, applyPinnedPersonnel, pinsAfterEdit, type PersonnelPins } from "./personnelPins";
+
 import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
@@ -159,6 +161,13 @@ interface TransactionContextValue {
   carriedForwardFields: Set<string>;
   carriedForwardFromPlayNum: number | null;
 
+  // Pass 2 personnel pins ("starters cascade") — proposal-only seeding
+  personnelPins: PersonnelPins;
+  pinnedSeededFields: Set<string>;
+  pinPersonnelPosition: (pos: string) => void;
+  unpinPersonnelPosition: (pos: string) => void;
+
+
   // Phase 10: Lookup-derived fields
   lookupDerivedFields: Set<string>;
 
@@ -281,6 +290,46 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const [carriedForwardFields, setCarriedForwardFields] = useState<Set<string>>(new Set());
   const [carriedForwardFromPlayNum, setCarriedForwardFromPlayNum] = useState<number | null>(null);
   const [lastPass2CommitPlayNum, setLastPass2CommitPlayNum] = useState<number | null>(null);
+
+  // Pass 2 personnel pins — per-game working state, proposal-only seeding.
+  const [personnelPins, setPersonnelPins] = useState<PersonnelPins>(() => loadPersonnelPins(gameId));
+  const [pinnedSeededFields, setPinnedSeededFields] = useState<Set<string>>(new Set());
+  const personnelPinsRef = useRef<PersonnelPins>(personnelPins);
+  useEffect(() => { personnelPinsRef.current = personnelPins; }, [personnelPins]);
+  useEffect(() => {
+    const loaded = loadPersonnelPins(gameId);
+    personnelPinsRef.current = loaded;
+    setPersonnelPins(loaded);
+    setPinnedSeededFields(new Set());
+  }, [gameId]);
+
+  const writePins = useCallback((next: PersonnelPins) => {
+    personnelPinsRef.current = next;
+    setPersonnelPins(next);
+    savePersonnelPins(gameId, next);
+  }, [gameId]);
+
+  /** Pin the jersey currently at this position so it cascades to later slots. */
+  const pinPersonnelPosition = useCallback((pos: string) => {
+    const val = (candidateRef.current as unknown as Record<string, unknown>)[pos];
+    const n = Number(val);
+    if (val === null || val === undefined || val === "" || !Number.isInteger(n) || n < 0) return;
+    writePins({ ...personnelPinsRef.current, [pos]: n });
+  }, [writePins]);
+
+  const unpinPersonnelPosition = useCallback((pos: string) => {
+    if (personnelPinsRef.current[pos] == null) return;
+    const next = { ...personnelPinsRef.current };
+    delete next[pos];
+    writePins(next);
+    setPinnedSeededFields((prev) => {
+      if (!prev.has(pos)) return prev;
+      const s = new Set(prev);
+      s.delete(pos);
+      return s;
+    });
+  }, [writePins]);
+
 
   // Commit counter — incremented on each successful commit for transcript lifecycle
   const [commitCount, setCommitCount] = useState(0);
@@ -531,7 +580,28 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         }
         return prev;
       });
+      // Pass 2 pins: replacing the player at a pinned position removes the pin.
+      {
+        const pins = personnelPinsRef.current;
+        if (pins[fieldName] != null) {
+          const nextPins = pinsAfterEdit(pins, fieldName, value);
+          if (nextPins !== pins) {
+            personnelPinsRef.current = nextPins;
+            setPersonnelPins(nextPins);
+            savePersonnelPins(gameId, nextPins);
+          }
+        }
+      }
+      setPinnedSeededFields((prev) => {
+        if (prev.has(fieldName)) {
+          const next = new Set(prev);
+          next.delete(fieldName);
+          return next;
+        }
+        return prev;
+      });
       // If editing a carried-forward field, remove indicator
+
       setCarriedForwardFields((prev) => {
         if (prev.has(fieldName)) {
           const next = new Set(prev);
@@ -1541,6 +1611,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // committed values. No cascade, no commit, no DB writes.
       setCarriedForwardFields(new Set());
       setCarriedForwardFromPlayNum(null);
+      setPinnedSeededFields(new Set());
       if (activePass === 2 && slot.odk === "O") {
         // Use fresh DB reads (like commitAndNext) to avoid stale-closure misses
         const freshPlays = await getPlaysByGame(gameId);
@@ -1549,6 +1620,15 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         const slotMeta = freshMetaMap.get(playNum);
         const committedPersonnelCount = countCommittedPersonnel(slotMeta);
         if (committedPersonnelCount === 0) {
+          // Pinned starters take the position first; carry-forward then fills
+          // whatever is still empty. Both are proposal-only.
+          const { candidate: pinSeeded, pinnedFields } = applyPinnedPersonnel(
+            newCandidate as unknown as Record<string, unknown>,
+            personnelPinsRef.current,
+          );
+          newCandidate = pinSeeded as unknown as CandidateData;
+          if (pinnedFields.size > 0) setPinnedSeededFields(pinnedFields);
+
           const sourcePlay = findImmediatePriorPass2CompleteOffensivePlay(freshPlays, freshMetaMap, playNum);
           if (sourcePlay) {
             const { candidate: seeded, seededFields } = seedPass2PersonnelIntoCandidate(
@@ -1559,17 +1639,20 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
             if (seededFields.size > 0) {
               setCarriedForwardFields(seededFields);
               setCarriedForwardFromPlayNum(sourcePlay.playNum);
-              // Parity with Next Slot path: reset provenance sets so seeded
-              // personnel never carries stale parser/AI/lookup attribution.
-              setDeterministicParseFields(new Set());
-              setParseEvidenceByField({});
-              setAiProposedFields(new Set());
-              setAiEvidenceByField({});
-              setLookupDerivedFields(new Set());
             }
+          }
+          if (pinnedFields.size > 0 || sourcePlay) {
+            // Parity with Next Slot path: reset provenance sets so seeded
+            // personnel never carries stale parser/AI/lookup attribution.
+            setDeterministicParseFields(new Set());
+            setParseEvidenceByField({});
+            setAiProposedFields(new Set());
+            setAiEvidenceByField({});
+            setLookupDerivedFields(new Set());
           }
         }
       }
+
 
       setCandidate(newCandidate);
       setSelectedSlotNum(playNum);
@@ -1776,12 +1859,22 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           const nextCommittedPersonnel = countCommittedPersonnel(nextMeta);
 
           if (nextCommittedPersonnel === 0) {
+            // Pinned starters first, then immediate-prior carry-forward.
+            const { candidate: pinSeeded, pinnedFields } = applyPinnedPersonnel(
+              { ...nextSlot } as unknown as Record<string, unknown>,
+              personnelPinsRef.current,
+            );
+            let nextCandidate = pinSeeded as unknown as CandidateData;
             const sourcePlay = findImmediatePriorPass2CompleteOffensivePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
+            let seededFields = new Set<string>();
             if (sourcePlay) {
-              const { candidate: seededCandidate, seededFields } =
-                seedPass2PersonnelIntoCandidate<CandidateData>({ ...nextSlot }, sourcePlay);
+              const seededResult = seedPass2PersonnelIntoCandidate<CandidateData>(nextCandidate, sourcePlay);
+              nextCandidate = seededResult.candidate;
+              seededFields = seededResult.seededFields;
+            }
 
-              setCandidate(seededCandidate);
+            if (pinnedFields.size > 0 || sourcePlay) {
+              setCandidate(nextCandidate);
               setSelectedSlotNum(nextPlay.playNum);
               setTouchedFields(new Set());
               setPredictedFields(new Set());
@@ -1796,8 +1889,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
               setPatLockedTry(null);
               setPossessionCheckPending(false);
               setPossessionPrevPlayInfo(null);
+              setPinnedSeededFields(pinnedFields);
               setCarriedForwardFields(seededFields);
-              setCarriedForwardFromPlayNum(sourcePlay.playNum);
+              setCarriedForwardFromPlayNum(sourcePlay ? sourcePlay.playNum : null);
               setDeterministicParseFields(new Set());
               setParseEvidenceByField({});
               setAiProposedFields(new Set());
@@ -1809,6 +1903,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           }
         }
       }
+
 
       await selectSlot(nextPlay.playNum);
       return { hasNext: true };
@@ -2102,6 +2197,11 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         nextSlot,
         carriedForwardFields,
         carriedForwardFromPlayNum,
+        personnelPins,
+        pinnedSeededFields,
+        pinPersonnelPosition,
+        unpinPersonnelPosition,
+
         tdCorrectionPending: tdCorrectionPending ? { correctedResult: tdCorrectionPending.correctedResult } : null,
         confirmTDCorrection,
         cancelTDCorrection,

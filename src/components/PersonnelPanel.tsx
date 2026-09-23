@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Lock, AlertTriangle, ArrowRight, Sparkles, Terminal, ArrowRightLeft } from "lucide-react";
+import { Lock, AlertTriangle, ArrowRight, Sparkles, Terminal, ArrowRightLeft, Pin, PinOff } from "lucide-react";
 import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
@@ -55,6 +55,11 @@ export function PersonnelPanel() {
     inlineErrors,
     carriedForwardFields,
     carriedForwardFromPlayNum,
+    personnelPins,
+    pinnedSeededFields,
+    pinPersonnelPosition,
+    unpinPersonnelPosition,
+
     deterministicParseFields,
     parseEvidenceByField,
     aiProposedFields,
@@ -194,6 +199,17 @@ export function PersonnelPanel() {
         </div>
       )}
 
+      {/* Pinned-starter seeding banner */}
+      {pinnedSeededFields.size > 0 && (
+        <div className="flex items-center gap-2 text-xs rounded px-3 py-2 bg-proposal-muted text-proposal border border-proposal">
+          <Pin className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            {pinnedSeededFields.size} pinned position(s) seeded from your starters. Proposal only — replace a player to drop its pin.
+          </span>
+        </div>
+      )}
+
+
       {/* Play Context Header — intentionally removed. Duplicated the global
           PlayContextHeader rendered above the pass content. Personnel logic,
           carry-forward, and parse provenance are unchanged. */}
@@ -236,10 +252,14 @@ export function PersonnelPanel() {
                   {group.slots.map((slot) => {
                     const pos = posFieldFor(slot);
                     const isCarried = carriedForwardFields.has(pos);
+                    const pinnedJersey = personnelPins[pos];
+                    const isPinned = pinnedJersey != null;
+                    const isPinSeeded = pinnedSeededFields.has(pos);
                     const jerseyVal = c[pos] != null ? String(c[pos]) : "";
                     const playerName =
                       jerseyVal !== "" ? getPlayerName(Number(jerseyVal)) : null;
                     const alias = getAliasFor(pos, aliasMap);
+                    const canPin = jerseyVal !== "" && Number.isInteger(Number(jerseyVal));
                     return (
                       <div key={pos} className="space-y-0.5">
                         <ActorCombobox
@@ -255,6 +275,41 @@ export function PersonnelPanel() {
                               {isCarried && !deterministicParseFields.has(pos) && (
                                 <Sparkles className="h-2.5 w-2.5 text-predicted-foreground" />
                               )}
+                              {isPinSeeded && !deterministicParseFields.has(pos) && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-proposal bg-proposal-muted rounded px-1">
+                                  <Pin className="h-2.5 w-2.5" />Pin
+                                </span>
+                              )}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      aria-label={isPinned ? `Unpin ${PERSONNEL_LABELS[pos]}` : `Pin ${PERSONNEL_LABELS[pos]}`}
+                                      aria-pressed={isPinned}
+                                      disabled={!isPinned && !canPin}
+                                      onClick={() => (isPinned ? unpinPersonnelPosition(pos) : pinPersonnelPosition(pos))}
+                                      className={cn(
+                                        "ml-auto inline-flex items-center rounded p-0.5 transition-colors",
+                                        isPinned
+                                          ? "text-proposal hover:bg-proposal-muted"
+                                          : "text-muted-foreground/50 hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground/50",
+                                      )}
+                                    >
+                                      {isPinned ? <Pin className="h-3 w-3" /> : <PinOff className="h-3 w-3" />}
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">
+                                      {isPinned
+                                        ? `#${pinnedJersey} pinned here — seeded into later plays as a proposal. Replacing the player removes the pin.`
+                                        : canPin
+                                          ? "Pin this player to cascade them into later plays as a proposal."
+                                          : "Enter a jersey number first to pin this position."}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </span>
                           }
                           requiredAtCommit={false}
@@ -263,11 +318,11 @@ export function PersonnelPanel() {
                           roster={roster}
                           addPlayer={addPlayer}
                           disabled={false}
-                          inputClassName={
-                            isCarried
-                              ? "h-8 text-sm font-mono bg-predicted-muted border-predicted-border"
-                              : "h-8 text-sm font-mono"
-                          }
+                          inputClassName={cn(
+                            "h-8 text-sm font-mono",
+                            isCarried && "bg-predicted-muted border-predicted-border",
+                            isPinSeeded && !isCarried && "bg-proposal-muted border-proposal",
+                          )}
                           error={errors[pos]}
                         />
                         {playerName && (
@@ -278,6 +333,7 @@ export function PersonnelPanel() {
                       </div>
                     );
                   })}
+
                 </div>
               </div>
             ))}
