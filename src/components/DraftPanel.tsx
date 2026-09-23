@@ -904,6 +904,31 @@ export function DraftPanel() {
     }
   };
 
+  /**
+   * Pass 2/3 workflow keys. Same guard rules as Pass 1 (shared implementation
+   * in src/engine/passShortcuts.ts). Pass 1 registers its own bindings inside
+   * Pass1SectionPanel, so these are scoped to passes 2 and 3 to avoid two
+   * handlers for one key.
+   *
+   * While drafting, N/L advance to Proposal Review rather than committing
+   * blind — the coach still sees the proposal before anything is written.
+   */
+  usePassShortcuts({
+    enabled: (activePass === 2 || activePass === 3) && selectedSlotNum !== null,
+    bindings: {
+      N: isProposal
+        ? () => { void handleCommitAndNext(); }
+        : () => { reviewProposal(); },
+      L: isProposal
+        ? () => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }
+        : () => { reviewProposal(); },
+    },
+    onEscape: () => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+    },
+  });
+
+
   const handleParseAndApply = async () => {
     if (!rawInputText.trim() || selectedSlotNum === null) return;
     const result = await saveInput(selectedSlotNum, rawInputText.trim());
