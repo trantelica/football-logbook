@@ -1390,13 +1390,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
   // ── Single-key shortcuts (Text Editing OFF) ──
   useEffect(() => {
-    function isTextInputTarget(t: EventTarget | null): boolean {
-      if (!(t instanceof HTMLElement)) return false;
-      const tag = t.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-      if (t.isContentEditable) return true;
-      return false;
-    }
+    // Guard helpers are shared with Pass 2/3 via src/engine/passShortcuts.ts
+    // so all three passes obey identical suppression rules.
+
 
     /**
      * Suspend section workflow shortcuts whenever ANY blocking modal/dialog is
@@ -1409,9 +1405,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       // Internal scoped modals.
       if (overwriteOpenRef.current || clarificationOpenRef.current) return true;
       // Any Radix Dialog or AlertDialog in the open state (rendered to portal).
-      return !!document.querySelector(
-        '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
-      );
+      return anyRadixDialogOpen();
+
     }
 
     function onKeyDown(e: KeyboardEvent) {
