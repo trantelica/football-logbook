@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Lock, AlertTriangle, ArrowRight, Sparkles, Terminal, ArrowRightLeft } from "lucide-react";
+import { Lock, AlertTriangle, ArrowRight, Sparkles, Terminal, ArrowRightLeft, Pin, PinOff } from "lucide-react";
 import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
@@ -55,6 +55,11 @@ export function PersonnelPanel() {
     inlineErrors,
     carriedForwardFields,
     carriedForwardFromPlayNum,
+    personnelPins,
+    pinnedSeededFields,
+    pinPersonnelPosition,
+    unpinPersonnelPosition,
+
     deterministicParseFields,
     parseEvidenceByField,
     aiProposedFields,
