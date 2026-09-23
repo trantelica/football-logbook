@@ -1,23 +1,5 @@
 /**
  * KeyboardLegend — the Pass 1 shortcut map.
- *
- * Replaces a single run-on line:
- *
- *   Shortcuts: S D R dictate · U update · C clear · F finish · N commit & next
- *              · L commit & leave
- *
- * Two problems with that. "S D R dictate" collapsed three keys onto one label,
- * so it never said which key opened which section — the one thing a coach needs
- * while learning. And commit keys sat in the same undifferentiated run as
- * clear, giving no signal that N and L write data while U and F do not.
- *
- * Now: the three dictate keys are shown inline with the section each one opens
- * (sourced from SECTIONS so they cannot drift), and the full map lives in a
- * popover grouped by what the key actually does — capture, review, or write.
- *
- * The legend is for learning, not for use. A coach mid-film drives this by
- * muscle memory with their eyes on the video, so the inline part stays to one
- * quiet line and the rest is one click away.
  */
 
 import { Keyboard } from "lucide-react";
@@ -49,12 +31,20 @@ const KEY_GROUPS: KeyGroup[] = [
     rows: DICTATE_ROWS,
   },
   {
-    heading: "Review",
+    heading: "Review & Workflow",
     note: "Nothing is written yet.",
     rows: [
       { key: "U", label: "Update proposal", hint: "Parse what you dictated" },
       { key: "F", label: "Finish entry", hint: "Assemble all sections for review" },
       { key: "C", label: "Clear section", hint: "Discards the active section's text" },
+      { key: "Alt + 1/2/3", label: "Switch Pass", hint: "Jump to Pass 1, 2, or 3" },
+    ],
+  },
+  {
+    heading: "Navigation",
+    note: "Active when a play is selected.",
+    rows: [
+      { key: "↑ / ↓", label: "Move selection", hint: "Navigate the Play Rail" },
     ],
   },
   {
@@ -89,7 +79,8 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
         <button
           type="button"
           className="flex items-center gap-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Keyboard shortcuts" title="Keyboard shortcuts (Alt+K)"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts"
         >
           <Keyboard className="h-3 w-3" />
           <span className="flex items-center gap-2">
@@ -108,11 +99,11 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
         <div className="border-b px-4 py-2.5">
           <h2 className="text-sm font-semibold leading-none">Keyboard</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Single keys, no modifiers. Inactive while a dialog is open or Text Editing is on.
+            Single keys, no modifiers unless specified. Inactive while a dialog is open or Text Editing is on.
           </p>
         </div>
 
-        <div className="space-y-4 px-4 py-3">
+        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-4 py-3">
           {KEY_GROUPS.map((group) => (
             <section key={group.heading}>
               <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
