@@ -182,7 +182,37 @@ export function DraftPanel() {
     evidence?: Record<string, import("@/engine/transaction").AIFieldEvidence>;
   } | null>(null);
 
+  /**
+   * Pass 2/3 workflow keys. Same guard rules as Pass 1 (shared implementation
+   * in src/engine/passShortcuts.ts). Pass 1 registers its own bindings inside
+   * Pass1SectionPanel, so these are scoped to passes 2 and 3 to avoid two
+   * handlers for one key.
+   *
+   * MUST stay above the early returns below — this component returns early for
+   * "no game" and "no slot selected", so a hook placed after them would change
+   * hook count between renders. Handlers are referenced lazily inside the
+   * closures, so their later declarations are fine.
+   *
+   * While drafting, N/L advance to Proposal Review rather than committing
+   * blind — the coach still sees the proposal before anything is written.
+   */
+  usePassShortcuts({
+    enabled: (activePass === 2 || activePass === 3) && selectedSlotNum !== null,
+    bindings: {
+      N: isProposal
+        ? () => { void handleCommitAndNext(); }
+        : () => { reviewProposal(); },
+      L: isProposal
+        ? () => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }
+        : () => { reviewProposal(); },
+    },
+    onEscape: () => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+    },
+  });
+
   if (!activeGame) {
+
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         Create or select a game to begin logging plays.
