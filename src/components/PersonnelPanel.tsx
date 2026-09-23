@@ -297,7 +297,7 @@ export function PersonnelPanel() {
                                       disabled={!isPinned && !canPin}
                                       onClick={() => (isPinned ? unpinPersonnelPosition(pos) : pinPersonnelPosition(pos))}
                                       className={cn(
-                                         "ml-auto h-9 w-9 shrink-0 p-0 touch-manipulation",
+                                         "ml-auto h-10 w-10 shrink-0 p-0 touch-manipulation",
                                         isPinned
                                            ? "text-proposal bg-proposal-muted hover:bg-proposal-muted"
                                            : "text-muted-foreground hover:text-foreground",
