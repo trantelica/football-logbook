@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { SeasonProvider, useSeason } from "@/engine/seasonContext";
 import { GameProvider, useGameContext } from "@/engine/gameContext";
 import { LookupProvider } from "@/engine/lookupContext";
 import { RosterProvider } from "@/engine/rosterContext";
 import { RawInputProvider } from "@/engine/rawInputContext";
-import { TransactionProvider, useTransaction } from "@/engine/transaction";
+import { TransactionProvider } from "@/engine/transaction";
 import { GameBar } from "@/components/GameBar";
 import { PlayHUD } from "@/components/PlayHUD";
 import { PassRail } from "@/components/PassRail";
@@ -13,40 +13,36 @@ import { VoiceAnnouncer } from "@/components/VoiceAnnouncer";
 import { OverwriteReview } from "@/components/OverwriteReview";
 import { StatusBar } from "@/components/StatusBar";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
-import { toast } from "sonner";
 
 /**
  * Workspace shell.
+ *
+ * Previously every surface was stacked into one scrolling column: draft entry,
+ * the full slots table, lookup management, roster, and a second full plays
+ * table. On an 80-play game that put ~160 rows of grid below the panel the
+ * coach was actually working in, and selecting a play meant scrolling a
+ * spreadsheet and then scrolling back up.
+ *
+ * Now the regions are separated by job and scroll independently:
+ *
+ *   GameBar    — season/game identity and workspace settings
+ *   PlayHUD    — persistent orientation, glanceable in about a second
+ *   PassRail   — play navigation only
+ *   DraftPanel — the work surface, which owns the remaining space
+ *   StatusBar  — exports, plus on-demand ledger and reference drawers
+ *
+ * Reference data (lookups, roster) and the full grid moved into drawers. They
+ * are reference material, consulted occasionally — they should not compete with
+ * the work surface for vertical space on every play.
  */
 const AppShell = () => {
   const { activeGame } = useGameContext();
   const { restoringSession } = useSeason();
-  const { setActivePass, activePass } = useTransaction();
   const [dismissed, setDismissed] = useState(false);
 
-  // Global keyboard shortcuts for switching passes (Alt+1, Alt+2, Alt+3)
-  useEffect(() => {
-    const handleGlobalKeys = (e: KeyboardEvent) => {
-      // Only fire if not in a dialog and not editing text
-      const isDialog = !!document.querySelector('[role="dialog"]');
-      const isInput = ["INPUT", "TEXTAREA"].includes((document.activeElement as HTMLElement)?.tagName);
-      
-      if (isDialog || isInput) return;
-
-      if (e.altKey && ["1", "2", "3"].includes(e.key)) {
-        e.preventDefault();
-        const pass = Number(e.key);
-        if (pass !== activePass) {
-          setActivePass(pass);
-          toast.info(`Switched to Pass ${pass}`);
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleGlobalKeys);
-    return () => window.removeEventListener("keydown", handleGlobalKeys);
-  }, [activePass, setActivePass]);
-
+  // Reading seasons and games is async, so activeGame is briefly null even when
+  // a session is about to be restored. Rendering the welcome screen during that
+  // window would flash it on every launch for a returning coach.
   if (restoringSession) {
     return <div className="h-screen bg-background" aria-busy="true" />;
   }
@@ -59,14 +55,6 @@ const AppShell = () => {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      {/* Skip to Content - Screen reader and keyboard convenience */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-      >
-        Skip to main content
-      </a>
-
       <GameBar />
 
       {activeGame ? (
@@ -77,7 +65,7 @@ const AppShell = () => {
               scrolling. */}
           <div className="flex min-h-0 flex-1">
             <PassRail />
-            <main id="main-content" className="min-w-0 flex-1 overflow-auto p-4 focus:outline-none" tabIndex={-1}>
+            <main className="min-w-0 flex-1 overflow-auto p-4">
               <DraftPanel />
               <div id="dev-tools-slot" />
             </main>

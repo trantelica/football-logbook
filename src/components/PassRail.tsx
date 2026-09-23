@@ -1,5 +1,19 @@
 /**
  * PassRail — compact play navigator.
+ *
+ * The slots table showed every play as a 13-column row, so an 80-play game put
+ * 80 rows of mostly-empty grid under the work surface and the coach scrolled a
+ * spreadsheet to change plays. Navigation and inspection were the same widget,
+ * and neither was good at its job.
+ *
+ * The rail does navigation only: one dense row per play, showing the play
+ * number, how far through the three passes it is, and just enough situation to
+ * recognise it. It scrolls independently of the work surface, so selecting a
+ * play never moves the panel the coach is typing into.
+ *
+ * The full grid still exists for inspection — see PlayLedger.
+ *
+ * This is the "PassRail" parked in docs/coach/known-limits.md §4.
  */
 
 import { useEffect, useMemo, useRef } from "react";
@@ -12,8 +26,12 @@ import { cn } from "@/lib/utils";
 
 const ODK_FILTER_OPTIONS = ["ALL", "O", "D", "K"] as const;
 
+/** How many of the three passes are done — drives the progress pips. */
 function passProgress(play: PlayRecord, meta: SlotMeta | undefined): number {
   if (!isPass1Complete(play, meta)) return 0;
+  // Non-offensive plays have no personnel or blocking work, so Pass 1 is
+  // everything there is to do. Showing them as 1-of-3 forever would read as
+  // permanently unfinished.
   if (play.odk !== "O") return 3;
   let done = 1;
   if (isPass2Complete(play, meta)) done += 1;
@@ -30,7 +48,7 @@ function situationLabel(play: PlayRecord): string {
 
 function ProgressPips({ done, muted }: { done: number; muted: boolean }) {
   return (
-    <span className="flex shrink-0 gap-[3px]" aria-hidden="true">
+    <span className="flex shrink-0 gap-[3px]" aria-hidden>
       {[0, 1, 2].map((i) => (
         <span
           key={i}
@@ -69,6 +87,9 @@ export function PassRail() {
     [committedPlays, odkFilter],
   );
 
+  // Commit & Next advances the selection without any pointer interaction, so
+  // the rail has to follow the selection on its own or the active play scrolls
+  // out of sight during a run of quick commits.
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedSlotNum]);
@@ -79,31 +100,20 @@ export function PassRail() {
     (p) => passProgress(p, slotMetaMap.get(p.playNum)) === 3,
   ).length;
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const buttons = Array.from(e.currentTarget.querySelectorAll("button[type='button']")) as HTMLButtonElement[];
-      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      if (e.key === "ArrowDown") {
-        (buttons[index + 1] || buttons[0])?.focus();
-      } else {
-        (buttons[index - 1] || buttons[buttons.length - 1])?.focus();
-      }
-    }
-  };
-
   return (
     <nav
       aria-label="Play navigator"
+      // Narrows before the work surface does. At 900px a fixed 188px rail is
+      // over a fifth of the window, and the rail only needs to show a play
+      // number, a short situation, and three progress pips.
       className="flex h-full w-[132px] shrink-0 flex-col border-r bg-card lg:w-[188px]"
-      onKeyDown={handleKeyDown}
     >
       <div className="border-b px-3 py-2.5">
         <div className="flex items-baseline justify-between">
           <h2 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Plays
           </h2>
-          <span className="font-mono text-[10px] tabular-nums text-muted-foreground" aria-label={`${doneCount} of ${committedPlays.length} plays complete`}>
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
             {doneCount}/{committedPlays.length}
           </span>
         </div>
@@ -116,7 +126,6 @@ export function PassRail() {
           }}
           size="sm"
           className="mt-2 justify-start gap-0.5"
-          aria-label="Filter plays by ODK"
         >
           {ODK_FILTER_OPTIONS.map((opt) => (
             <ToggleGroupItem
@@ -150,7 +159,6 @@ export function PassRail() {
                 type="button"
                 onClick={() => selectSlot(play.playNum)}
                 aria-current={isSelected ? "true" : undefined}
-                aria-label={`Play ${play.playNum}, ${isNonOffense ? play.odk : situation || "no situation"}, ${done} of 3 passes complete`}
                 className={cn(
                   "flex w-full items-center gap-2 border-l-2 px-3 py-1.5 text-left transition-colors",
                   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
@@ -165,7 +173,6 @@ export function PassRail() {
                     "w-6 shrink-0 font-mono text-xs tabular-nums",
                     isSelected ? "font-bold text-foreground" : "text-muted-foreground",
                   )}
-                  aria-hidden="true"
                 >
                   {play.playNum}
                 </span>
@@ -175,7 +182,6 @@ export function PassRail() {
                     "min-w-0 flex-1 truncate font-mono text-[11px] tabular-nums",
                     situation ? "text-muted-foreground" : "text-muted-foreground/40",
                   )}
-                  aria-hidden="true"
                 >
                   {isNonOffense ? (play.odk ?? "") : situation || "—"}
                 </span>
