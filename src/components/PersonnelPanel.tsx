@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Lock, AlertTriangle, ArrowRight, Sparkles, Terminal, ArrowRightLeft, Pin, PinOff } from "lucide-react";
+import { Lock, AlertTriangle, ArrowRight, Sparkles, Terminal, ArrowRightLeft, Pin, PinOff, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 /** Read-only play context fields shown at top of Pass 2 panel */
@@ -108,6 +108,12 @@ export function PersonnelPanel() {
       .filter((a) => errors[a])
       .map((a) => ({ field: a, value: c[a], message: errors[a] }));
   }, [errors, c]);
+
+  // Actor Integrity is collapsed while healthy and forced open on any error.
+  const [actorsOpen, setActorsOpen] = useState(false);
+  const actorsExpanded = actorsOpen || actorErrors.length > 0;
+
+
 
   // Helper: get player name from roster by jersey number
   const getPlayerName = (jerseyNum: number | null | undefined): string | null => {
