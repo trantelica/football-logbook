@@ -1297,8 +1297,20 @@ export function DraftPanel() {
          */}
         {(() => {
           const pass1SectionOwnsActions = activePass === 1 && selectedSlotNum !== null;
+          // Passes 2 and 3 put eleven player fields (plus Actor Integrity)
+          // above this row, so it used to require a full scroll to reach
+          // Commit on every play. Pin it to the bottom of the work surface
+          // for those passes. Button set, order, and enable rules unchanged.
+          const stickyActions = activePass === 2 || activePass === 3;
           return (
-            <div className="flex gap-2 pt-2 border-t border-border/30">
+            <div
+              className={cn(
+                "flex gap-2 pt-2 border-t border-border/30",
+                stickyActions &&
+                  "sticky bottom-0 z-10 -mx-4 -mb-4 px-4 pb-3 bg-card/95 backdrop-blur-sm rounded-b-lg",
+              )}
+            >
+
               {!isProposal && !pass1SectionOwnsActions && (
                 <>
                   <Button
