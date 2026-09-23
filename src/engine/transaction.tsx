@@ -1859,12 +1859,22 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           const nextCommittedPersonnel = countCommittedPersonnel(nextMeta);
 
           if (nextCommittedPersonnel === 0) {
+            // Pinned starters first, then immediate-prior carry-forward.
+            const { candidate: pinSeeded, pinnedFields } = applyPinnedPersonnel(
+              { ...nextSlot } as unknown as Record<string, unknown>,
+              personnelPinsRef.current,
+            );
+            let nextCandidate = pinSeeded as unknown as CandidateData;
             const sourcePlay = findImmediatePriorPass2CompleteOffensivePlay(sortedPlays, freshMetaMap, nextPlay.playNum);
+            let seededFields = new Set<string>();
             if (sourcePlay) {
-              const { candidate: seededCandidate, seededFields } =
-                seedPass2PersonnelIntoCandidate<CandidateData>({ ...nextSlot }, sourcePlay);
+              const seededResult = seedPass2PersonnelIntoCandidate<CandidateData>(nextCandidate, sourcePlay);
+              nextCandidate = seededResult.candidate;
+              seededFields = seededResult.seededFields;
+            }
 
-              setCandidate(seededCandidate);
+            if (pinnedFields.size > 0 || sourcePlay) {
+              setCandidate(nextCandidate);
               setSelectedSlotNum(nextPlay.playNum);
               setTouchedFields(new Set());
               setPredictedFields(new Set());
@@ -1879,8 +1889,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
               setPatLockedTry(null);
               setPossessionCheckPending(false);
               setPossessionPrevPlayInfo(null);
+              setPinnedSeededFields(pinnedFields);
               setCarriedForwardFields(seededFields);
-              setCarriedForwardFromPlayNum(sourcePlay.playNum);
+              setCarriedForwardFromPlayNum(sourcePlay ? sourcePlay.playNum : null);
               setDeterministicParseFields(new Set());
               setParseEvidenceByField({});
               setAiProposedFields(new Set());
@@ -1892,6 +1903,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
           }
         }
       }
+
 
       await selectSlot(nextPlay.playNum);
       return { hasNext: true };
