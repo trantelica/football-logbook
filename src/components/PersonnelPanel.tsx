@@ -339,12 +339,29 @@ export function PersonnelPanel() {
             ))}
           </div>
 
-          {/* Actor Integrity Section */}
+          {/* Actor Integrity Section — quiet when everything checks out.
+              Collapsed by default so Commit is not buried behind four fields
+              the coach rarely edits; forced open the moment an actor is not
+              in the 11. No validation or commit-gate change. */}
           <div>
-            <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+            <button
+              type="button"
+              onClick={() => setActorsOpen((v) => !v)}
+              aria-expanded={actorsExpanded}
+              className="flex w-full items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2 hover:text-foreground transition-colors"
+            >
+              <ChevronRight
+                className={cn("h-3 w-3 transition-transform", actorsExpanded && "rotate-90")}
+              />
               Actor Integrity
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {!actorsExpanded && (
+                <span className="font-normal normal-case tracking-normal">
+                  {actorErrors.length > 0 ? "— needs attention" : "— actors check out"}
+                </span>
+              )}
+            </button>
+            <div className={cn("grid grid-cols-2 sm:grid-cols-4 gap-2", !actorsExpanded && "hidden")}>
+
               {ACTOR_FIELDS.map((actor) => {
                 const actorVal = c[actor] != null ? String(c[actor]) : "";
                 const playerName = actorVal !== "" ? getPlayerName(Number(actorVal)) : null;
