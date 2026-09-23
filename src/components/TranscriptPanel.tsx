@@ -33,6 +33,8 @@ import { PERSONNEL_LABELS, PERSONNEL_POSITIONS } from "@/engine/personnel";
 import { fetchAiPersonnelProposal } from "@/engine/aiPersonnelClient";
 import { RosterResolveDialog, type OffRosterPending } from "@/components/RosterResolveDialog";
 import { isDevMode } from "@/engine/devMode";
+import { usePassShortcuts } from "@/engine/passShortcuts";
+
 import { toast } from "sonner";
 
 interface ParseSnapshot {
