@@ -24,8 +24,20 @@
 
 ## 4. UI / Workspace
 
-- PassRail, ActionRail, broader workspace shell, and deeper DraftPanel restructuring remain parked.
-- The current layout is functional and stable; broader UI redesigns are future work.
+Shipped:
+
+- **Play rail** for navigating plays, replacing the full-width slots table.
+- **Play HUD** — a persistent strip showing play number, situation, and state.
+- **Workspace shell** — navigation, work surface, and reference data scroll independently.
+- **Play Ledger** and **Reference** drawers, opened on demand from the status bar.
+- **Spoken feedback** (off by default) and **light / dark** appearance.
+- Session restore — the app reopens the last season and game.
+
+Still parked:
+
+- ActionRail.
+- Touch / tablet support below 768px. The eyes-off workflow depends on single-key
+  shortcuts, so this needs its own interaction model rather than more layout work.
 
 ## 5. AI Behavior
 
@@ -43,8 +55,9 @@ The current build supports:
 - Pass 2: Personnel entry with carry-forward seeding
 - Pass 3: Blocking grade entry with parser and AI-assisted fallback
 - Deterministic candidate → proposal → validate → commit → audit lifecycle
-- Hudl CSV export (committed rows only)
+- Hudl CSV export — one row per clip, carrying committed data only
 - Session archive export and restore-only import
+- Workspace shell, session restore, light/dark, and optional spoken feedback
 
 ---
 
