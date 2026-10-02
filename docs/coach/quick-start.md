@@ -64,9 +64,18 @@ If you need to change a committed play, use the overwrite review path. The app w
 
 ### Hudl CSV
 
-- Exports **committed plays only**.
-- Empty or uncommitted slots do not appear.
-- Download and upload the CSV directly to Hudl.
+- The CSV contains **one row per play slot in the session**, so the rows line up
+  with your video clips by play number. Slots you have not logged yet — and
+  defensive or kicking clips — appear with just their play number, quarter, ODK,
+  and series.
+- Only **committed** data appears in those rows. Draft and proposal edits you
+  have not committed do not export.
+- Three files download a couple of seconds apart: the plays CSV first, then
+  notes, then a manifest. That pause is deliberate — browsers drop downloads
+  fired all at once.
+- Upload the **plays** CSV directly to Hudl.
+- If your browser blocks downloads, use **Copy plays CSV** in the ⋯ menu and
+  paste it into a file.
 
 ### Session Archive
 
@@ -80,7 +89,9 @@ If you need to change a committed play, use the overwrite review path. The app w
 - **No silent commits**: You must press Commit.
 - **No silent overwrites**: Changing a committed play triggers a confirmation.
 - **Parser and AI are advisory**: They propose; you approve.
-- **Exports are committed-only**: What you see in the export is what has been committed.
+- **Exports carry committed data only**: uncommitted draft and proposal edits never
+  reach the file. The CSV still has a row for every clip, so the export stays
+  aligned with your film.
 
 ---
 
