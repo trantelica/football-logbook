@@ -13,6 +13,7 @@ import {
 } from "./schema";
 import type { CandidateData, ValidationErrors, PlayRecord } from "./types";
 import { canonicalizeLookupValue } from "./db";
+import { validateDefenseRules } from "./defenseRosterAssist";
 
 // ── playNum Parsing ──
 
@@ -126,7 +127,11 @@ function validateLookupField(
 
 // ── Actor Roster Validation ──
 
-const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
+const ACTOR_FIELDS = new Set([
+  "rusher", "passer", "receiver", "returner",
+  "tackler1", "tackler2", "tackler3", "tackler4",
+  "interceptedBy", "coverPlayer", "pbr", "dawg", "unsung",
+]);
 
 function validateActorField(
   fieldDef: FieldDefinition,
@@ -267,6 +272,11 @@ export function validateCommitGate(
     ) {
       errors.gainLoss = "Incomplete pass cannot have non-zero gain/loss";
     }
+  }
+
+  // 6. Defensive rules (ODK=D): interception needs Intercepted By; tackler order/dupes
+  for (const [k, msg] of Object.entries(validateDefenseRules(candidate as Record<string, unknown>))) {
+    if (!errors[k]) errors[k] = msg;
   }
 
   if (Object.keys(errors).length > 0) {
