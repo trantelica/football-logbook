@@ -1966,6 +1966,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       return { committed: true, hasNext: false };
     }
 
+    toast.success(`Play ${currentSlotNum} committed · Next`, { duration: 1500 });
     const { hasNext } = await advanceToNextFilteredSlot(currentSlotNum, currentActivePass);
     return { committed: true, hasNext };
   }, [state, selectedSlotNum, activePass, commitProposal, advanceToNextFilteredSlot]);
@@ -1993,6 +1994,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       setLastPass2CommitPlayNum(currentSlotNum);
     }
     if (currentSlotNum !== null) {
+      toast.success(`Play ${currentSlotNum} committed · Stay`, { duration: 1500 });
       await selectSlot(currentSlotNum, { fresh: true });
     }
     return { committed: true };
