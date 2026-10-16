@@ -68,6 +68,7 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     toggleListening,
     startListening,
     stopListening,
+    enhancing,
     clear,
   } = useTranscriptCapture();
 
@@ -648,8 +649,20 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       if (listening) return false;
       startListening();
     },
-    onStop: () => stopListening(),
+    onStop: () => {
+      stopListening();
+      setAutoUpdatePending(true);
+    },
   });
+
+  // Release-to-update: once the mic is off and the football-aware transcript
+  // has landed, run the same Update Proposal as pressing U (review only).
+  const [autoUpdatePending, setAutoUpdatePending] = useState(false);
+  useEffect(() => {
+    if (!autoUpdatePending || listening || enhancing) return;
+    setAutoUpdatePending(false);
+    if (hasParseableText) void handleUpdateProposal();
+  }, [autoUpdatePending, listening, enhancing, hasParseableText, handleUpdateProposal]);
 
   usePassShortcuts({
     enabled: isPass2Plus,
