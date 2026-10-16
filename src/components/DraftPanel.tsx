@@ -22,7 +22,7 @@ import { useRoster } from "@/engine/rosterContext";
 import { useRawInput } from "@/engine/rawInputContext";
 import { useSeason } from "@/engine/seasonContext";
 import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } from "@/engine/schema";
-import { SECTIONS, getOwningSection } from "@/engine/sectionOwnership";
+import { SECTIONS, DEF_SECTIONS, getOwningSection } from "@/engine/sectionOwnership";
 import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
 import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot, ArrowRightLeft, Info, AlertCircle, ShieldAlert, Link, RotateCcw } from "lucide-react";
@@ -53,6 +53,7 @@ const WORKFLOW_STAGES = [
   { value: "1", label: "Pass 1: Play Details", pass: 1, enabled: true },
   { value: "2", label: "Pass 2: Personnel", pass: 2, enabled: true },
   { value: "3", label: "Pass 3: Blocking", pass: 3, enabled: true },
+  { value: "4", label: "Pass 4: Defense", pass: 4, enabled: true },
 ] as const;
 
 /** Map of parent lookup fields → dependent fields to auto-populate */
@@ -1126,6 +1127,22 @@ export function DraftPanel() {
    * they get their own group, but only once something has resolved: six empty
    * placeholders on every play is clutter, not provenance.
    */
+  /** Pass 4 review surface: same grouped layout as Pass 1, defensive cards. */
+  const renderPass4Proposal = () => (
+    <div className="space-y-3">
+      {DEF_SECTIONS.map((section) => (
+        <section key={section.id}>
+          <h4 className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            {section.title}
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {section.ownedFields.map((f) => renderField(f, isProposal))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+
   const renderPass1Proposal = () => {
     const pass1Fields = playSchema.filter((f) => f.defaultPassEntry <= 1);
     const c = candidate as Record<string, unknown>;
@@ -1347,7 +1364,13 @@ export function DraftPanel() {
         ) : activePass === 2 ? (
           <PersonnelPanel />
         ) : activePass === 1 && selectedSlotNum !== null ? (
-          <Pass1SectionPanel proposalSlot={renderPass1Proposal()} />
+          <Pass1SectionPanel key="pass1" proposalSlot={renderPass1Proposal()} />
+        ) : activePass === 4 && selectedSlotNum !== null && candidate.odk === "D" ? (
+          <Pass1SectionPanel key="pass4" sections={DEF_SECTIONS} proposalSlot={renderPass4Proposal()} />
+        ) : activePass === 4 ? (
+          <div className="rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            Pass 4 is for defensive plays (ODK = D). Choose a D play from the rail.
+          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {playSchema.map((f) => renderField(f.name, isProposal))}
@@ -1364,7 +1387,8 @@ export function DraftPanel() {
          * `Next Slot` (plain navigation) is kept for all passes.
          */}
         {(() => {
-          const pass1SectionOwnsActions = activePass === 1 && selectedSlotNum !== null;
+          const pass1SectionOwnsActions =
+            (activePass === 1 || (activePass === 4 && candidate.odk === "D")) && selectedSlotNum !== null;
           // Passes 2 and 3 put eleven player fields (plus Actor Integrity)
           // above this row, so it used to require a full scroll to reach
           // Commit on every play. Pin it to the bottom of the work surface
