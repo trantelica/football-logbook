@@ -50,7 +50,7 @@ const KEY_GROUPS: KeyGroup[] = [
     rows: [
       ...DICTATE_ROWS,
       { key: "Space", label: "Hold to talk", hint: "Release to stop and update the proposal" },
-      { key: "T", label: "Text Editing", hint: "Type instead of dictate · Esc to exit" },
+      { key: "T", label: "Text Editing", hint: "Type instead of dictate · Ctrl/⌘ + E toggles · Esc exits" },
     ],
   },
   {
@@ -83,7 +83,7 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
         <Keyboard className="h-3 w-3" />
         <span>
-          Text Editing on — type freely. Shortcuts are off. <Key>Esc</Key> to exit.
+          Text Editing on — type freely. Shortcuts are off. <Key>Esc</Key> or Ctrl/⌘ + E to exit.
         </span>
       </div>
     );
