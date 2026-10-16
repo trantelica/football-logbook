@@ -1030,9 +1030,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: P
             assistPatchByRow.set(rowId, { field: opt.field, canonical: opt.jerseyNumber });
           }
         }
-        // Pass 4 Playmakers: tacklers, interception, cover, PBR and awards
-        // from spoken names or jersey numbers ("tackle by Reed and 32").
-        if (id === "defPlaymakers" && roster.length > 0) {
+        // Pass 4 Playmakers cues ("tackle by Reed and 32", "intercepted by
+        // 21", "dawg Fisher") work from any defensive card. Suggestions are
+        // still reviewed rows and only fill empty playmaker fields.
+        if (activePass === 4 && roster.length > 0) {
           const candidateMap = candidate as Record<string, unknown>;
           const blocked = new Set<string>(touchedFields);
           for (const f of DEF_ACTOR_FIELDS) {
