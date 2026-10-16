@@ -42,7 +42,7 @@ describe("matchCommitChord", () => {
     expect(matchCommitChord({ ...base, metaKey: true })).toBe("next");
     expect(matchCommitChord({ ...base, metaKey: true, shiftKey: true })).toBe("stay");
     expect(matchCommitChord({ ...base, ctrlKey: true, altKey: true })).toBe("exit");
-    expect(matchCommitChord({ ...base, key: "Escape", metaKey: true })).toBe("exit");
+    expect(matchCommitChord({ ...base, metaKey: true, altKey: true })).toBe("exit");
   });
   it("never matches plain Enter or plain Escape", () => {
     expect(matchCommitChord(base)).toBeNull();
@@ -75,7 +75,7 @@ describe("useCommitShortcuts", () => {
     expect(onNext).not.toHaveBeenCalled();
     fireEvent.keyDown(field, { key: "Enter", ctrlKey: true });
     fireEvent.keyDown(field, { key: "Enter", metaKey: true, shiftKey: true });
-    fireEvent.keyDown(field, { key: "Escape", metaKey: true });
+    fireEvent.keyDown(field, { key: "Enter", metaKey: true, altKey: true });
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(onStay).toHaveBeenCalledTimes(1);
     expect(onExit).toHaveBeenCalledTimes(1);
@@ -109,11 +109,10 @@ describe("useCommitShortcuts", () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
-  it("Cmd+Esc never runs the plain Escape handler; plain Esc does and never commits", () => {
+  it("Cmd+Option+Enter exits; plain Esc runs its handler and never commits", () => {
     const onEscape = vi.fn(), onExit = vi.fn();
     render(<Harness onEscape={onEscape} onExit={onExit} />);
-    fireEvent.keyDown(window, { key: "Escape", metaKey: true });
-    expect(onEscape).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "Enter", metaKey: true, altKey: true });
     expect(onExit).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onEscape).toHaveBeenCalledTimes(1);
