@@ -14,7 +14,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { playSchema } from "./schema";
 import { getUnresolvedFields } from "./aiEnrichment";
-import { AI_ELIGIBLE_FIELDS, DEFENSE_AI_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
+import { AI_ELIGIBLE_FIELDS, DEFENSE_AI_FIELDS, DEF_PLAYMAKER_ACTOR_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
 import { getBaselinePhraseology } from "./phraseologyBaseline";
 import {
   normalizePatchKeysToCanonical,
@@ -230,6 +230,13 @@ export async function fetchAiProposal(
     aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => !ACTOR_FIELDS.has(f));
   }
 
+  // Pass 4 Playmakers actor fields are AI-eligible ONLY when the active
+  // section is defPlaymakers. Same section-scoping contract as the
+  // offensive Play Results actors.
+  if (opts?.activeSection !== "defPlaymakers") {
+    aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => !DEF_PLAYMAKER_ACTOR_FIELDS.has(f));
+  }
+
   // Slice A: section-aware scoping for Pass 1. When activeSection is set,
   // further intersect with the section's ownedFields so AI cannot propose
   // values for fields outside the active section.
@@ -360,6 +367,14 @@ export async function fetchAiProposal(
   if (opts?.activeSection !== "playResults") {
     for (const k of Object.keys(normalized)) {
       if (ACTOR_FIELDS.has(k)) delete normalized[k];
+    }
+  }
+
+  // Defensive playmaker actor drop: only flow when activeSection is
+  // defPlaymakers (mirrors the offensive actor drop above).
+  if (opts?.activeSection !== "defPlaymakers") {
+    for (const k of Object.keys(normalized)) {
+      if (DEF_PLAYMAKER_ACTOR_FIELDS.has(k)) delete normalized[k];
     }
   }
 
