@@ -62,7 +62,7 @@ const ALL_ANCHOR_TOKENS: ReadonlySet<string> = new Set(
 );
 
 /** Per-field suspicion thresholds. */
-const OVERLONG_TOKEN_LIMIT: Record<GovernedLookupField, number> = {
+const OVERLONG_TOKEN_LIMIT: Partial<Record<GovernedLookupField, number>> = {
   offForm: 4,
   offPlay: 6,
   motion: 4,

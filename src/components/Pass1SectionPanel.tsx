@@ -1358,7 +1358,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: P
     const liveInterim = recording.interim;
     const snapshot = Object.fromEntries(
       SECTIONS.map((s) => [s.id, { ...sectionState[s.id] }]),
-    ) as Record<SectionId, { text: string; dirty: boolean }>;
+    ) as unknown as Record<SectionId, { text: string; dirty: boolean }>;
     if (recId) {
       const finalizedLive = liveText.trim();
       const interimTail = liveInterim.trim();

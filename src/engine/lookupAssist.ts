@@ -59,7 +59,7 @@ export interface CollectAssistInput {
 }
 
 const GOVERNED_FIELDS: readonly GovernedLookupField[] = ["offForm", "offPlay", "motion"];
-const CAPS: Record<GovernedLookupField, number> = { offForm: 5, offPlay: 6, motion: 5 };
+const CAPS: Partial<Record<GovernedLookupField, number>> = { offForm: 5, offPlay: 6, motion: 5 };
 const SIGNAL_ORDER: readonly AssistSignal[] = [
   "numeric",
   "prefix",
