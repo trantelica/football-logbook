@@ -23,6 +23,7 @@ import {
   PLAY_RESULTS_ACTOR_FIELDS,
   NON_RUSH_RESULT_PREFIXES,
   DEFENSE_AI_FIELDS,
+  DEF_PLAYMAKER_ACTOR_FIELDS,
 } from "./aiEligibility";
 
 /** Fields that are system-managed and never AI-enrichable */
@@ -211,6 +212,14 @@ export function filterAiProposal(opts: {
       // rusher contamination: drop when the result clearly excludes a carrier
       // (Pass/Sack/Penalty/etc.) — AI must not invent a rusher in those contexts.
       if (fieldName === "rusher" && isNonRushResult(effectiveResult)) continue;
+    }
+
+    // Pass 4 Playmakers actor fields: same integer-jersey contract as the
+    // offensive actors. ODK=D is already enforced via DEFENSE_AI_FIELDS.
+    if (DEF_PLAYMAKER_ACTOR_FIELDS.has(fieldName)) {
+      const jersey = coerceActorJersey(proposedValue);
+      if (jersey == null) continue; // drop names, "RB4", floats, etc.
+      proposedValue = jersey;
     }
 
     if (unresolvedFields.has(fieldName)) {
