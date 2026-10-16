@@ -17,3 +17,7 @@
 - [ ] Slice 4: dictation cue words, defensive yard-line sign flip, AI fallback.
 - [x] Current request: defensive side-aware yard-line dictation and reviewed AI fallback; verified both signs, live AI suggestions, explicit list review, commit and reload (1,096 tests passed).
 - [ ] Slice 5: PassRail status, ledger columns, docs, export-check tests.
+
+## Parked (do not start until user says go)
+- [ ] Partial game import: bring a partial file from another source into an existing game; match by play number; imported values arrive as reviewed proposals, never overwrite committed data.
+- [ ] Persistent storage beyond the browser: cloud backup/sync of seasons and games that survives browser clearing and works across devices; browser stays the working copy.
