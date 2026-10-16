@@ -40,7 +40,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { anyRadixDialogOpen, isTextInputTarget, usePushToTalk } from "@/engine/passShortcuts";
+import {
+  anyRadixDialogOpen,
+  isTextInputTarget,
+  usePushToTalk,
+  useCommitShortcuts,
+  COMMIT_ACTION_BY_ID,
+} from "@/engine/passShortcuts";
 
 import {
   Mic,
@@ -53,6 +59,7 @@ import {
   Flag,
   ChevronRight,
   LogOut,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -200,6 +207,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     reviewProposal,
     commitProposal,
     commitAndNext,
+    commitAndStay,
     backToEdit,
     deselectSlot,
     commitCount,
@@ -1434,6 +1442,28 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     deselectSlot();
   }, [state, finishDictationEntry, commitProposal, deselectSlot, checkAllSectionsGovernance]);
 
+  // Commit & Stay: same one-press rules as Next/Exit, then reopen this play.
+  const handleCommitAndStay = useCallback(async () => {
+    if (state !== "proposal") {
+      const ready = await finishDictationEntry();
+      if (!ready) return;
+      if (overwriteOpenRef.current || clarificationOpenRef.current) return;
+    }
+    if (checkAllSectionsGovernance()) return;
+    await commitAndStay();
+  }, [state, finishDictationEntry, commitAndStay, checkAllSectionsGovernance]);
+
+  // Shared N / Y / L letters + Ctrl/Cmd chords (chords also work while typing and
+  // in Text Editing mode; letters do not).
+  useCommitShortcuts({
+    enabled: true,
+    suspended: () => overwriteOpenRef.current || clarificationOpenRef.current,
+    lettersSuspended: () => textEditing,
+    onNext: () => void handleCommitAndNext(),
+    onStay: () => void handleCommitAndStay(),
+    onExit: () => void handleCommitAndLeave(),
+  });
+
   // ── Single-key shortcuts (Text Editing OFF) ──
   useEffect(() => {
     // Guard helpers are shared with Pass 2/3 via src/engine/passShortcuts.ts
@@ -1457,6 +1487,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        // Cmd/Ctrl/Alt + Esc is Commit & Exit, not a plain Escape.
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
         if (textEditing) {
           setTextEditing(false);
           (document.activeElement as HTMLElement | null)?.blur?.();
@@ -1509,14 +1541,6 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           e.preventDefault();
           void finishDictationEntry();
           break;
-        case "N":
-          e.preventDefault();
-          void handleCommitAndNext();
-          break;
-        case "L":
-          e.preventDefault();
-          handleCommitAndLeave();
-          break;
         default:
           break;
       }
@@ -1531,8 +1555,6 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     runUpdateProposal,
     clearSection,
     finishDictationEntry,
-    handleCommitAndNext,
-    handleCommitAndLeave,
   ]);
 
   // ── Push-to-talk: hold SPACE to dictate into the active section ──
@@ -1664,9 +1686,20 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
                       Commit & Next
                       <kbd className="kbd ml-1">N</kbd>
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 gap-1"
+                      onClick={() => void handleCommitAndStay()}
+                      title={`Save, then reopen this play · ${COMMIT_ACTION_BY_ID.stay.chords[0]}`}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Commit & Stay
+                      <kbd className="kbd ml-1">Y</kbd>
+                    </Button>
                     <Button size="sm" variant="secondary" className="h-8 gap-1" onClick={handleCommitAndLeave}>
                       <LogOut className="h-3.5 w-3.5" />
-                      Commit & Leave
+                      Commit & Exit
                       <kbd className="kbd ml-1">L</kbd>
                     </Button>
                     <Button
