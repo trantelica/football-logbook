@@ -151,10 +151,12 @@ interface TransactionContextValue {
   cancelOverwrite: () => void;
   loadPlayForOverwrite: (play: PlayRecord) => void;
   refreshCommittedPlays: () => Promise<void>;
-  selectSlot: (playNum: number) => Promise<void>;
+  selectSlot: (playNum: number, opts?: { fresh?: boolean }) => Promise<void>;
   deselectSlot: () => void;
   dismissScaffoldWarning: () => void;
   commitAndNext: () => Promise<{ committed: boolean; hasNext: boolean }>;
+  /** Commit, then reopen the same play (same pass) showing the saved values. */
+  commitAndStay: () => Promise<{ committed: boolean }>;
   nextSlot: () => Promise<boolean>;
 
   // Carry-forward indicators (Pass 2)
@@ -259,8 +261,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
   // Tracks intent to advance to next slot after a deferred commit (overwrite-review or TD correction).
   // Cleared when the deferred flow resolves, or when the user cancels.
-  const pendingAdvanceAfterCommitRef = useRef<{ fromSlotNum: number; activePass: number } | null>(null);
+  const pendingAdvanceAfterCommitRef = useRef<{ fromSlotNum: number; activePass: number; mode?: "next" | "stay" } | null>(null);
   // Forward ref for advanceToNextFilteredSlot — defined later but referenced earlier in confirm handlers.
+  // Forward ref so confirmOverwrite (defined earlier) can reopen the same slot for Commit & Stay.
+  const selectSlotRef = useRef<((playNum: number, opts?: { fresh?: boolean }) => Promise<void>) | null>(null);
   const advanceToNextFilteredSlotRef = useRef<((fromSlotNum: number, fromActivePass: number) => Promise<{ hasNext: boolean }>) | null>(null);
   
   // Adjustment tracking: coach-facing messages for review normalization
@@ -1426,7 +1430,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     const pending = pendingAdvanceAfterCommitRef.current;
     clearDraft();
 
-    if (pending && advanceToNextFilteredSlotRef.current) {
+    if (pending?.mode === "stay") {
+      // Commit & Stay: reopen the same slot, reading the just-saved row.
+      await selectSlotRef.current?.(pending.fromSlotNum, { fresh: true });
+    } else if (pending && advanceToNextFilteredSlotRef.current) {
       await advanceToNextFilteredSlotRef.current(pending.fromSlotNum, pending.activePass);
     }
     return true;
@@ -1458,11 +1465,12 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   );
 
   const selectSlot = useCallback(
-    async (playNum: number) => {
+    async (playNum: number, opts?: { fresh?: boolean }) => {
       // Defensive: prefer in-memory committedPlays for hot paths, but fall back
       // to a DB read so callers like commitAndNext (which run mid-render after
       // setState) are not blocked by a stale closure of committedPlays.
-      let slot = committedPlays.find((p) => p.playNum === playNum);
+      // `fresh` (Commit & Stay) skips the in-memory copy, which predates the commit.
+      let slot = opts?.fresh ? undefined : committedPlays.find((p) => p.playNum === playNum);
       if (!slot) {
         const fresh = await getPlay(gameId, playNum);
         if (!fresh) return;
@@ -1916,6 +1924,9 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     advanceToNextFilteredSlotRef.current = advanceToNextFilteredSlot;
   }, [advanceToNextFilteredSlot]);
+  useEffect(() => {
+    selectSlotRef.current = selectSlot;
+  }, [selectSlot]);
 
   // Phase 4: Commit & Next — advances to next slot in filtered scaffold list
   const commitAndNext = useCallback(async (): Promise<{ committed: boolean; hasNext: boolean }> => {
@@ -1958,6 +1969,34 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
     const { hasNext } = await advanceToNextFilteredSlot(currentSlotNum, currentActivePass);
     return { committed: true, hasNext };
   }, [state, selectedSlotNum, activePass, commitProposal, advanceToNextFilteredSlot]);
+
+  // Commit & Stay — commit, then reopen the same slot (same pass) with the saved values.
+  // Deferred flows (overwrite review) resume through pendingAdvanceAfterCommitRef (mode "stay").
+  const commitAndStay = useCallback(async (): Promise<{ committed: boolean }> => {
+    if (state !== "proposal") return { committed: false };
+    const currentSlotNum = selectedSlotNum;
+    const currentActivePass = activePass;
+
+    if (currentSlotNum !== null) {
+      pendingAdvanceAfterCommitRef.current = {
+        fromSlotNum: currentSlotNum,
+        activePass: currentActivePass,
+        mode: "stay",
+      };
+    }
+
+    const success = await commitProposal();
+    if (!success) return { committed: false };
+    pendingAdvanceAfterCommitRef.current = null;
+
+    if (currentActivePass === 2 && currentSlotNum !== null) {
+      setLastPass2CommitPlayNum(currentSlotNum);
+    }
+    if (currentSlotNum !== null) {
+      await selectSlot(currentSlotNum, { fresh: true });
+    }
+    return { committed: true };
+  }, [state, selectedSlotNum, activePass, commitProposal, selectSlot]);
 
   // Structured validation reasons for proposal metadata
   const validationReasons = useMemo(() => {
@@ -2194,6 +2233,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         deselectSlot,
         dismissScaffoldWarning,
         commitAndNext,
+        commitAndStay,
         nextSlot,
         carriedForwardFields,
         carriedForwardFromPlayNum,
