@@ -11,7 +11,7 @@
  * - No auto-parse. No AI. No silent mutation of committed state.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2, Sparkles } from "lucide-react";
@@ -68,6 +68,7 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     toggleListening,
     startListening,
     stopListening,
+    enhancing,
     clear,
   } = useTranscriptCapture();
 
@@ -648,8 +649,20 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
       if (listening) return false;
       startListening();
     },
-    onStop: () => stopListening(),
+    onStop: () => {
+      stopListening();
+      setAutoUpdatePending(true);
+    },
   });
+
+  // Release-to-update: once the mic is off and the football-aware transcript
+  // has landed, run the same Update Proposal as pressing U (review only).
+  const [autoUpdatePending, setAutoUpdatePending] = useState(false);
+  useEffect(() => {
+    if (!autoUpdatePending || listening || enhancing) return;
+    setAutoUpdatePending(false);
+    if (hasParseableText) void handleUpdateProposal();
+  }, [autoUpdatePending, listening, enhancing, hasParseableText, handleUpdateProposal]);
 
   usePassShortcuts({
     enabled: isPass2Plus,

@@ -164,6 +164,7 @@ export function BlockingPanel() {
     toggleListening,
     startListening,
     stopListening,
+    enhancing,
     clear: clearDictation,
   } = useTranscriptCapture();
 
@@ -359,8 +360,20 @@ export function BlockingPanel() {
       if (listening) return false;
       startListening();
     },
-    onStop: () => stopListening(),
+    onStop: () => {
+      stopListening();
+      setAutoUpdatePending(true);
+    },
   });
+
+  // Release-to-update: once the mic is off and the football-aware transcript
+  // has landed, run the same Update Proposal as pressing U (review only).
+  const [autoUpdatePending, setAutoUpdatePending] = useState(false);
+  useEffect(() => {
+    if (!autoUpdatePending || listening || enhancing) return;
+    setAutoUpdatePending(false);
+    if (!gradesDisabled && !aiBusy && narrationText.trim() !== "") void handleApplyNarration();
+  }, [autoUpdatePending, listening, enhancing, gradesDisabled, aiBusy, narrationText, handleApplyNarration]);
 
   usePassShortcuts({
     enabled: !noCommittedRow && !notOffense,
