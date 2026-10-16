@@ -50,6 +50,7 @@ const KEY_GROUPS: KeyGroup[] = [
     rows: [
       ...DICTATE_ROWS,
       { key: "Space", label: "Hold to talk", hint: "Release to stop and update the proposal" },
+      { key: "T", label: "Text Editing", hint: "Type instead of dictate · Esc to exit" },
     ],
   },
   {
