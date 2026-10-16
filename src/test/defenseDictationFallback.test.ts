@@ -64,6 +64,22 @@ describe("Pass 4 reviewed AI fallback", () => {
     const { safePatch } = filterAiProposal({ proposal: { defFront: "Bear", retYards: 8 }, candidate: { odk: "O" } as CandidateData, unresolvedFields: new Set(["defFront", "retYards"]) });
     expect(safePatch).toEqual({});
   });
+  it("does not invent zero return yards for an incomplete pass", async () => {
+    invoke.mockResolvedValue({ data: { proposal: { retYards: 0 } }, error: null });
+    const result = await fetchAiProposal({ odk: "D", result: "Incomplete", gainLoss: 0 }, 4, {
+      activeSection: "defResults", observationText: "Incomplete pass GN/LS 0",
+    });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(result.proposal).toEqual({});
+  });
+  it("allows explicitly narrated return distances only", async () => {
+    invoke.mockResolvedValue({ data: { proposal: { retYards: 12 } }, error: null });
+    const result = await fetchAiProposal({ odk: "D", result: "Interception", gainLoss: 0 }, 4, {
+      activeSection: "defResults", observationText: "Interception returned for twelve yards",
+    });
+    expect(invoke.mock.calls[0][1].body.unresolvedFields).toContain("retYards");
+    expect(result.proposal.retYards).toBe(12);
+  });
   it("rejects invalid defensive enums/return distances and reports resolved collisions", () => {
     const candidate = { odk: "D", defFront: "Even" } as CandidateData;
     const result = filterAiProposal({ candidate, unresolvedFields: new Set(["defStrength", "retYards"]), proposal: { defFront: "Bear", defStrength: "Middle", retYards: -8 } });

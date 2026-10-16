@@ -216,6 +216,11 @@ export async function fetchAiProposal(
   if (activePass !== 4 || candidate.odk !== "D" || !defensiveSection) {
     aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => !DEFENSE_AI_FIELDS.has(f));
   }
+  // A result alone never establishes return yardage (including zero).
+  // Require a narrated return-distance cue before exposing this field to AI.
+  if (!/\b(?:ret\s*(?:yards?|yds?)|return(?:ed)?\s+(?:yards?|yardage)|return(?:ed)?\s+(?:it\s+|the\s+ball\s+)?(?:for\s+)?(?:\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety))\b/i.test(observationText)) {
+    aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => f !== "retYards");
+  }
 
   // Play Results actor fields are AI-eligible ONLY when the active section
   // is playResults. Outside that section (or in legacy cross-section calls
