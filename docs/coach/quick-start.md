@@ -47,6 +47,21 @@ Enter grades for the offensive line and skill positions.
 - Press **Update Proposal** to run the parser. If anything remains unresolved, the app can suggest AI-assisted fills.
 - Review every proposal before committing. The parser and AI are advisory — you decide what gets committed.
 
+### Pass 4 — Defense (defensive plays only)
+
+Four cards: Situation, Defensive Call, Results, Playmakers.
+
+- Yard line on defense is from the other team's view: "their 25" is −25, "our 25" is +25.
+- Say "tackle by Reed and Fisher", "intercepted by 21", "dawg goes to 5" on any card — players are suggested for you to approve.
+- New front, blitz or coverage names are added to your list only after you confirm.
+
+### Dictation and shortcuts
+
+- **Hold Space** to talk; release to update the proposal. The app uses football and roster words to hear you better, and shows what it heard under each card.
+- **N** commit & next, **Y** commit & stay, **L** commit & exit. **T** or Ctrl/Cmd+E toggles typing.
+- In Pass 2, pin a starter to keep him in that spot on later plays.
+- Light/dark switch is in the top bar.
+
 ---
 
 ## 4. Update Proposal → Review → Commit
@@ -54,7 +69,7 @@ Enter grades for the offensive line and skill positions.
 1. **Update Proposal** assembles your input into a reviewable proposal.
 2. Review the proposal card. Fields with warnings or conflicts are highlighted.
 3. Press **Commit** to save the play to the session. Commit is always explicit — nothing is saved without your confirmation.
-4. Use **Commit & Next** to commit and move to the next slot automatically.
+4. Use **Commit & Next** (N), **Commit & Stay** (Y) or **Commit & Exit** (L).
 
 If you need to change a committed play, use the overwrite review path. The app will ask you to confirm before changing anything already committed.
 

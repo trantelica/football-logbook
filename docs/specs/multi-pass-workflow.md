@@ -486,32 +486,31 @@ Pass 3 must not:
 
 ---
 
-## 9. Future Pass 4 — Defensive Metadata on Offensive Plays
+## 9. Pass 4 — Defensive Plays (ODK = D)
 
 ### 9.1 Status
 
-Future / inactive.
+Active for ODK = D slots only. Reuses the Pass 1 card engine (dictate per card, hold-Space, read-back, Review/Commit, N/Y/L hotkeys).
 
-### 9.2 Candidate Fields
+### 9.2 Cards and Fields
 
-Original PDR candidate fields include:
+1. **Situation** — qtr, series, dn, dist, yardLn, hash, twoMin (Pass 1 prediction/carry logic).
+2. **Defensive Call** — `defFront`, `defStrength` (L/R enum), `blitz`, `coverage`, playType.
+3. **Results** — result, gainLoss (opponent's gain), penalty, penYards, eff, `retYards`.
+4. **Playmakers** (open, all optional) — `tackler1`–`tackler4`, `interceptedBy`, `coverPlayer`, `pbr`, `dawg`, `unsung`.
 
-- `defFront`
-- `coverage`
-- `blitz`
-- `gap`
+### 9.3 Rules
 
-### 9.3 Activation Rule
-
-Do not add Pass 4 fields to the active Hudl export until:
-
-1. schema revision is approved
-2. lookup governance is defined
-3. validation rules are defined
-4. workflow UX is defined
-5. acceptance tests exist
+- **Yard line**: always offense-relative. On D, "their 25" → −25, "our/own 25" → +25. Explicit signed numbers are never flipped; bare numbers stay unfilled.
+- **Possession change**: after a known failed 4th down, the next D play is predicted at the flipped spot, 1st & 10. Turnovers, scores and penalties are not predicted (return spot unknown).
+- **Series**: offense and defense series count independently; O→D increments the defensive series. Existing games keep their numbering.
+- **Lists**: Def Front, Blitz, Coverage (and any season list not backed by a fixed enum) accept new values only through the Add Value review. Fixed enums stay locked.
+- **Playmaker cues** on any Pass 4 card: "tackle/tackled/tackling by", "intercept(ed/s/ing) by", "dawg(s)", "unsung", "cover", "PBR". Names or jerseys become roster suggestions in spoken order; they fill only empty fields, never commit.
+- **Validation**: Intercepted By ⇔ interception result; tacklers ordered and unique; playmakers must be roster jerseys.
+- **AI fallback**: may suggest only unresolved defFront, blitz, coverage, defStrength, retYards on D slots, within the active card. retYards only when return yards are explicitly narrated. AI never fills playmakers and never commits.
 
 ---
+
 
 ## 10. Future Pass 5 — Kicking / Special Teams
 

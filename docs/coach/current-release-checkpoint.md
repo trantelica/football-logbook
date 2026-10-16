@@ -1,8 +1,8 @@
 # Current Release Checkpoint
 
-> Date: 2026-10-01
+> Date: 2026-10-16
 > Status: Controlled beta
-> Test baseline: 1024 / 1024 passing
+> Test baseline: 1,096 / 1,096 passing
 
 ---
 
@@ -23,6 +23,11 @@
 | Light / dark appearance | Accepted |
 | Session restore — reopens last season and game | Accepted |
 | Laptop-width responsive layout (down to 768px) | Accepted |
+| Football-aware dictation, hold-Space talk, read-back | Accepted |
+| Commit hotkeys N / Y / L, T / Ctrl-Cmd+E typing | Accepted |
+| Pass 2 starter pins | Accepted |
+| Possession-change prediction, separate O/D series | Accepted |
+| Pass 4 — Defense (4 cards, playmakers, rules, AI fallback) | Beta |
 
 ---
 
@@ -42,7 +47,7 @@ These rules are enforced by the app and are not configurable:
 
 ## Test Baseline
 
-- **Full suite**: 1024 / 1024 passing
+- **Full suite**: 1,096 / 1,096 passing
 - No known regressions
 
 ---
@@ -71,4 +76,4 @@ This build is ready for controlled beta use by coaches who need:
 It is designed for desktop and laptop film review. Windows narrower than 768px
 are not supported — see `known-limits.md` §4.
 
-It is not yet a full defensive or special-teams solution. See `known-limits.md` for the complete user-facing boundary.
+Defensive logging (Pass 4) is in beta; special teams is not yet a full workflow. See `known-limits.md` for the complete user-facing boundary.
