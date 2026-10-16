@@ -1,5 +1,5 @@
 import { normalizeGovernedCandidateForField } from "./governedValueNormalize";
-import { getFieldDef } from "./schema";
+import { getFieldDef, playSchema } from "./schema";
 
 export interface LookupGovernanceItem {
   fieldName: string;
@@ -8,7 +8,10 @@ export interface LookupGovernanceItem {
   source?: "ai" | "manual";
 }
 
-const GOVERNED_FIELD_ORDER = ["offForm", "offPlay", "motion"] as const;
+/** Only coach-maintained lists participate; fixed enums never enter add-value review. */
+export const GOVERNED_LOOKUP_FIELD_NAMES = playSchema
+  .filter((field) => field.lookupMode === "season" && !field.allowedValues)
+  .map((field) => field.name);
 
 function canonicalizeLookupValue(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -20,7 +23,7 @@ export function buildLookupGovernanceQueue(
   aiProposedFields?: Set<string>,
 ): LookupGovernanceItem[] {
   const queue: LookupGovernanceItem[] = [];
-  for (const fieldName of GOVERNED_FIELD_ORDER) {
+  for (const fieldName of GOVERNED_LOOKUP_FIELD_NAMES) {
     const raw = candidate[fieldName];
     if (raw === null || raw === undefined || raw === "") continue;
     const normalized = normalizeGovernedCandidateForField(raw, fieldName) || String(raw).trim();

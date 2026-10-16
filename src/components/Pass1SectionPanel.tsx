@@ -82,7 +82,7 @@ import { collectAssistCandidates, type AssistSignal } from "@/engine/lookupAssis
 import { collectDefenseRosterAssist, DEF_ACTOR_FIELDS } from "@/engine/defenseRosterAssist";
 import { collectRosterAssist } from "@/engine/rosterAssist";
 import { useRoster } from "@/engine/rosterContext";
-import { buildLookupGovernanceQueue } from "@/engine/lookupGovernanceQueue";
+import { buildLookupGovernanceQueue, GOVERNED_LOOKUP_FIELD_NAMES } from "@/engine/lookupGovernanceQueue";
 
 interface Pass1SectionPanelProps {
   /** The right-column Unified Proposal Candidate slot (existing field grid). */
@@ -130,7 +130,7 @@ const FIELD_LABELS: Record<string, string> = (() => {
  * Used to prevent governance from firing against raw natural-language blobs
  * such as "we're in black formation we're running 26 punch".
  */
-const GOVERNED_LOOKUP_FIELDS = new Set(["offForm", "offPlay", "motion"]);
+const GOVERNED_LOOKUP_FIELDS = new Set(GOVERNED_LOOKUP_FIELD_NAMES);
 
 /**
  * Derived fields are populated ONLY by deterministic lookup-derivation
