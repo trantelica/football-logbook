@@ -63,7 +63,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { SECTIONS, type SectionDef, type SectionId, ALL_SECTION_OWNED_FIELDS } from "@/engine/sectionOwnership";
+import { SECTIONS as OFFENSE_SECTIONS, type SectionDef, type SectionId, ALL_SECTION_OWNED_FIELDS } from "@/engine/sectionOwnership";
 import { useTransaction, type SystemPatchCollision } from "@/engine/transaction";
 import { useLookup } from "@/engine/lookupContext";
 import { useGameContext } from "@/engine/gameContext";
@@ -189,7 +189,11 @@ function looksLikeGovernedCandidate(raw: unknown): boolean {
   return true;
 }
 
-export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1SectionPanelProps) {
+export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: Pass1SectionPanelProps) {
+  // Pass 4 (defense) reuses this card engine with its own card set.
+  const SECTIONS = sections ?? OFFENSE_SECTIONS;
+  const freshSectionState = () =>
+    Object.fromEntries(SECTIONS.map((s) => [s.id, { ...INITIAL_SECTION_STATE }])) as Record<SectionId, SectionState>;
   const { roster } = useRoster();
   const {
     state,
@@ -222,14 +226,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   const isProposal = state === "proposal";
 
   // ── Per-section state ──
-  const [sectionState, setSectionState] = useState<Record<SectionId, SectionState>>(() => ({
-    situation: { ...INITIAL_SECTION_STATE },
-    playDetails: { ...INITIAL_SECTION_STATE },
-    playResults: { ...INITIAL_SECTION_STATE },
-  }));
+  const [sectionState, setSectionState] = useState<Record<SectionId, SectionState>>(freshSectionState);
 
   /** Most recently interacted section — target for U / C / F. */
-  const [activeSection, setActiveSection] = useState<SectionId>("situation");
+  const [activeSection, setActiveSection] = useState<SectionId>(SECTIONS[0].id);
 
   /** Single shared dictation hook; we route its output to whichever section is recording. */
   const recording = useTranscriptCapture();
@@ -298,11 +298,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
   useEffect(() => {
     if (commitCountRef.current !== commitCount) {
       commitCountRef.current = commitCount;
-      setSectionState({
-        situation: { ...INITIAL_SECTION_STATE },
-        playDetails: { ...INITIAL_SECTION_STATE },
-        playResults: { ...INITIAL_SECTION_STATE },
-      });
+      setSectionState(freshSectionState());
       recording.clear();
       recordingForRef.current = null;
       baseTextBeforeDictationRef.current = "";
@@ -438,6 +434,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       situation: ["dn", "dist", "yardLn"],
       playDetails: ["offForm", "motion", "offPlay"],
       playResults: ["result", "gainLoss"],
+      defSituation: ["dn", "dist", "yardLn"],
+      defCall: ["defFront"],
+      defResults: ["result", "gainLoss"],
+      defPlaymakers: [],
     }),
     [],
   );
@@ -752,7 +752,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         const TD_CUE_RE = /\b(touchdown|tds?|scored?s?|gets?\s+in|got\s+in|into\s+the\s+end\s*zone|end\s*zone|endzone)\b/i;
         const hasTdCue = TD_CUE_RE.test(text);
         const downgradeTdResult = (val: unknown): unknown => {
-          if (id !== "playResults" || hasTdCue) return val;
+          if ((id !== "playResults" && id !== "defResults") || hasTdCue) return val;
           if (typeof val !== "string") return val;
           const v = val.trim();
           if (!/(^|,\s*)(Def\s+TD|TD)$/i.test(v)) return val;
@@ -772,7 +772,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           if (justParsedFields.has(k)) continue;
 
           // TD-evidence guardrail (Play Results, result field only)
-          if (id === "playResults" && k === "result") {
+          if ((id === "playResults" || id === "defResults") && k === "result") {
             const unwrapped =
               v && typeof v === "object" && !Array.isArray(v) && "value" in (v as Record<string, unknown>)
                 ? (v as { value: unknown }).value
@@ -1354,11 +1354,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     // hasn't yet been finalized by the SpeechRecognition engine is lost when F
     // immediately stops dictation.
     const liveInterim = recording.interim;
-    const snapshot: Record<SectionId, { text: string; dirty: boolean }> = {
-      situation: { ...sectionState.situation },
-      playDetails: { ...sectionState.playDetails },
-      playResults: { ...sectionState.playResults },
-    };
+    const snapshot = Object.fromEntries(
+      SECTIONS.map((s) => [s.id, { ...sectionState[s.id] }]),
+    ) as Record<SectionId, { text: string; dirty: boolean }>;
     if (recId) {
       const finalizedLive = liveText.trim();
       const interimTail = liveInterim.trim();
@@ -1529,17 +1527,15 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
 
       switch (k) {
         case "S":
-          e.preventDefault();
-          dictateInto("situation");
-          break;
         case "D":
-          e.preventDefault();
-          dictateInto("playDetails");
-          break;
         case "R":
+        case "P": {
+          const target = SECTIONS.find((s) => s.dictateKey === k);
+          if (!target) break;
           e.preventDefault();
-          dictateInto("playResults");
+          dictateInto(target.id);
           break;
+        }
         case "U":
           e.preventDefault();
           void runUpdateProposal(activeSection);
