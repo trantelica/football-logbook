@@ -13,6 +13,7 @@ import {
 } from "./schema";
 import type { CandidateData, ValidationErrors, PlayRecord } from "./types";
 import { canonicalizeLookupValue } from "./db";
+import { validateDefenseRules } from "./defenseRosterAssist";
 
 // ── playNum Parsing ──
 

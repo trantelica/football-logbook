@@ -79,6 +79,7 @@ import { detectParserSuspicion } from "@/engine/parserSuspicion";
 import { playSchema, RESULT_VALUES } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
 import { collectAssistCandidates, type AssistSignal } from "@/engine/lookupAssist";
+import { collectDefenseRosterAssist, DEF_ACTOR_FIELDS } from "@/engine/defenseRosterAssist";
 import { collectRosterAssist } from "@/engine/rosterAssist";
 import { useRoster } from "@/engine/rosterContext";
 import { buildLookupGovernanceQueue } from "@/engine/lookupGovernanceQueue";
