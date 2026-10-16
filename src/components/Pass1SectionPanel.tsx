@@ -991,7 +991,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         }
         // Roster Assist: suggest jerseys for empty actor fields when the coach
         // says a player's name after a cue word ("caught by Reed").
-        if (id === "playResult" && roster.length > 0) {
+        if (id === "playResults" && roster.length > 0) {
           const candidateMap = candidate as Record<string, unknown>;
           const blocked = new Set<string>(touchedFields);
           for (const f of ["rusher", "passer", "receiver"]) {
