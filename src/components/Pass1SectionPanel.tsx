@@ -1438,7 +1438,8 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
       if (overwriteOpenRef.current || clarificationOpenRef.current) return;
     }
     if (checkAllSectionsGovernance()) return;
-    await commitProposal();
+    const ok = await commitProposal();
+    if (ok) toast.success("Committed · Exit", { duration: 1500 });
     deselectSlot();
   }, [state, finishDictationEntry, commitProposal, deselectSlot, checkAllSectionsGovernance]);
 

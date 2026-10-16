@@ -967,6 +967,7 @@ export function DraftPanel() {
   const handleCommitAndExit = async () => {
     const ok = await commitProposal();
     if (ok) {
+      toast.success("Committed · Exit", { duration: 1500 });
       setLastObservationText("");
       setLastDeterministicPatch({});
     }
