@@ -11,7 +11,7 @@
 
 # Pass 4 — Defense (plan: .lovable/plan/pass-4-defensive-plays-2026-10-16.md)
 - [x] Slice 1: defensive fields, export columns (appended), defensive vocabularies declared.
-- [ ] Slice 2: Pass 4 shell + Situation / Defensive Call cards (D slots only).
+- [x] Slice 2: Pass 4 shell with all four defensive cards (D slots only), reusing the Pass 1 card engine.
 - [ ] Slice 3: Results + Playmakers cards, roster matching, defensive rules.
 - [ ] Slice 4: dictation cue words, defensive yard-line sign flip, AI fallback.
 - [ ] Slice 5: PassRail status, ledger columns, docs, export-check tests.
