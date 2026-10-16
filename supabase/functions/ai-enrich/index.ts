@@ -177,8 +177,11 @@ Location Model (Hudl-centered, authoritative):
 - Convention: ${locationMapping.convention}
 - Midfield: ${locationMapping.midfield}
 ${locationMapping.predictionActive ? `- IMPORTANT: Prediction engine already resolved yardLn to ${locationMapping.predictedYardLn}. Do NOT propose yardLn.` : "- Prediction engine did not resolve yardLn — you may propose if observation supports it."}
-- Negative yardLn values are VALID and mean the coach's own side of the field (e.g. -23). Never drop the minus sign, convert it to positive, or "correct" it.
-- "our XX yard line" / "our own XX" / "minus XX" / "negative XX" => yardLn = -XX. "their XX yard line" / "opponent's XX" => yardLn = +XX.
+- Explicit signed yardLn values are VALID (e.g. -23). Never flip, drop or "correct" an explicit sign.
+${locationMapping.perspective === "defense"
+  ? '- DEFENSE: The opponent is the offense. Coach says "their XX" / "opponent\'s XX" => yardLn = -XX; "our XX" / "our own XX" => yardLn = +XX. Negative means the opponent offense\'s own territory, not the coach\'s territory.'
+  : '- OFFENSE: "our XX" / "our own XX" => yardLn = -XX; "their XX" / "opponent\'s XX" => yardLn = +XX.'}
+- "minus XX" / "negative XX" => yardLn = -XX in BOTH perspectives.
 - If "our" or "their" context is missing and cannot be inferred, OMIT yardLn entirely.
 - Do NOT invent your own location interpretation model.`;
     }
@@ -186,7 +189,7 @@ ${locationMapping.predictionActive ? `- IMPORTANT: Prediction engine already res
     // Slice A: section context note for prompt scoping. The client is the
     // authoritative gate; this is informational only.
     const sectionInstruction = typeof activeSection === "string" && activeSection
-      ? `\nActive Pass 1 section: ${activeSection}. Only propose values for fields listed in the unresolved fields list (already scoped to this section's owned fields).`
+      ? `\nActive section: ${activeSection}. Only propose values for fields listed in the unresolved fields list (already scoped to this section's owned fields).${activeSection.startsWith("def") ? '\nThis is Pass 4, ODK=D. The opponent is the offense. gainLoss describes yards gained/lost by their offense. retYards is a separately narrated defensive return distance; never copy gainLoss to retYards or infer a return distance. Defensive front, blitz and coverage must be explicitly named; never infer a call from the result. Playmakers and awards remain roster-reviewed and are not AI targets.' : ''}`
       : "";
 
     // Build a focused system prompt

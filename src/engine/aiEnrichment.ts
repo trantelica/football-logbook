@@ -22,6 +22,7 @@ import {
   AI_ELIGIBLE_FIELDS,
   PLAY_RESULTS_ACTOR_FIELDS,
   NON_RUSH_RESULT_PREFIXES,
+  DEFENSE_AI_FIELDS,
 } from "./aiEligibility";
 
 /** Fields that are system-managed and never AI-enrichable */
@@ -188,6 +189,14 @@ export function filterAiProposal(opts: {
 
     // Reject any field not in the AI-eligible set (Bucket A/C fields)
     if (!AI_ELIGIBLE_FIELDS.has(fieldName)) continue;
+    if (DEFENSE_AI_FIELDS.has(fieldName) && candidate.odk !== "D") continue;
+    if (fieldName === "defStrength" && proposedValue !== "L" && proposedValue !== "R") continue;
+    if (fieldName === "retYards") {
+      if (typeof proposedValue === "string" && /^\d+$/.test(proposedValue.trim())) {
+        proposedValue = Number(proposedValue);
+      }
+      if (typeof proposedValue !== "number" || !Number.isInteger(proposedValue) || proposedValue < 0) continue;
+    }
 
     // Play Results actor fields: integer-only + result-based contamination guard.
     if (PLAY_RESULTS_ACTOR_FIELDS.has(fieldName)) {

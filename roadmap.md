@@ -15,4 +15,5 @@
 - [x] Slice 2: Pass 4 shell with all four defensive cards (D slots only), reusing the Pass 1 card engine.
 - [ ] Slice 3: Results + Playmakers cards, roster matching, defensive rules.
 - [ ] Slice 4: dictation cue words, defensive yard-line sign flip, AI fallback.
+- [x] Current request: defensive side-aware yard-line dictation and reviewed AI fallback; verified both signs, live AI suggestions, explicit list review, commit and reload (1,096 tests passed).
 - [ ] Slice 5: PassRail status, ledger columns, docs, export-check tests.
