@@ -11,7 +11,7 @@
  * - No auto-parse. No AI. No silent mutation of committed state.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Mic, MicOff, Trash2, Keyboard, Play, AlertTriangle, ArrowRight, Wand2, Sparkles } from "lucide-react";
