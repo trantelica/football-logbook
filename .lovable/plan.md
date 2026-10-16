@@ -12,8 +12,8 @@ One shared set of three actions, identical in every pass.
 ```text
 Action           Letter   Chord (works while typing)
 Commit & Next      N      Ctrl/Cmd + Enter
-Commit & Stay      K      Ctrl/Cmd + Shift + Enter
-Commit & Exit      L      Ctrl/Cmd + Alt + Enter
+Commit & Stay      Y      Ctrl/Cmd + Shift + Enter
+Commit & Exit      L      Cmd + Esc   (also Ctrl/Cmd + Alt + Enter)
 ```
 
 - **One press everywhere:** if you have not reviewed yet, the key does review + commit in a single step, like Pass 1 does now. Validation errors, lookup prompts, overwrite review, TD correction and the PAT dialog still stop it and ask you, exactly as today.
