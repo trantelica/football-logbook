@@ -33,7 +33,7 @@ import type { GradeOverwriteDiff } from "@/components/GradeOverwriteDialog";
 import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
 import { getUnresolvedFields, filterAiProposal } from "./aiEnrichment";
-import { buildLookupGovernanceQueue, type LookupGovernanceItem } from "./lookupGovernanceQueue";
+import { buildLookupGovernanceQueue, GOVERNED_LOOKUP_FIELD_NAMES, type LookupGovernanceItem } from "./lookupGovernanceQueue";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Match type for governed lookup AI proposals */
 export type GovernedMatchType = "exact" | "fuzzy" | "candidate_new";
@@ -726,7 +726,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
         // Governed-lookup pre-normalization: title-case + number-words → digits
         // BEFORE attempting canonical match. This ensures "three jet sweep" →
         // "3 Jet Sweep" both for canonical lookup AND for the governance modal.
-        const GOVERNED_LOOKUP = new Set(["offForm", "offPlay", "motion"]);
+        const GOVERNED_LOOKUP = new Set(GOVERNED_LOOKUP_FIELD_NAMES);
         const lookupMapForCasing = getLookupMap();
         for (const [fieldName, value] of Object.entries(fieldsToApply)) {
           if (!GOVERNED_LOOKUP.has(fieldName)) continue;
