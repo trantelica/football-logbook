@@ -162,6 +162,8 @@ export function BlockingPanel() {
     supported: dictationSupported,
     setText: setDictatedText,
     toggleListening,
+    startListening,
+    stopListening,
     clear: clearDictation,
   } = useTranscriptCapture();
 

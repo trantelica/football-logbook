@@ -66,6 +66,8 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     hasContent,
     setText,
     toggleListening,
+    startListening,
+    stopListening,
     clear,
   } = useTranscriptCapture();
 
