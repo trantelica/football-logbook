@@ -1122,14 +1122,25 @@ export function DraftPanel() {
         })}
 
         {derived.length > 0 && anyDerivedResolved && (
-          <section>
-            <h4 className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          // Native <details>: collapsed by default so Review/Commit stay near
+          // the narration. Opens itself (once per slot) if a derived field has
+          // a commit error, so a blocking problem is never hidden.
+          <details
+            key={`derived-${derived.some((f) => commitErrors[f.name]) ? "err" : "ok"}`}
+            open={derived.some((f) => commitErrors[f.name])}
+            className="group rounded-md border border-border/50 bg-muted/20 px-2 py-1.5"
+          >
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/80 [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
               Derived from lookup
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <span className="font-normal normal-case tracking-normal text-muted-foreground/60">
+                · {derived.filter((f) => c[f.name] !== null && c[f.name] !== undefined && c[f.name] !== "").length} resolved
+              </span>
+            </summary>
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
               {derived.map((f) => renderField(f.name, isProposal))}
             </div>
-          </section>
+          </details>
         )}
       </div>
     );
