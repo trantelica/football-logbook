@@ -1,6 +1,6 @@
 # Known Limits & Parked Work
 
-> Current as of Release Checkpoint 2026-06-07.
+> Current as of Release Checkpoint 2026-10-16.
 > This document is for coaches and beta users to set expectations on what is — and is not — in the current build.
 
 ---
@@ -18,7 +18,7 @@
 
 ## 3. Defense & Special Teams
 
-- **Defensive play logging** (defensive front, coverage, blitz, gap) is not active scope.
+- **Defensive play logging** is available in beta as Pass 4 (front, strength, blitz, coverage, return yards, tacklers, awards). No defensive 11-man personnel or grades. No "blitzer" field. Gap is not tracked.
 - **Special teams workflow** (kicker, return yards, full kicking support) is not active scope.
 - The export header includes `RETURNER` for future use, but the broader kicking workflow is not available.
 
@@ -45,6 +45,7 @@ Still parked:
 - AI does **not** commit.
 - AI does **not** overwrite fields already resolved by the deterministic parser.
 - AI does **not** bypass validation.
+- Pass 4 AI may suggest only front, blitz, coverage, strength and return yards; never players.
 - Pass 3 AI assist is limited to **grading proposal support** — it suggests fills for unresolved grade fields after the parser runs.
 
 ## 6. What Is Active
@@ -61,7 +62,13 @@ The current build supports:
 
 ---
 
-## 7. Where to Find the Full Parking Lot
+## 7. Queued (not started)
+
+- Importing part of a game from another file (reviewed, never overwrites).
+- Storage beyond the browser (backup/sync across devices).
+- Custom export fields / export profiles.
+
+## 8. Where to Find the Full Parking Lot
 
 Technical and speculative future items are tracked in:
 

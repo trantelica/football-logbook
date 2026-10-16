@@ -84,9 +84,9 @@ Use these statuses:
 
 | ID | Item | Status | Notes / Promotion Gate |
 |---|---|---|---|
-| FS-001 | Pass 4 defensive metadata on offensive plays | Deferred | Promote only after schema, lookup, UX, and tests are defined |
+| FS-001 | Defensive metadata on offensive plays | Deferred | Promote only after schema, lookup, UX, and tests are defined |
 | FS-002 | Pass 5 kicking / special teams workflow | Deferred | Current export includes `RETURNER`; broader kicking workflow is not active |
-| FS-003 | Pass 6+ defensive play logging | Deferred | Must use same proposal/commit architecture if activated |
+| FS-003 | Defensive play logging | Shipped (beta) as Pass 4 | See multi-pass-workflow.md §9 |
 | FS-004 | Guided session full implementation | Needs Design | North-star exists; exact UI/proposal surface still needs planning |
 | FS-005 | AI candidate evidence structure | Needs Design | AI remains advisory; evidence/provenance format needs explicit plan |
 | FS-006 | Rich provenance badge visual design | Deferred | Useful polish, not a current architecture blocker |
@@ -116,10 +116,10 @@ These fields exist in original PDR thinking or future scope but are not active i
 
 | Candidate Field | Candidate Label | Status | Rule |
 |---|---|---|---|
-| `defFront` | `DEF FRONT` | Deferred | Do not add until Pass 4 activation |
-| `coverage` | `COVERAGE` | Deferred | Do not add until Pass 4 activation |
-| `blitz` | `BLITZ` | Deferred | Do not add until Pass 4 activation |
-| `gap` | `GAP` | Deferred | Do not add until Pass 4 activation |
+| `defFront` | `DEF FRONT` | Shipped | Pass 4 (export column appended) |
+| `coverage` | `COVERAGE` | Shipped | Pass 4 (export column appended) |
+| `blitz` | `BLITZ` | Shipped | Pass 4 (export column appended) |
+| `gap` | `GAP` | Deferred | Not tracked in Pass 4 |
 | `kicker` | `KICKER` | Deferred | Do not add until special teams workflow activation |
 | `retYards` | `RET YARDS` | Deferred | Do not add until special teams workflow activation |
 

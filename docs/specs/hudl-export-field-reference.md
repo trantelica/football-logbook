@@ -133,7 +133,29 @@ Coach's grade for each slot's performance on that snap.
 >
 > Grade columns pair with the personnel columns of the same name: `LT GRADE` grades whoever is in `LT`.
 
+
+### 2.10 Defense (Pass 4) — appended after `4 GRADE`
+
+Appended to the end of the header list so all earlier columns keep their order. Offense rows leave these blank; old records export blank cells.
+
+| # | Column | Side | Meaning |
+|---|---|---|---|
+| 49 | `DEF FRONT` | Defense | Season list; coach can add values after review. |
+| 50 | `DEF STR` | Defense | Fixed `L` / `R`. |
+| 51 | `BLITZ` | Defense | Season list; blank = none called. |
+| 52 | `COVERAGE` | Defense | Season list; blank = none called. |
+| 53 | `RET YARDS` | Defense | Whole number ≥ 0. |
+| 54–57 | `TACKLER1`–`TACKLER4` | Defense | Roster jersey; filled in order, no duplicates. |
+| 58 | `INTERCEPTED BY` | Defense | Roster jersey; required when RESULT is an interception (and vice versa). |
+| 59 | `COVER PLAYER` | Defense | Roster jersey. |
+| 60 | `PBR` | Defense | Roster jersey (pass breakup). |
+| 61 | `DAWG` | Defense | Roster jersey (effort award). |
+| 62 | `UNSUNG` | Defense | Roster jersey (effort award). |
+
+> `TEAM` is not exported. On D rows `YARD LN` is signed from the opponent offense's side (their own territory negative).
+
 ---
+
 
 ## 3. Value enumerations
 
