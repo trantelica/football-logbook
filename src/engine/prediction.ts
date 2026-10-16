@@ -12,7 +12,7 @@
  */
 
 import type { PlayRecord } from "./types";
-import { isPossessionChange } from "./possession";
+import { isPossessionChange, isFourthDownShort, normalizeResult, POSSESSION_CHANGE_RESULTS } from "./possession";
 
 // ── Field Size Types ──
 
@@ -88,6 +88,12 @@ export function computePrediction(
     ]);
   }
 
+  // Gate 0a: Turnover on downs between offense and defense (O→D or D→O).
+  // Each unit's yard line is signed from ITS offense's side, so the spot
+  // flips sign: our 4th & 8 on -30, gain 3 → opponent ball on 33, 1st & 10.
+  const flip = predictTurnoverOnDowns(prevPlay, currentSlotOdk, fieldSize);
+  if (flip) return flip;
+
   // Gate 0b: Possession-change guardrail
   if (isPossessionChange(prevPlay)) {
     return INELIGIBLE([
@@ -102,14 +108,16 @@ export function computePrediction(
     return INELIGIBLE(["Prediction suspended: previous slot not available"]);
   }
 
-  // Gate 2: previous play ODK must be "O"
-  if (prevPlay.odk !== "O") {
+  // Gate 2/3: both plays must be scrimmage plays for the SAME unit (O→O or
+  // D→D). Defensive rows progress the opponent offense the same way.
+  if (prevPlay.odk !== "O" && prevPlay.odk !== "D") {
     return INELIGIBLE(["Prediction suspended: previous play is not offensive"]);
   }
-
-  // Gate 3: current slot ODK must be "O"
-  if (currentSlotOdk !== "O") {
+  if (currentSlotOdk !== "O" && currentSlotOdk !== "D") {
     return INELIGIBLE(["Prediction suspended: current play is not offensive"]);
+  }
+  if (prevPlay.odk !== currentSlotOdk) {
+    return INELIGIBLE(["Prediction suspended: previous play is not offensive for this unit (possession changed)"]);
   }
 
   // Gate 4a: Penalty + result checks (replaces blanket penalty gate)
@@ -224,6 +232,39 @@ export function computePrediction(
     dn: predictedDn,
     dist: predictedDist,
     explanations,
+    eligible: true,
+  };
+}
+
+/**
+ * Turnover on downs between O and D: the next play belongs to the other unit,
+ * placed where the ball was downed, signed from the new offense's side.
+ * Only fires for a clean 4th-down-short (no fumble/interception/score result,
+ * no penalty result) where the previous spot and gain are known.
+ */
+export function predictTurnoverOnDowns(
+  prevPlay: PlayRecord | null,
+  currentSlotOdk: string | null,
+  fieldSize: FieldSize,
+): PredictionResult | null {
+  if (!prevPlay) return null;
+  const units = new Set(["O", "D"]);
+  if (!units.has(String(prevPlay.odk)) || !units.has(String(currentSlotOdk))) return null;
+  if (prevPlay.odk === currentSlotOdk) return null;
+  if (!isFourthDownShort(prevPlay)) return null;
+  const res = prevPlay.result != null ? normalizeResult(String(prevPlay.result)) : "";
+  if (POSSESSION_CHANGE_RESULTS.has(res)) return null;
+  if (prevPlay.penalty != null && prevPlay.penalty !== "") return null;
+  if (prevPlay.yardLn == null) return null;
+
+  const idx = yardLnToIdx(Number(prevPlay.yardLn), fieldSize) + Number(prevPlay.gainLoss);
+  if (idx < 1 || idx >= fieldSize) return null;
+  const newIdx = fieldSize - idx;
+  return {
+    yardLn: idxToYardLn(newIdx, fieldSize),
+    dn: 1,
+    dist: Math.min(10, fieldSize - newIdx),
+    explanations: ["Turnover on downs: other unit takes over at the spot, 1st & 10."],
     eligible: true,
   };
 }
