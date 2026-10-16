@@ -72,6 +72,21 @@ export const HUDL_HEADERS: ReadonlyArray<{ key: string; label: string }> = Objec
   { key: "grade2", label: "2 GRADE" },
   { key: "grade3", label: "3 GRADE" },
   { key: "grade4", label: "4 GRADE" },
+  // Pass 4 defense — appended only; earlier order is frozen.
+  { key: "defFront", label: "DEF FRONT" },
+  { key: "defStrength", label: "DEF STR" },
+  { key: "blitz", label: "BLITZ" },
+  { key: "coverage", label: "COVERAGE" },
+  { key: "retYards", label: "RET YARDS" },
+  { key: "tackler1", label: "TACKLER1" },
+  { key: "tackler2", label: "TACKLER2" },
+  { key: "tackler3", label: "TACKLER3" },
+  { key: "tackler4", label: "TACKLER4" },
+  { key: "interceptedBy", label: "INTERCEPTED BY" },
+  { key: "coverPlayer", label: "COVER PLAYER" },
+  { key: "pbr", label: "PBR" },
+  { key: "dawg", label: "DAWG" },
+  { key: "unsung", label: "UNSUNG" },
 ] as const);
 
 export const NOTES_HEADERS: ReadonlyArray<{ key: string; label: string }> = Object.freeze([

@@ -42,6 +42,24 @@ export const QTR_VALUES = ["1", "2", "3", "4", "5"] as const;
 export const QTR_DISPLAY: Record<string, string> = { "1": "1", "2": "2", "3": "3", "4": "4", "5": "OT" };
 export const DN_VALUES = ["1", "2", "3", "4"] as const;
 export const HASH_VALUES = ["L", "M", "R"] as const;
+export const DEF_STR_VALUES = ["L", "R"] as const;
+
+/** Pass 4 integer fields: [name, label, export header]. Jersey numbers except retYards. */
+export const DEF_INTEGER_FIELDS = [
+  ["retYards", "Ret Yards", "RET YARDS"],
+  ["tackler1", "Tackler 1", "TACKLER1"],
+  ["tackler2", "Tackler 2", "TACKLER2"],
+  ["tackler3", "Tackler 3", "TACKLER3"],
+  ["tackler4", "Tackler 4", "TACKLER4"],
+  ["interceptedBy", "Intercepted By", "INTERCEPTED BY"],
+  ["coverPlayer", "Cover Player", "COVER PLAYER"],
+  ["pbr", "PBR", "PBR"],
+  ["dawg", "Dawg", "DAWG"],
+  ["unsung", "Unsung", "UNSUNG"],
+] as const;
+
+/** Season-governed defensive vocabularies */
+export const DEF_LOOKUP_FIELDS = ["defFront", "blitz", "coverage"] as const;
 
 /** Fixed Result enum — Section 8 allowed values (no user-add flow) */
 export const RESULT_VALUES = [
@@ -650,7 +668,40 @@ export const playSchema: readonly FieldDefinition[] = [
     defaultPassEntry: 3,
     requiredAtCommit: false,
   },
-] as const;
+  // ── Pass 4: Defense (ODK = D) ──
+  ...(["defFront", "blitz", "coverage"] as const).map((name) => ({
+    name,
+    label: name === "defFront" ? "Def Front" : name === "blitz" ? "Blitz" : "Coverage",
+    outputLabel: name === "defFront" ? "DEF FRONT" : name.toUpperCase(),
+    dataType: "string" as const,
+    source: "LOOKUP" as const,
+    defaultPolicy: "null" as const,
+    defaultPassEntry: 4,
+    requiredAtCommit: false,
+    lookupMode: "season" as const,
+  })),
+  {
+    name: "defStrength",
+    label: "Def Str",
+    outputLabel: "DEF STR",
+    dataType: "enum",
+    allowedValues: DEF_STR_VALUES,
+    source: "COACH",
+    defaultPolicy: "null",
+    defaultPassEntry: 4,
+    requiredAtCommit: false,
+  },
+  ...DEF_INTEGER_FIELDS.map(([name, label, outputLabel]) => ({
+    name,
+    label,
+    outputLabel,
+    dataType: "integer" as const,
+    source: "COACH" as const,
+    defaultPolicy: "null" as const,
+    defaultPassEntry: 4,
+    requiredAtCommit: false,
+  })),
+];
 
 // ── Schema Utilities ──
 

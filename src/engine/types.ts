@@ -61,6 +61,21 @@ export interface PlayRecord {
   grade2: number | null;
   grade3: number | null;
   grade4: number | null;
+  // Pass 4: Defense (ODK = D). Optional so older records/archives stay valid.
+  defFront?: string | null;
+  defStrength?: string | null;
+  blitz?: string | null;
+  coverage?: string | null;
+  retYards?: number | null;
+  tackler1?: number | null;
+  tackler2?: number | null;
+  tackler3?: number | null;
+  tackler4?: number | null;
+  interceptedBy?: number | null;
+  coverPlayer?: number | null;
+  pbr?: number | null;
+  dawg?: number | null;
+  unsung?: number | null;
 }
 
 /** Candidate/draft data — all fields optional except gameId */
