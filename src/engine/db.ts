@@ -387,8 +387,10 @@ async function getNextAuditSeq(
     "byGame",
     gameId
   );
-  if (allAudits.length === 0) return 1;
-  return Math.max(...allAudits.map((a) => a.auditSeq)) + 1;
+  // Single pass, no spread: avoids call-stack limits on very long audit trails.
+  let max = 0;
+  for (const a of allAudits) if (a.auditSeq > max) max = a.auditSeq;
+  return max + 1;
 }
 
 /** Commit a play to IndexedDB with full audit trail */

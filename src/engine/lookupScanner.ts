@@ -59,13 +59,21 @@ function escapeRegex(s: string): string {
  * `normalizedText`. Whole-token boundary uses non-word lookarounds so digit
  * runs like "39" and tokens like "Z" are matched intact.
  */
+const RE_CACHE = new Map<string, RegExp>();
+
 function findAllOccurrences(
   canonical: string,
   normalizedText: string,
 ): Array<{ start: number; end: number }> {
   const norm = normalize(canonical);
   if (!norm) return [];
-  const re = new RegExp(`(?:^|\\W)(${escapeRegex(norm)})(?=$|\\W)`, "g");
+  let re = RE_CACHE.get(norm);
+  if (!re) {
+    re = new RegExp(`(?:^|\\W)(${escapeRegex(norm)})(?=$|\\W)`, "g");
+    if (RE_CACHE.size > 2000) RE_CACHE.clear();
+    RE_CACHE.set(norm, re);
+  }
+  re.lastIndex = 0;
   const out: Array<{ start: number; end: number }> = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(normalizedText)) !== null) {
