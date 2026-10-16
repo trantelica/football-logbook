@@ -109,7 +109,7 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-[320px] p-0">
+      <PopoverContent align="start" className="w-[380px] p-0">
         <div className="border-b px-4 py-2.5">
           <h2 className="text-sm font-semibold leading-none">Keyboard</h2>
           <p className="mt-1 text-xs text-muted-foreground">
