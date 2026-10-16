@@ -72,6 +72,8 @@ import { detectParserSuspicion } from "@/engine/parserSuspicion";
 import { playSchema, RESULT_VALUES } from "@/engine/schema";
 import { RawInputCollisionDialog, type Collision } from "@/components/RawInputCollisionDialog";
 import { collectAssistCandidates, type AssistSignal } from "@/engine/lookupAssist";
+import { collectRosterAssist } from "@/engine/rosterAssist";
+import { useRoster } from "@/engine/rosterContext";
 import { buildLookupGovernanceQueue } from "@/engine/lookupGovernanceQueue";
 
 interface Pass1SectionPanelProps {
@@ -177,6 +179,7 @@ function looksLikeGovernedCandidate(raw: unknown): boolean {
 }
 
 export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1SectionPanelProps) {
+  const { roster } = useRoster();
   const {
     state,
     candidate,
@@ -876,7 +879,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         // Skipped fields: scanner whole-canonical winners, already-touched,
         // and fields already filled (per `candidate`).
         const assistRows: Collision[] = [];
-        const assistPatchByRow = new Map<string, { field: string; canonical: string }>();
+        const assistPatchByRow = new Map<string, { field: string; canonical: string | number }>();
         // Add-new rows: selecting one signals "do not claim this field via
         // Assist" so applyAssistFallback writes the raw value and the existing
         // lookup governance flow opens to collect required dependents.
@@ -984,6 +987,30 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
               });
               assistAddNewByRow.set(rowId, { field, rawValue: rawTrimmed });
             }
+          }
+        }
+        // Roster Assist: suggest jerseys for empty actor fields when the coach
+        // says a player's name after a cue word ("caught by Reed").
+        if (id === "playResults" && roster.length > 0) {
+          const candidateMap = candidate as Record<string, unknown>;
+          const blocked = new Set<string>(touchedFields);
+          for (const f of ["rusher", "passer", "receiver"]) {
+            const v = candidateMap[f];
+            const pv = (scopedParsePatch as Record<string, unknown> | undefined)?.[f];
+            if ((v !== null && v !== undefined && v !== "") || (pv !== null && pv !== undefined && pv !== "")) blocked.add(f);
+          }
+          for (const opt of collectRosterAssist({ text: normalized, roster, blockedFields: blocked })) {
+            const rowId = `assist::${opt.field}::${opt.jerseyNumber}`;
+            assistRows.push({
+              fieldName: rowId,
+              currentValue: candidateMap[opt.field] ?? null,
+              proposedValue: `#${opt.jerseyNumber} ${opt.playerName}`,
+              source: "lookup_assist",
+              groupKey: opt.field,
+              signalLabel: opt.signal === "exact" ? "Roster name" : "Sounds like",
+              cueText: opt.cue,
+            });
+            assistPatchByRow.set(rowId, { field: opt.field, canonical: opt.jerseyNumber });
           }
         }
 
