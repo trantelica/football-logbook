@@ -13,7 +13,7 @@ const corsHeaders = {
 const MAX_BYTES = 20 * 1024 * 1024;
 const MODEL = "openai/gpt-transcribe";
 const PROMPT =
-  "American youth/high school football film breakdown narration by a coach. Expect down and distance (e.g. 3rd and 7), yard lines, jersey numbers spoken as digits, position letters (X, Y, Z, H, F, LT, LG, C, RG, RT), formation and play names, and grades like plus one or minus two. Write numbers as digits.";
+  "American youth/high school football film breakdown narration by a coach. Expect down and distance (e.g. 3rd and 7), yard lines (own side is negative, e.g. \"-23 yard line\" or \"our 23\"; keep the minus sign; opponent side is positive), jersey numbers spoken as digits, position letters (X, Y, Z, H, F, LT, LG, C, RG, RT), formation and play names, and grades like plus one or minus two. Write numbers as digits.";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

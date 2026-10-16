@@ -101,6 +101,18 @@ const PHRASE_NORMALIZATIONS: PhraseRule[] = [
   [/\b(?:3rd|third)\s+and\s+(?=DIST\b)/gi, "DN 3 "],
   [/\b(?:4th|fourth)\s+and\s+(?=DIST\b)/gi, "DN 4 "],
 
+  // Side-aware / signed yard-line phrases. MUST run before the generic
+  // "yard line" -> YARD rewrite. Negative = our side, positive = their side.
+  //   "-23 yard line" / "minus 23 yard line" / "negative 23 yard line" -> YARD -23
+  //   "our 23 yard line" / "on our own 23" / "at our 23"               -> YARD -23
+  //   "their 23 yard line" / "the opponent's 30" / "on their 40"       -> YARD 23
+  // A bare "23 yard line" (no sign, no side) is deliberately left alone.
+  [/(?<!\w)(?:(?:ball\s+)?(?:is\s+)?(?:on|at|from)\s+)?(?:the\s+)?(?:-|minus\s+|negative\s+)(\d+)\s+yard\s*line\b/gi, "YARD -$1"],
+  [/(?<!\w)(?:on|at|from)\s+(?:the\s+)?(?:our|own)(?:\s+own)?\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD -$1"],
+  [/(?<!\w)(?:the\s+)?(?:our|own)(?:\s+own)?\s+(\d+)\s+yard\s*line\b/gi, "YARD -$1"],
+  [/(?<!\w)(?:on|at|from)\s+(?:the\s+)?(?:their|opponent'?s|opp)(?:\s+own)?\s+(\d+)(?:\s+yard\s*line)?\b/gi, "YARD $1"],
+  [/(?<!\w)(?:the\s+)?(?:their|opponent'?s|opp)(?:\s+own)?\s+(\d+)\s+yard\s*line\b/gi, "YARD $1"],
+
   // Yard-line phrases: "yard line", "yardline", "YL", "ball on the 28"
   [/\byard\s*line\b/gi, "YARD"],
   [/\byardline\b/gi, "YARD"],
