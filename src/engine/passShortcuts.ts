@@ -74,6 +74,9 @@ export function usePassShortcuts({
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        // Cmd/Ctrl/Alt + Esc is the Commit & Exit chord (see useCommitShortcuts).
+        // Never treat it as a plain Escape (blur / leave Text Editing).
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
         const esc = escapeRef.current;
         if (esc) {
           esc();
@@ -176,5 +179,141 @@ export function usePushToTalk({ enabled, suspended, onStart, onStop }: UsePushTo
       window.removeEventListener("blur", release);
       release();
     };
+  }, [enabled]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Commit shortcuts — one shared set of three actions for every pass.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CommitActionId = "next" | "stay" | "exit";
+
+export interface CommitAction {
+  id: CommitActionId;
+  label: string;
+  /** Single uppercase letter (off while typing / in dialogs / Text Editing). */
+  letter: string;
+  /** Chords shown to the coach; the first is the primary one. */
+  chords: string[];
+  hint: string;
+}
+
+/** Single source of truth for buttons, the keyboard legend, and the listener. */
+export const COMMIT_ACTIONS: readonly CommitAction[] = [
+  {
+    id: "next",
+    label: "Commit & Next",
+    letter: "N",
+    chords: ["Ctrl/⌘ + Enter"],
+    hint: "Save, then open the next slot",
+  },
+  {
+    id: "stay",
+    label: "Commit & Stay",
+    letter: "Y",
+    chords: ["Ctrl/⌘ + Shift + Enter"],
+    hint: "Save, then reopen this play",
+  },
+  {
+    id: "exit",
+    label: "Commit & Exit",
+    letter: "L",
+    chords: ["⌘ + Esc", "Ctrl/⌘ + Alt + Enter"],
+    hint: "Save, then close the slot",
+  },
+] as const;
+
+export const COMMIT_ACTION_BY_ID: Record<CommitActionId, CommitAction> = {
+  next: COMMIT_ACTIONS[0],
+  stay: COMMIT_ACTIONS[1],
+  exit: COMMIT_ACTIONS[2],
+};
+
+type ChordEvent = Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">;
+
+/**
+ * Map a keydown to a commit chord, or null.
+ *   Ctrl/Cmd + Enter              -> next
+ *   Ctrl/Cmd + Shift + Enter      -> stay
+ *   Ctrl/Cmd + Alt + Enter        -> exit
+ *   Cmd + Esc (no other mods)     -> exit
+ * Plain Enter and plain Escape never match.
+ */
+export function matchCommitChord(e: ChordEvent): CommitActionId | null {
+  const mod = e.metaKey || e.ctrlKey;
+  if (e.key === "Enter") {
+    if (!mod) return null;
+    if (e.altKey) return e.shiftKey ? null : "exit";
+    return e.shiftKey ? "stay" : "next";
+  }
+  if (e.key === "Escape") {
+    if (e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) return "exit";
+  }
+  return null;
+}
+
+export interface UseCommitShortcutsOptions {
+  enabled: boolean;
+  /** Suspends letters AND chords (scoped modals the DOM probe cannot see). */
+  suspended?: () => boolean;
+  /** Suspends the letter keys only (e.g. Pass 1 Text Editing). Chords still work. */
+  lettersSuspended?: () => boolean;
+  onNext: () => void;
+  onStay: () => void;
+  onExit: () => void;
+}
+
+/**
+ * N / Y / L letters plus Ctrl/Cmd chords for Commit & Next / Stay / Exit.
+ *
+ * Letters follow the same rules as usePassShortcuts. Chords are the only commit
+ * keys that work while typing, but still never fire while a dialog is open.
+ * Auto-repeat is ignored so a held key can never commit twice.
+ */
+export function useCommitShortcuts({
+  enabled,
+  suspended,
+  lettersSuspended,
+  onNext,
+  onStay,
+  onExit,
+}: UseCommitShortcutsOptions): void {
+  const handlersRef = useRef({ next: onNext, stay: onStay, exit: onExit });
+  handlersRef.current = { next: onNext, stay: onStay, exit: onExit };
+  const suspendedRef = useRef(suspended);
+  suspendedRef.current = suspended;
+  const lettersSuspendedRef = useRef(lettersSuspended);
+  lettersSuspendedRef.current = lettersSuspended;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      const chord = matchCommitChord(e);
+      if (chord) {
+        if (suspendedRef.current?.()) return;
+        if (anyRadixDialogOpen()) return;
+        e.preventDefault();
+        if (e.repeat) return;
+        handlersRef.current[chord]();
+        return;
+      }
+
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.length !== 1) return;
+      if (suspendedRef.current?.()) return;
+      if (lettersSuspendedRef.current?.()) return;
+      if (anyRadixDialogOpen()) return;
+      if (isTextInputTarget(e.target)) return;
+
+      const k = e.key.toUpperCase();
+      const action = COMMIT_ACTIONS.find((a) => a.letter === k);
+      if (!action) return;
+      e.preventDefault();
+      handlersRef.current[action.id]();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [enabled]);
 }

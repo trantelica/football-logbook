@@ -23,6 +23,7 @@
 import { Keyboard } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SECTIONS } from "@/engine/sectionOwnership";
+import { COMMIT_ACTIONS } from "@/engine/passShortcuts";
 
 interface KeyRow {
   key: string;
@@ -63,10 +64,11 @@ const KEY_GROUPS: KeyGroup[] = [
   {
     heading: "Commit",
     note: "These write the play. Nothing else does.",
-    rows: [
-      { key: "N", label: "Commit & next", hint: "Save, then open the next slot" },
-      { key: "L", label: "Commit & leave", hint: "Save, then close the slot" },
-    ],
+    rows: COMMIT_ACTIONS.map((a) => ({
+      key: a.letter,
+      label: a.label,
+      hint: `${a.hint} · ${a.chords.join(" or ")}`,
+    })),
   },
 ];
 
@@ -111,12 +113,13 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
         <div className="border-b px-4 py-2.5">
           <h2 className="text-sm font-semibold leading-none">Keyboard</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Single keys, no modifiers. Inactive while a dialog is open or Text Editing is on.
+            Single keys, no modifiers. Inactive while a dialog is open or Text Editing is on. Commit chords still work while typing.
           </p>
           <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
             Pass 2 and Pass 3 share the same keys where they apply: <kbd className="kbd">D</kbd> dictate,{" "}
             <kbd className="kbd">U</kbd> update proposal, <kbd className="kbd">C</kbd> clear,{" "}
-            <kbd className="kbd">N</kbd> commit &amp; next, <kbd className="kbd">L</kbd> commit.{" "}
+            <kbd className="kbd">N</kbd> commit &amp; next, <kbd className="kbd">Y</kbd> commit &amp; stay,{" "}
+            <kbd className="kbd">L</kbd> commit &amp; exit. Ctrl/⌘ + Enter, Ctrl/⌘ + Shift + Enter and ⌘ + Esc also work while typing.{" "}
             <kbd className="kbd">S</kbd> and <kbd className="kbd">R</kbd> are Pass 1 only.
           </p>
 
