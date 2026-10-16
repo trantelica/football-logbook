@@ -20,14 +20,14 @@ New defensive columns (not in our contract today):
 | PBR (pass breakup) | 3 | Roster player | 4, 55 |
 | DAWG (effort award) | 10 | Roster player | 10, 4 |
 | UNSUNG (effort award) | 6 | Roster player | 6, 5 |
-| TEAM | 59 | Constant | RivUC |
+| TEAM | 59 | Constant (not exported) | RivUC |
 
 Observations that shape the design:
 - No defensive personnel (11-man) grid and no defensive grades in the data. "Personnel" on defense here means *who made the play* (tacklers, cover player, awards), not who lined up. That is closer to Pass 1 actors than Pass 2.
 - One D row has the full offensive personnel filled (a punt/return clip) — treated as an outlier, not a pattern.
 - Hudl exports players as `_Jersey` + `_Name`; our export writes jersey only (same as RUSHER today).
 - DN = 0 appears on PAT/kick rows, matching current behaviour.
-- Yard line on D rows uses the same signed meaning (our side negative).
+- Yard line on D rows is signed from the opponent offense's side (their territory negative), so "our"/"their" flip on defense.
 - Blitz and coverage are often blank: blank means "none / not called", not missing.
 
 ## Pass 4 shape
@@ -60,10 +60,10 @@ Add the new columns to the end of the Hudl header list so existing columns and o
 4. Dictation: cue words ("front", "blitz", "cover", "tackle by", "dawg", "unsung"), vocabulary hints, AI fallback for Pass 4.
 5. PassRail status, ledger columns, docs, tests against this export (re-import the 59 D rows as a check).
 
-## Questions to confirm before building
-- Are DAWG / UNSUNG / PBR / COVER PLAYER worth logging every play, or should Playmakers be collapsed by default?
-- Should D-side yard line be entered from our perspective (as today) — the export suggests yes.
-- Is TEAM worth exporting (constant per season), or leave it to Hudl?
+## Decisions confirmed
+- **Playmakers card stays open.** These fields aren't logged every play but are used often, so the card is shown open and every field is optional.
+- **Defensive yard line is from the opponent offense's side.** On ODK = D, "their 25" means the opponent's own 25 and becomes -25; "our 25" becomes +25. This is the reverse of offense. Bare numbers are still left unfilled. Prediction and the AI hint follow the same rule on D slots.
+- **TEAM is not exported.** It's left out of the data model.
 
 ## Technical details
 - `PlayRecord` gains nullable fields: defFront, defStrength, blitz, coverage, retYards, tackler1–4, interceptedBy, coverPlayer, pbr, dawg, unsung. IndexedDB bump v6 → v7 (additive, no data migration); `coercePlayToSchemaTypes` covers new integer fields.
@@ -71,4 +71,5 @@ Add the new columns to the end of the Hudl header list so existing columns and o
 - `sectionOwnership.ts`: add `DEF_SECTIONS` (defSituation, defCall, defResults, defPlaymakers); Pass1SectionPanel generalized to take a section set rather than duplicated.
 - `isPass4Complete`, SlotMeta `pass4Complete`; workflow visibility gate ODK === "D".
 - `HUDL_HEADERS` appended (append-only, tests updated to lock new order); archive import/export carry new fields; old archives import with nulls.
+- Yard-line sign: the normalizer and parser take an `odk` context, and "our"/"their" flip when ODK = D. New tests mirror yardLineSigns.test.ts for D.
 - Not touched: Pass 1–3 behaviour, offensive parser rules, pins, offensive export columns.
