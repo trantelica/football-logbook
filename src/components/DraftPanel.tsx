@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Dialog,
@@ -25,7 +25,7 @@ import { playSchema, SEGMENT_REQUIRED_FIELDS, QTR_DISPLAY, PENALTY_YARDS_MAP } f
 import { SECTIONS, getOwningSection } from "@/engine/sectionOwnership";
 import { canonicalizeLookupValue, getSeasonConfig } from "@/engine/db";
 import { cn } from "@/lib/utils";
-import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot, ArrowRightLeft, Info, AlertCircle, ShieldAlert, Link } from "lucide-react";
+import { Eraser, Eye, Check, ArrowLeft, Plus, Lock, X, MousePointerClick, ChevronRight, ChevronDown, Terminal, Sparkles, Bot, ArrowRightLeft, Info, AlertCircle, ShieldAlert, Link, RotateCcw } from "lucide-react";
 import { LookupConfirmDialog } from "./LookupConfirmDialog";
 import { RawInputCollisionDialog, type Collision } from "./RawInputCollisionDialog";
 import { ActorCombobox } from "./ActorCombobox";
