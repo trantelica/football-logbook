@@ -1498,6 +1498,16 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         return;
       }
 
+      // Ctrl/⌘ + E toggles Text Editing (works while typing; never with a dialog open).
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "e") {
+        if (anyBlockingModalOpen()) return;
+        e.preventDefault();
+        if (e.repeat) return;
+        if (textEditing) (document.activeElement as HTMLElement | null)?.blur?.();
+        setTextEditing(!textEditing);
+        return;
+      }
+
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       // Suppress shortcuts entirely when Text Editing is ON.
