@@ -1506,6 +1506,9 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     onStop: () => {
       if (!pttActiveRef.current) return;
       pttActiveRef.current = false;
+      // A very short tap can release before React reports `listening`; always
+      // tear the recognizer down so it can never be left running.
+      if (!recording.listening) recording.stopListening({ discardInterim: true });
       if (recording.listening || recordingForRef.current) stopDictation();
     },
   });
