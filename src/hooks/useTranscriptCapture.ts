@@ -69,6 +69,8 @@ export interface TranscriptCaptureState {
   toggleListening: () => void;
   /** Clear all captured transcript */
   clear: () => void;
+  /** True while the enhanced transcription is refining the last utterance */
+  enhancing: boolean;
 }
 
 export function useTranscriptCapture(): TranscriptCaptureState {
@@ -84,6 +86,7 @@ export function useTranscriptCapture(): TranscriptCaptureState {
   }, []);
 
   const clear = useCallback(() => {
+    sessionRef.current++;
     setText("");
     setInterim("");
   }, []);
@@ -209,12 +212,13 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     try {
       recognition.start();
       setListening(true);
+      void startRecorder();
     } catch {
       recognitionRef.current = null;
       setListening(false);
       setSupported(false);
     }
-  }, []);
+  }, [startRecorder]);
 
   const stopListening = useCallback((opts?: { discardInterim?: boolean }) => {
     const recognition = recognitionRef.current;
@@ -265,5 +269,6 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     stopListening,
     toggleListening,
     clear,
+    enhancing,
   };
 }
