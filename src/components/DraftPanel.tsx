@@ -67,7 +67,12 @@ const DEPENDENT_FIELD_MAP: Record<string, string[]> = {
 };
 
 /** Actor fields backed by roster */
-const ACTOR_FIELDS = new Set(["rusher", "passer", "receiver", "returner"]);
+const ACTOR_FIELDS = new Set([
+  "rusher", "passer", "receiver", "returner",
+  // Pass 4 defensive playmakers — same roster picker
+  "tackler1", "tackler2", "tackler3", "tackler4",
+  "coverPlayer", "interceptedBy", "pbr", "dawg", "unsung",
+]);
 
 export function DraftPanel() {
   const { activeGame } = useGameContext();
