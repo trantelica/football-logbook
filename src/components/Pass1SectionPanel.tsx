@@ -1542,6 +1542,10 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
           e.preventDefault();
           void finishDictationEntry();
           break;
+        case "T":
+          e.preventDefault();
+          setTextEditing(true);
+          break;
         default:
           break;
       }
