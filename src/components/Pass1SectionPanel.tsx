@@ -40,7 +40,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { anyRadixDialogOpen, isTextInputTarget, usePushToTalk } from "@/engine/passShortcuts";
+import {
+  anyRadixDialogOpen,
+  isTextInputTarget,
+  usePushToTalk,
+  useCommitShortcuts,
+  COMMIT_ACTION_BY_ID,
+} from "@/engine/passShortcuts";
 
 import {
   Mic,
