@@ -16,7 +16,7 @@
 - [ ] Slice 3: Results + Playmakers cards, roster matching, defensive rules.
 - [ ] Slice 4: dictation cue words, defensive yard-line sign flip, AI fallback.
 - [x] Current request: defensive side-aware yard-line dictation and reviewed AI fallback; verified both signs, live AI suggestions, explicit list review, commit and reload (1,096 tests passed).
-- [ ] Slice 5: PassRail status, ledger columns, docs, export-check tests.
+- [ ] Slice 5: PassRail status, ledger columns, export-check tests (docs done).
 
 ## Parked (do not start until user says go)
 - [ ] Partial game import: bring a partial file from another source into an existing game; match by play number; imported values arrive as reviewed proposals, never overwrite committed data.
