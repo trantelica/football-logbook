@@ -7,4 +7,4 @@
 - [x] Slice E layout: Pass 1 "Derived from lookup" folded (auto-opens on commit errors).
 - [x] Slice E (perf part): faster save-history numbering, cached playbook-term matching.
 
-- [ ] Commit hotkeys: shared N / Y / L actions + Ctrl/Cmd chords in all three passes (Commit & Stay is new).
+- [x] Commit hotkeys: shared N / Y / L actions + Ctrl/Cmd chords in all three passes (Commit & Stay is new).
