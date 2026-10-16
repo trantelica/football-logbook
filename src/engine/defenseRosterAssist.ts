@@ -29,11 +29,11 @@ export interface DefRosterAssistOption {
 }
 
 const CUES: Record<DefRole, readonly string[]> = {
-  tackler: ["tackle", "tackled", "tackles", "tackler", "tacklers", "stopped", "stop", "brought", "wrapped", "assist", "assisted"],
-  interceptedBy: ["intercepted", "interception", "picked", "pick", "int", "interceptor"],
+  tackler: ["tackle", "tackled", "tackles", "tackling", "tackler", "tacklers", "stopped", "stop", "brought", "wrapped", "assist", "assisted"],
+  interceptedBy: ["intercepted", "interception", "picked", "pick", "int", "interceptor", "intercept", "intercepts", "intercepting"],
   coverPlayer: ["covered", "covering", "cover"],
   pbr: ["pbr", "breakup", "broke", "broken", "deflected", "deflection", "knocked", "batted"],
-  dawg: ["dawg", "dog"],
+  dawg: ["dawg", "dawgs", "dog"],
   unsung: ["unsung"],
 };
 /** Words allowed between names without ending the current list. */
