@@ -18,6 +18,9 @@ describe("defense roster assist", () => {
   it("routes interception and awards", () => {
     expect(run("intercepted by Price, dawg award goes to Fisher")).toEqual(["interceptedBy=21", "dawg=5"]);
   });
+  it("reads cues inside a full results sentence", () => {
+    expect(run("Pass to the flat, Price intercepts, no wait, intercept by Price, tackling 32")).toEqual(["interceptedBy=21", "tackler1=32"]);
+  });
   it("needs a cue", () => {
     expect(run("Reed lined up wide")).toEqual([]);
   });
