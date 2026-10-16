@@ -5,4 +5,3 @@
 - [ ] Slice D3b (open, needs coach decision): auto-update proposal on release + "heard vs understood" strip.
 - [x] Slice E layout: Pass 1 "Derived from lookup" folded (auto-opens on commit errors).
 - [x] Slice E (perf part): faster save-history numbering, cached playbook-term matching.
-- [ ] Slice E (layout): collapse Pass 1 derived details.
