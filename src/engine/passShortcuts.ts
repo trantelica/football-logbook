@@ -218,7 +218,7 @@ export const COMMIT_ACTIONS: readonly CommitAction[] = [
     id: "exit",
     label: "Commit & Exit",
     letter: "L",
-    chords: ["⌘ + Esc", "Ctrl/⌘ + Alt + Enter"],
+    chords: ["⌘ + Option + Enter", "Ctrl + Alt + Enter"],
     hint: "Save, then close the slot",
   },
 ] as const;
@@ -236,7 +236,6 @@ type ChordEvent = Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" |
  *   Ctrl/Cmd + Enter              -> next
  *   Ctrl/Cmd + Shift + Enter      -> stay
  *   Ctrl/Cmd + Alt + Enter        -> exit
- *   Cmd + Esc (no other mods)     -> exit
  * Plain Enter and plain Escape never match.
  */
 export function matchCommitChord(e: ChordEvent): CommitActionId | null {
@@ -245,9 +244,6 @@ export function matchCommitChord(e: ChordEvent): CommitActionId | null {
     if (!mod) return null;
     if (e.altKey) return e.shiftKey ? null : "exit";
     return e.shiftKey ? "stay" : "next";
-  }
-  if (e.key === "Escape") {
-    if (e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) return "exit";
   }
   return null;
 }

@@ -119,7 +119,7 @@ export function KeyboardLegend({ textEditing }: { textEditing: boolean }) {
             Pass 2 and Pass 3 share the same keys where they apply: <kbd className="kbd">D</kbd> dictate,{" "}
             <kbd className="kbd">U</kbd> update proposal, <kbd className="kbd">C</kbd> clear,{" "}
             <kbd className="kbd">N</kbd> commit &amp; next, <kbd className="kbd">Y</kbd> commit &amp; stay,{" "}
-            <kbd className="kbd">L</kbd> commit &amp; exit. Ctrl/⌘ + Enter, Ctrl/⌘ + Shift + Enter and ⌘ + Esc also work while typing.{" "}
+            <kbd className="kbd">L</kbd> commit &amp; exit. Ctrl/⌘ + Enter, Ctrl/⌘ + Shift + Enter and ⌘ + Option + Enter (Ctrl + Alt + Enter on Windows) also work while typing.{" "}
             <kbd className="kbd">S</kbd> and <kbd className="kbd">R</kbd> are Pass 1 only.
           </p>
 
