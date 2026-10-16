@@ -88,6 +88,8 @@ interface Pass1SectionPanelProps {
   proposalSlot: React.ReactNode;
   /** Bottom action bar in the right column. */
   proposalActions?: React.ReactNode;
+  /** Card set to render. Defaults to Pass 1's offensive cards. */
+  sections?: readonly import("@/engine/sectionOwnership").SectionDef[];
 }
 
 interface SectionState {
