@@ -98,3 +98,83 @@ export function usePassShortcuts({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [enabled]);
 }
+
+/** Composite widgets where Space has its own meaning (open, toggle, select). */
+function isSpaceOwnedWidget(t: EventTarget | null): boolean {
+  if (typeof HTMLElement === "undefined" || !(t instanceof HTMLElement)) return false;
+  return !!t.closest(
+    '[role="combobox"],[role="listbox"],[role="option"],[role="menu"],[role="menuitem"],' +
+      '[role="tab"],[role="switch"],[role="checkbox"],[role="radio"],[role="slider"],a[href]',
+  );
+}
+
+export interface UsePushToTalkOptions {
+  enabled: boolean;
+  /** Per-keystroke suspension (Text Editing, scoped modals, in-flight work). */
+  suspended?: () => boolean;
+  /** Hold started. Return false to decline (e.g. mic already live). */
+  onStart: () => boolean | void;
+  /** Hold released (also fires on window blur). Only called after an accepted start. */
+  onStop: () => void;
+}
+
+/**
+ * Hold SPACE to talk, release to stop. Same guards as usePassShortcuts
+ * (no modifiers, never in a text field, never while a dialog is open).
+ * Capture only: releasing the key stops the mic and never updates the
+ * proposal or commits anything.
+ */
+export function usePushToTalk({ enabled, suspended, onStart, onStop }: UsePushToTalkOptions): void {
+  const startRef = useRef(onStart);
+  startRef.current = onStart;
+  const stopRef = useRef(onStop);
+  stopRef.current = onStop;
+  const suspendedRef = useRef(suspended);
+  suspendedRef.current = suspended;
+
+  useEffect(() => {
+    if (!enabled) return;
+    let holding = false;
+
+    function release() {
+      if (!holding) return;
+      holding = false;
+      stopRef.current();
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== " ") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (holding) {
+        // Swallow auto-repeat so the page never scrolls mid-hold.
+        e.preventDefault();
+        return;
+      }
+      if (e.repeat) return;
+      if (suspendedRef.current?.()) return;
+      if (anyRadixDialogOpen()) return;
+      if (isTextInputTarget(e.target) || isSpaceOwnedWidget(e.target)) return;
+      const accepted = startRef.current();
+      if (accepted === false) return;
+      holding = true;
+      e.preventDefault();
+    }
+
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.key !== " " || !holding) return;
+      // Also cancels the click a focused button would otherwise fire on Space-up.
+      e.preventDefault();
+      release();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", release);
+      release();
+    };
+  }, [enabled]);
+}
