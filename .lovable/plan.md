@@ -49,6 +49,29 @@ Values are stored in a separate "custom values" area on each play, so they never
 - **Preflight check:** warns about custom fields that are empty on committed plays. This is advisory only, like today.
 - **Default:** a new season starts with the canonical and standard fields only, so the screens look exactly like today until a coach adds something.
 
+## 4b. Carry-forward custom fields
+
+A coach can mark a custom field as **carry-forward** and pick a scope:
+
+- **Same series + same ODK** (default): stops when possession changes or the series ends
+- **Same ODK for this game**
+- **Next play only**
+
+How it behaves:
+
+- A carried value is a **suggestion**, not a commit. It appears on the next slot's proposal with a "Carried" badge, the same way personnel carry-forward and pins work today.
+- It only fills empty fields. It never overwrites a value the coach typed, dictated or committed.
+- Editing the value on a play starts a new carry from that play. Clearing it stops the carry.
+- Carrying stops at a scope boundary, such as a new series, an ODK change, a quarter or half, or a new game. A quiet note says why it stopped.
+
+Challenges and how the plan handles them:
+
+- **Series detection:** the app's possession and series logic already exists and is reused. Gaps in the data, like skipped slots, stop the carry instead of guessing.
+- **Editing old plays:** changing an earlier committed value never rewrites later committed plays. Later uncommitted slots show the new suggestion. Committed plays that differ are listed in a review prompt, and the coach can update them one at a time or all at once. Nothing changes silently.
+- **Order of operations:** pins and the existing personnel carry-forward run first, then custom carry-forward. The rules are deterministic and covered by tests.
+- **Export:** the export shows only committed values. A carried suggestion that was never committed exports blank, and the preflight check warns about it.
+- **Changing the rule later:** changing a field's carry scope after it has data affects new suggestions only. Committed data is never touched.
+
 ## 5. Dictation
 
 - Phase 1 (this build): custom fields are typed in by hand. If the coach sets cue words, the deterministic parser fills the field with the value after a cue word. For example, cue "tempo" + "tempo fast" gives "fast". Choice fields only accept values from the field's list, and an unknown value goes through the existing "add to list?" check.
@@ -63,6 +86,7 @@ Values are stored in a separate "custom values" area on each play, so they never
 3. **Custom fields:** definitions, storage, protection rules, and audit entries.
 4. **Screens:** custom group in the pass panels and custom columns in the Play Ledger.
 5. **Dictation:** cue-word parsing for custom fields and vocabulary hints.
+6. **Carry-forward custom fields:** scope options, seeding, stop-reasons, and the review prompt for earlier edits.
 
 ## Technical details
 
