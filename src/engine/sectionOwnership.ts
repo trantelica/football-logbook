@@ -9,7 +9,9 @@
  * downstream from governed parent values.
  */
 
-export type SectionId = "situation" | "playDetails" | "playResults";
+export type SectionId =
+  | "situation" | "playDetails" | "playResults"
+  | "defSituation" | "defCall" | "defResults" | "defPlaymakers";
 
 export interface SectionDef {
   id: SectionId;
@@ -41,8 +43,51 @@ export const SECTIONS: readonly SectionDef[] = [
   },
 ] as const;
 
+/**
+ * Pass 4 (defense, ODK = D) cards. Same card engine as Pass 1; Playmakers is
+ * roster-backed and fully optional.
+ */
+export const DEF_SECTIONS: readonly SectionDef[] = [
+  {
+    id: "defSituation",
+    title: "Situation",
+    dictateKey: "S",
+    ownedFields: ["qtr", "odk", "series", "twoMin", "dn", "dist", "yardLn", "hash"],
+  },
+  {
+    id: "defCall",
+    title: "Defensive Call",
+    dictateKey: "D",
+    ownedFields: ["defFront", "defStrength", "blitz", "coverage", "playType"],
+  },
+  {
+    id: "defResults",
+    title: "Results",
+    dictateKey: "R",
+    ownedFields: ["result", "gainLoss", "penalty", "penYards", "eff", "retYards"],
+  },
+  {
+    id: "defPlaymakers",
+    title: "Playmakers",
+    dictateKey: "P",
+    ownedFields: [
+      "tackler1", "tackler2", "tackler3", "tackler4",
+      "coverPlayer", "interceptedBy", "pbr", "dawg", "unsung",
+    ],
+  },
+] as const;
+
+/** Card set for a pass: Pass 4 uses the defensive cards, everything else Pass 1's. */
+export function getSectionsForPass(pass: number): readonly SectionDef[] {
+  return pass === 4 ? DEF_SECTIONS : SECTIONS;
+}
+
+export function getDefOwningSection(fieldName: string): SectionId | undefined {
+  return DEF_SECTIONS.find((s) => s.ownedFields.includes(fieldName))?.id;
+}
+
 export function getSection(id: SectionId): SectionDef {
-  const s = SECTIONS.find((x) => x.id === id);
+  const s = [...SECTIONS, ...DEF_SECTIONS].find((x) => x.id === id);
   if (!s) throw new Error(`Unknown section: ${id}`);
   return s;
 }

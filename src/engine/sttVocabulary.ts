@@ -11,7 +11,7 @@ const BASE_TERMS = [
   "1st and 10", "2nd and 7", "3rd and 3", "4th and 1",
 ];
 
-const KEYWORD_FIELDS = ["offForm", "offPlay", "motion", "penalty", "result"];
+const KEYWORD_FIELDS = ["offForm", "offPlay", "motion", "defFront", "blitz", "coverage", "penalty", "result"];
 const MAX_KEYWORDS = 200;
 
 let current: string[] = BASE_TERMS.slice();

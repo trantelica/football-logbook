@@ -1519,7 +1519,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       // ── Pass 1-only logic: predictions, PAT, possession ──
       // When activePass >= 2, skip all Pass 1 gating entirely
-      if (activePass < 2) {
+      if (activePass < 2 || activePass === 4) {
         // Phase 6: PAT context detection
         const isPAT = shouldEnterPATContext(prevPlay, slot, patMode);
         setPatContext(isPAT);
@@ -2115,7 +2115,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       }
 
       let prediction: ReturnType<typeof computePrediction> | null = null;
-      if (activePass < 2 && slot) {
+      if ((activePass < 2 || activePass === 4) && slot) {
         try {
           prediction = computePrediction(prevPlay, slot.odk, fieldSize as 80 | 100, halfTimeBoundary);
         } catch {

@@ -21,9 +21,15 @@
  * pipeline.
  */
 
-export type GovernedLookupField = "offForm" | "offPlay" | "motion";
+export type GovernedLookupField =
+  | "offForm" | "offPlay" | "motion"
+  | "defFront" | "blitz" | "coverage";
 
-const GOVERNED_FIELDS: readonly GovernedLookupField[] = ["offForm", "offPlay", "motion"] as const;
+// Defensive vocabularies only apply when a Pass 4 card owns them
+// (allowedFields), so offense scanning is unchanged.
+const GOVERNED_FIELDS: readonly GovernedLookupField[] = [
+  "offForm", "offPlay", "motion", "defFront", "blitz", "coverage",
+] as const;
 const GOVERNED_FIELD_SET: ReadonlySet<string> = new Set(GOVERNED_FIELDS);
 
 export interface LookupScanHit {
