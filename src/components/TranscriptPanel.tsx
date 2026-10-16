@@ -33,7 +33,7 @@ import { PERSONNEL_LABELS, PERSONNEL_POSITIONS } from "@/engine/personnel";
 import { fetchAiPersonnelProposal } from "@/engine/aiPersonnelClient";
 import { RosterResolveDialog, type OffRosterPending } from "@/components/RosterResolveDialog";
 import { isDevMode } from "@/engine/devMode";
-import { usePassShortcuts } from "@/engine/passShortcuts";
+import { usePassShortcuts, usePushToTalk } from "@/engine/passShortcuts";
 
 import { toast } from "sonner";
 
@@ -66,6 +66,8 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
     hasContent,
     setText,
     toggleListening,
+    startListening,
+    stopListening,
     clear,
   } = useTranscriptCapture();
 
@@ -640,6 +642,15 @@ export function TranscriptPanel({ onApply, activePass, currentCandidate }: Trans
    * Pass 1 (see src/engine/passShortcuts.ts). Capture/review only: nothing
    * here commits. Commit keys (N/L) are owned by DraftPanel's action row.
    */
+  usePushToTalk({
+    enabled: isPass2Plus && supported,
+    onStart: () => {
+      if (listening) return false;
+      startListening();
+    },
+    onStop: () => stopListening(),
+  });
+
   usePassShortcuts({
     enabled: isPass2Plus,
     bindings: {

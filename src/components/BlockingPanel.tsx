@@ -33,7 +33,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Lock, AlertTriangle, Wand2, Trash2, Mic, MicOff, Terminal, Info, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { usePassShortcuts } from "@/engine/passShortcuts";
+import { usePassShortcuts, usePushToTalk } from "@/engine/passShortcuts";
 
 
 /** Map grade field → corresponding personnel position field */
@@ -162,6 +162,8 @@ export function BlockingPanel() {
     supported: dictationSupported,
     setText: setDictatedText,
     toggleListening,
+    startListening,
+    stopListening,
     clear: clearDictation,
   } = useTranscriptCapture();
 
@@ -350,6 +352,16 @@ export function BlockingPanel() {
    * Pass 1 (src/engine/passShortcuts.ts). Capture/review only; commit keys
    * (N/L) belong to DraftPanel's action row.
    */
+  usePushToTalk({
+    enabled: !noCommittedRow && !notOffense && dictationSupported,
+    suspended: () => gradesDisabled,
+    onStart: () => {
+      if (listening) return false;
+      startListening();
+    },
+    onStop: () => stopListening(),
+  });
+
   usePassShortcuts({
     enabled: !noCommittedRow && !notOffense,
     bindings: {

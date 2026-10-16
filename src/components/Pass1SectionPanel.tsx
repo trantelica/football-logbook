@@ -40,7 +40,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { anyRadixDialogOpen, isTextInputTarget } from "@/engine/passShortcuts";
+import { anyRadixDialogOpen, isTextInputTarget, usePushToTalk } from "@/engine/passShortcuts";
 
 import {
   Mic,
@@ -1490,6 +1490,28 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     handleCommitAndNext,
     handleCommitAndLeave,
   ]);
+
+  // ── Push-to-talk: hold SPACE to dictate into the active section ──
+  // Capture only — release stops the mic and saves the text into the section;
+  // it never updates the proposal (U) or commits.
+  const pttActiveRef = useRef(false);
+  usePushToTalk({
+    enabled: !textEditing,
+    suspended: () => overwriteOpenRef.current || clarificationOpenRef.current,
+    onStart: () => {
+      if (recording.listening || recordingForRef.current) return false;
+      pttActiveRef.current = true;
+      dictateInto(activeSection);
+    },
+    onStop: () => {
+      if (!pttActiveRef.current) return;
+      pttActiveRef.current = false;
+      // A very short tap can release before React reports `listening`; always
+      // tear the recognizer down so it can never be left running.
+      if (!recording.listening) recording.stopListening({ discardInterim: true });
+      if (recording.listening || recordingForRef.current) stopDictation();
+    },
+  });
 
   // ── Render ──
   return (

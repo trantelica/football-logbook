@@ -46,7 +46,10 @@ const KEY_GROUPS: KeyGroup[] = [
   {
     heading: "Capture",
     note: "Press again to stop. Switching sections saves the current one first.",
-    rows: DICTATE_ROWS,
+    rows: [
+      ...DICTATE_ROWS,
+      { key: "Space", label: "Hold to talk", hint: "Release to stop — active section" },
+    ],
   },
   {
     heading: "Review",
