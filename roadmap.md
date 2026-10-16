@@ -1,4 +1,5 @@
 # Current work
-- [x] Measure Slice C's suspected slow paths before recommending or changing internals; report measurement limits if no real game is available.
-- [x] Enlarge Pass 2 pin/unpin controls without changing seeding behavior.
-- [x] Add a quick Light/Dark toggle to the welcome screen and top bar using existing device preferences.
+- [x] Slice D1: football-aware transcription service with season vocabulary hints (browser dictation kept as live preview/fallback).
+- [ ] Slice D2: number normalization + fuzzy snap with provenance.
+- [ ] Slice D3: push-to-talk + optional auto-update on mic stop + "heard vs understood" strip.
+- [ ] Slice E: Pass 1 collapse of derived details; measured performance fixes (audit seq cache, scanner regex cache, memoized context).

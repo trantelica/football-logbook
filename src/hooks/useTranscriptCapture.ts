@@ -13,6 +13,8 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { getSttVocabulary } from "@/engine/sttVocabulary";
+import { isEnhancedDictationEnabled, transcribeClip } from "@/engine/transcribeClient";
 
 /* ── Web Speech API types (not in standard TS lib) ── */
 
@@ -67,6 +69,8 @@ export interface TranscriptCaptureState {
   toggleListening: () => void;
   /** Clear all captured transcript */
   clear: () => void;
+  /** True while the enhanced transcription is refining the last utterance */
+  enhancing: boolean;
 }
 
 export function useTranscriptCapture(): TranscriptCaptureState {
@@ -82,6 +86,7 @@ export function useTranscriptCapture(): TranscriptCaptureState {
   }, []);
 
   const clear = useCallback(() => {
+    sessionRef.current++;
     setText("");
     setInterim("");
   }, []);
@@ -93,6 +98,54 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       if (!prev.trim()) return trimmed;
       return prev.trimEnd() + "\n" + trimmed;
     });
+  }, []);
+
+  // ── Enhanced transcription: record the utterance in parallel and, on stop,
+  // replace this session's browser text with the football-aware service text.
+  const textRef = useRef("");
+  useEffect(() => { textRef.current = text; }, [text]);
+  const recorderRef = useRef<{ rec: MediaRecorder; stream: MediaStream; chunks: Blob[]; prefix: string } | null>(null);
+  const sessionRef = useRef(0);
+  const [enhancing, setEnhancing] = useState(false);
+
+  const startRecorder = useCallback(async () => {
+    if (!isEnhancedDictationEnabled() || typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+    const session = ++sessionRef.current;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (session !== sessionRef.current || !recognitionRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
+      const rec = new MediaRecorder(stream);
+      const entry = { rec, stream, chunks: [] as Blob[], prefix: textRef.current };
+      rec.ondataavailable = (e) => { if (e.data.size) entry.chunks.push(e.data); };
+      rec.start();
+      recorderRef.current = entry;
+    } catch (e) {
+      console.warn("[TranscriptCapture] recorder unavailable", e);
+    }
+  }, []);
+
+  const stopRecorder = useCallback((apply: boolean) => {
+    sessionRef.current++;
+    const entry = recorderRef.current;
+    recorderRef.current = null;
+    if (!entry) return;
+    const session = sessionRef.current;
+    entry.rec.onstop = async () => {
+      entry.stream.getTracks().forEach((t) => t.stop());
+      if (!apply || !entry.chunks.length) return;
+      const blob = new Blob(entry.chunks, { type: entry.rec.mimeType || "audio/webm" });
+      setEnhancing(true);
+      const result = await transcribeClip(blob, getSttVocabulary());
+      setEnhancing(false);
+      if (session !== sessionRef.current || !result) return;
+      const prefix = entry.prefix;
+      setText((cur) => {
+        // Only replace if the coach hasn't edited the earlier text meanwhile.
+        if (!cur.startsWith(prefix)) return cur;
+        return prefix.trim() ? prefix.trimEnd() + "\n" + result : result;
+      });
+    };
+    try { entry.rec.stop(); } catch { entry.stream.getTracks().forEach((t) => t.stop()); }
   }, []);
 
   const startListening = useCallback(() => {
@@ -159,12 +212,13 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     try {
       recognition.start();
       setListening(true);
+      void startRecorder();
     } catch {
       recognitionRef.current = null;
       setListening(false);
       setSupported(false);
     }
-  }, []);
+  }, [startRecorder]);
 
   const stopListening = useCallback((opts?: { discardInterim?: boolean }) => {
     const recognition = recognitionRef.current;
@@ -179,11 +233,8 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       try { recognition.abort(); } catch { /* ignore */ }
     }
     setListening(false);
+    stopRecorder(!opts?.discardInterim);
     if (opts?.discardInterim) {
-      // Caller has already snapshotted any in-flight interim and merged it
-      // into its own destination buffer. Drop interim WITHOUT flushing it
-      // back into `text` — otherwise the flushed text would race against the
-      // caller's subsequent clear() and leak into the next dictation target.
       setInterim("");
       return;
     }
@@ -197,7 +248,7 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       }
       return "";
     });
-  }, []);
+  }, [stopRecorder]);
 
   const toggleListening = useCallback(() => {
     if (listening) stopListening();
@@ -218,5 +269,6 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     stopListening,
     toggleListening,
     clear,
+    enhancing,
   };
 }
