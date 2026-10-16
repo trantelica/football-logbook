@@ -1027,6 +1027,29 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: P
             assistPatchByRow.set(rowId, { field: opt.field, canonical: opt.jerseyNumber });
           }
         }
+        // Pass 4 Playmakers: tacklers, interception, cover, PBR and awards
+        // from spoken names or jersey numbers ("tackle by Reed and 32").
+        if (id === "defPlaymakers" && roster.length > 0) {
+          const candidateMap = candidate as Record<string, unknown>;
+          const blocked = new Set<string>(touchedFields);
+          for (const f of DEF_ACTOR_FIELDS) {
+            const v = candidateMap[f];
+            if (v !== null && v !== undefined && v !== "") blocked.add(f);
+          }
+          for (const opt of collectDefenseRosterAssist({ text: normalized, roster, blockedFields: blocked })) {
+            const rowId = `assist::${opt.field}::${opt.jerseyNumber}`;
+            assistRows.push({
+              fieldName: rowId,
+              currentValue: candidateMap[opt.field] ?? null,
+              proposedValue: `#${opt.jerseyNumber} ${opt.playerName}`,
+              source: "lookup_assist",
+              groupKey: opt.field,
+              signalLabel: opt.signal === "exact" ? "Roster name" : "Sounds like",
+              cueText: opt.cue,
+            });
+            assistPatchByRow.set(rowId, { field: opt.field, canonical: opt.jerseyNumber });
+          }
+        }
 
         // Fallback: write raw parsed value for any deferred Assist field the
         // coach did NOT resolve via Assist (skipped/cancelled or unselected
