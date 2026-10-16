@@ -492,7 +492,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: P
       setBusySection(id);
       try {
         // ── Step 1: Deterministic parse, scoped to owned fields ──
-        const normalized = normalizeTranscriptForParse(text);
+        const normalized = normalizeTranscriptForParse(text, { odk: activePass === 4 ? "D" : "O" });
         const parseResult = parseRawInput(normalized);
         const ownedSet = new Set(section.ownedFields);
         const lookupMapEarly = getLookupMap();
@@ -695,11 +695,13 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: P
             : undefined;
 
         const aiResult = await fetchAiProposal(
-          candidate as Record<string, unknown>,
+          // React state updates above are asynchronous. Use this run's
+          // deterministic/scanner projection so AI cannot re-interpret them.
+          { ...(candidate as Record<string, unknown>), ...fillablePatch, ...scannerFillable },
           activePass,
           {
             touchedFields: maskedTouched,
-            deterministicParseFields,
+            deterministicParseFields: new Set([...deterministicParseFields, ...Object.keys(scopedParsePatch), ...Object.keys(scannerFillable)]),
             predictedFields,
             carriedForwardFields,
             lookupDerivedFields,
@@ -729,7 +731,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: P
         // Fields that the deterministic parser just applied in this run.
         // AI must NOT overwrite them — provenance for those values must remain
         // "deterministic_parse" (Parse badge), not "ai_proposed" (AI badge).
-        const justParsedFields = new Set<string>(Object.keys(fillablePatch));
+        const justParsedFields = new Set<string>([...Object.keys(scopedParsePatch), ...Object.keys(scannerFillable)]);
 
         // Build a set of token-fragments already accounted for by deterministic
         // governed extractions in this same run (from scopedParsePatch). This
@@ -1163,7 +1165,7 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions, sections }: P
         // Build a projected candidate that includes everything we just applied
         // synchronously, so we can check governance immediately rather than
         // waiting for React state to settle.
-        const projected = { ...(candidate as Record<string, unknown>), ...fillablePatch };
+        const projected = { ...(candidate as Record<string, unknown>), ...fillablePatch, ...scannerFillable };
         for (const [k, v] of Object.entries(ownedAiProposal)) {
           if (aiCollisions.find((c) => c.fieldName === k)) continue;
           // Unwrap governed proposal {value,matchType}

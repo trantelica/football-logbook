@@ -762,7 +762,7 @@ function normalizeCompoundNumbers(t: string): string {
   });
 }
 
-export function normalizeTranscriptForParse(s: string): string {
+export function normalizeTranscriptForParse(s: string, opts?: { odk?: string }): string {
   let t = s;
 
   // Replace common STT spoken-punctuation artifacts
@@ -778,6 +778,16 @@ export function normalizeTranscriptForParse(s: string): string {
   // Convert number words to digits FIRST so actor patterns can match digits.
   t = normalizeCompoundNumbers(t);
   t = t.replace(NUMBER_WORD_RE, (m) => NUMBER_WORDS[m.toLowerCase()]);
+
+  // In defense the opponent is the offense. Flip only side-qualified speech,
+  // never explicit signed YARD values or gain/loss. Apply before shared rules.
+  if (opts?.odk === "D") {
+    t = t.replace(
+      /(?<!\w)(?:(?:on|at|from)\s+(?:the\s+)?(our|own|their|opponent'?s|opp)(?:\s+own)?\s+(\d+)(?:\s+yard\s*line)?\b|(?:the\s+)?(our|own|their|opponent'?s|opp)(?:\s+own)?\s+(\d+)\s+yard\s*line\b)/gi,
+      (_m, side: string | undefined, n: string | undefined, bareSide: string | undefined, bareN: string | undefined) =>
+        `YARD ${/^(their|opponent'?s|opp)$/i.test(side ?? bareSide ?? "") ? "-" : ""}${n ?? bareN}`,
+    );
+  }
 
   // Actor patterns — MUST run before generic phrase normalizations strip
   // the jersey number from "ball carrier" / "QB" cues.

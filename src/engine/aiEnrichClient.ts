@@ -14,7 +14,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { playSchema } from "./schema";
 import { getUnresolvedFields } from "./aiEnrichment";
-import { AI_ELIGIBLE_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
+import { AI_ELIGIBLE_FIELDS, DEFENSE_AI_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
 import { getBaselinePhraseology } from "./phraseologyBaseline";
 import {
   normalizePatchKeysToCanonical,
@@ -50,6 +50,7 @@ export type AiCorrectionsByField = Partial<
 
 /** Location mapping block for the AI context packet */
 export interface LocationMappingContext {
+  perspective: "offense" | "defense";
   fieldSize: FieldSize;
   validYardLnRange: { min: number; max: number };
   convention: string;
@@ -108,6 +109,7 @@ function buildLocationMapping(
     fieldSize?: FieldSize;
     predictedFields?: Set<string>;
     predictedYardLn?: number | null;
+    odk?: unknown;
   },
 ): LocationMappingContext | undefined {
   const hasLocationField = unresolvedFields.some((f) => LOCATION_CONSTRAINED_FIELDS.has(f));
@@ -118,9 +120,12 @@ function buildLocationMapping(
   const predictionActive = opts?.predictedFields?.has("yardLn") ?? false;
 
   return {
+    perspective: opts?.odk === "D" ? "defense" : "offense",
     fieldSize,
     validYardLnRange: { min: -(half - 1), max: half },
-    convention: "negative = own territory, positive = opponent territory",
+    convention: opts?.odk === "D"
+      ? "negative = opponent offense's own territory (their side), positive = coach team's territory (our side)"
+      : "negative = own territory, positive = opponent territory",
     midfield: half,
     predictionActive,
     predictedYardLn: predictionActive ? (opts?.predictedYardLn ?? null) : null,
@@ -207,6 +212,10 @@ export async function fetchAiProposal(
 
   // Intersect with AI-eligible field set — only Bucket B fields
   let aiEligibleUnresolved = unresolvedFields.filter((f) => AI_ELIGIBLE_FIELDS.has(f));
+  const defensiveSection = opts?.activeSection?.startsWith("def") ?? false;
+  if (activePass !== 4 || candidate.odk !== "D" || !defensiveSection) {
+    aiEligibleUnresolved = aiEligibleUnresolved.filter((f) => !DEFENSE_AI_FIELDS.has(f));
+  }
 
   // Play Results actor fields are AI-eligible ONLY when the active section
   // is playResults. Outside that section (or in legacy cross-section calls
@@ -265,6 +274,7 @@ export async function fetchAiProposal(
     fieldSize: opts?.fieldSize,
     predictedFields: opts?.predictedFields,
     predictedYardLn: opts?.predictedYardLn,
+    odk: candidate.odk,
   });
 
   const positionAliases = (opts?.positionAliases ?? {}) as PositionAliasMap;
@@ -318,6 +328,17 @@ export async function fetchAiProposal(
   // pos* keys so downstream proposal/commit only ever sees canonical names.
   const rawProposal = (data?.proposal ?? {}) as Record<string, unknown>;
   const { patch: normalized } = normalizePatchKeysToCanonical(rawProposal, positionAliases);
+
+  // Pass 4 is additive-only: reject unsolicited/resolved/derived keys even
+  // if a service response violates its unresolved-field contract.
+  if (defensiveSection) {
+    const allowed = new Set(aiEligibleUnresolved);
+    for (const k of Object.keys(normalized)) {
+      if (!allowed.has(k)) delete normalized[k];
+    }
+  } else {
+    for (const k of DEFENSE_AI_FIELDS) delete normalized[k];
+  }
 
   // Slice A: defensive section drop. Even if the edge function returns
   // a key outside the active section's owned fields, drop it before it

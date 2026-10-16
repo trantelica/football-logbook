@@ -26,6 +26,16 @@ export const AI_ELIGIBLE_FIELDS = new Set([
   "rusher",
   "passer",
   "receiver",
+  // Pass 4 only; the client and transaction filter enforce ODK=D.
+  "defFront",
+  "blitz",
+  "coverage",
+  "defStrength",
+  "retYards",
+]);
+
+export const DEFENSE_AI_FIELDS = new Set([
+  "defFront", "blitz", "coverage", "defStrength", "retYards",
 ]);
 
 /**
