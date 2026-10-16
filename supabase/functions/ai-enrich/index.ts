@@ -177,6 +177,8 @@ Location Model (Hudl-centered, authoritative):
 - Convention: ${locationMapping.convention}
 - Midfield: ${locationMapping.midfield}
 ${locationMapping.predictionActive ? `- IMPORTANT: Prediction engine already resolved yardLn to ${locationMapping.predictedYardLn}. Do NOT propose yardLn.` : "- Prediction engine did not resolve yardLn — you may propose if observation supports it."}
+- Negative yardLn values are VALID and mean the coach's own side of the field (e.g. -23). Never drop the minus sign, convert it to positive, or "correct" it.
+- "our XX yard line" / "our own XX" / "minus XX" / "negative XX" => yardLn = -XX. "their XX yard line" / "opponent's XX" => yardLn = +XX.
 - If "our" or "their" context is missing and cannot be inferred, OMIT yardLn entirely.
 - Do NOT invent your own location interpretation model.`;
     }
