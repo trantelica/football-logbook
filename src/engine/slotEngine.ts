@@ -126,17 +126,17 @@ export function computeODKForPlay(playNum: number, odkBlocks: ODKBlock[]): ODK |
 
 /**
  * Compute series number for a play.
- * Series increments when:
- *   - Transitioning from D/K → O
- *   - Entering a new O block (even after another O block, e.g. halftime split)
- * Series carries within a continuous O block.
- * Returns null for non-O plays.
+ * Offense and defense keep their OWN counters:
+ *   - O series increments when entering an O block (from another unit, or a
+ *     new O block such as a halftime split); carries within the block.
+ *   - D series increments the same way from the previous D series — never
+ *     from the offensive count.
+ * Returns null for K/S plays.
  */
 export function computeSeriesForPlay(playNum: number, odkBlocks: ODKBlock[]): number | null {
   const currentODK = computeODKForPlay(playNum, odkBlocks);
-  if (currentODK !== "O") return null;
+  if (currentODK !== "O" && currentODK !== "D") return null;
 
-  // Build a map of playNum → which block index it belongs to
   const getBlockIndex = (p: number): number => {
     for (let i = 0; i < odkBlocks.length; i++) {
       if (p >= odkBlocks[i].startPlay && p <= odkBlocks[i].endPlay) return i;
@@ -150,9 +150,9 @@ export function computeSeriesForPlay(playNum: number, odkBlocks: ODKBlock[]): nu
 
   for (let p = 1; p <= playNum; p++) {
     const odk = computeODKForPlay(p, odkBlocks);
-    if (odk === "O") {
+    if (odk === currentODK) {
       const blockIdx = getBlockIndex(p);
-      if (prevODK !== "O" || blockIdx !== prevBlockIdx) {
+      if (prevODK !== currentODK || blockIdx !== prevBlockIdx) {
         series++;
       }
       prevBlockIdx = blockIdx;
