@@ -13,6 +13,8 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { getSttVocabulary } from "@/engine/sttVocabulary";
+import { isEnhancedDictationEnabled, transcribeClip } from "@/engine/transcribeClient";
 
 /* ── Web Speech API types (not in standard TS lib) ── */
 
@@ -93,6 +95,54 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       if (!prev.trim()) return trimmed;
       return prev.trimEnd() + "\n" + trimmed;
     });
+  }, []);
+
+  // ── Enhanced transcription: record the utterance in parallel and, on stop,
+  // replace this session's browser text with the football-aware service text.
+  const textRef = useRef("");
+  useEffect(() => { textRef.current = text; }, [text]);
+  const recorderRef = useRef<{ rec: MediaRecorder; stream: MediaStream; chunks: Blob[]; prefix: string } | null>(null);
+  const sessionRef = useRef(0);
+  const [enhancing, setEnhancing] = useState(false);
+
+  const startRecorder = useCallback(async () => {
+    if (!isEnhancedDictationEnabled() || typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+    const session = ++sessionRef.current;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (session !== sessionRef.current || !recognitionRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
+      const rec = new MediaRecorder(stream);
+      const entry = { rec, stream, chunks: [] as Blob[], prefix: textRef.current };
+      rec.ondataavailable = (e) => { if (e.data.size) entry.chunks.push(e.data); };
+      rec.start();
+      recorderRef.current = entry;
+    } catch (e) {
+      console.warn("[TranscriptCapture] recorder unavailable", e);
+    }
+  }, []);
+
+  const stopRecorder = useCallback((apply: boolean) => {
+    sessionRef.current++;
+    const entry = recorderRef.current;
+    recorderRef.current = null;
+    if (!entry) return;
+    const session = sessionRef.current;
+    entry.rec.onstop = async () => {
+      entry.stream.getTracks().forEach((t) => t.stop());
+      if (!apply || !entry.chunks.length) return;
+      const blob = new Blob(entry.chunks, { type: entry.rec.mimeType || "audio/webm" });
+      setEnhancing(true);
+      const result = await transcribeClip(blob, getSttVocabulary());
+      setEnhancing(false);
+      if (session !== sessionRef.current || !result) return;
+      const prefix = entry.prefix;
+      setText((cur) => {
+        // Only replace if the coach hasn't edited the earlier text meanwhile.
+        if (!cur.startsWith(prefix)) return cur;
+        return prefix.trim() ? prefix.trimEnd() + "\n" + result : result;
+      });
+    };
+    try { entry.rec.stop(); } catch { entry.stream.getTracks().forEach((t) => t.stop()); }
   }, []);
 
   const startListening = useCallback(() => {
