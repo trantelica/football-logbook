@@ -90,6 +90,10 @@ interface SectionState {
   dirty: boolean;
   /** Last applied source text for diffing. */
   lastAppliedText: string;
+  /** Field labels filled by the last Update Proposal (display only). */
+  understood?: string[];
+  /** Key fields still empty after the last Update Proposal (display only). */
+  stillEmpty?: string[];
 }
 
 const INITIAL_SECTION_STATE: SectionState = { text: "", dirty: false, lastAppliedText: "" };
@@ -1141,9 +1145,22 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
         // Per spec: clear dirty/unsynced only after the proposal has actually
         // been updated for this section.
         if (filledCount > 0) {
+          const understoodKeys = [
+            ...Object.keys(fillablePatch),
+            ...Object.keys(ownedAiProposal).filter(
+              (k) => !aiCollisions.find((c) => c.fieldName === k),
+            ),
+          ];
+          const understood = Array.from(new Set(understoodKeys)).map((k) => FIELD_LABELS[k] ?? k);
+          const stillEmpty = CLARIFICATION_FIELDS_BY_SECTION[id]
+            .filter((f) => {
+              const v = projected[f];
+              return v === null || v === undefined || v === "";
+            })
+            .map((f) => FIELD_LABELS[f] ?? f);
           setSectionState((s) => ({
             ...s,
-            [id]: { ...s[id], dirty: false, lastAppliedText: text },
+            [id]: { ...s[id], dirty: false, lastAppliedText: text, understood, stillEmpty },
           }));
           toast.success(`${section.title}: updated ${filledCount} field(s).`);
           return { kind: "applied", count: filledCount };
@@ -1885,6 +1902,21 @@ function SectionCard(props: SectionCardProps) {
         }}
         onFocus={onFocus}
       />
+
+      {/* Heard vs understood: quiet read-back of the last Update Proposal. */}
+      {!state.dirty && !isRecording && state.understood && state.understood.length > 0 && (
+        <p className="text-[10px] leading-snug text-muted-foreground" data-testid="heard-understood">
+          <span className="font-medium uppercase tracking-wide">Understood</span>{" "}
+          {state.understood.join(", ")}
+          {state.stillEmpty && state.stillEmpty.length > 0 && (
+            <>
+              {" · "}
+              <span className="font-medium uppercase tracking-wide">Not heard</span>{" "}
+              {state.stillEmpty.join(", ")}
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
