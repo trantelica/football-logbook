@@ -58,11 +58,35 @@ describe("Pass 4 reviewed AI fallback", () => {
     await fetchAiProposal({ odk: "D" }, 4, { activeSection: "defSituation", observationText: "opponents have it at their twenty five", fieldSize: 100 });
     expect(invoke.mock.calls[1][1].body.locationMapping.perspective).toBe("defense");
   });
-  it("keeps defensive AI out of offense and playmakers", async () => {
-    await fetchAiProposal({ odk: "D" }, 4, { activeSection: "defPlaymakers", observationText: "Reed made the tackle" });
-    expect(invoke).not.toHaveBeenCalled();
-    const { safePatch } = filterAiProposal({ proposal: { defFront: "Bear", retYards: 8 }, candidate: { odk: "O" } as CandidateData, unresolvedFields: new Set(["defFront", "retYards"]) });
+  it("keeps defensive AI out of offense", async () => {
+    const { safePatch } = filterAiProposal({ proposal: { defFront: "Bear", retYards: 8, tackler1: 44 }, candidate: { odk: "O" } as CandidateData, unresolvedFields: new Set(["defFront", "retYards", "tackler1"]) });
     expect(safePatch).toEqual({});
+  });
+  it("offers playmaker AI only on the Playmakers card, as integer jerseys", async () => {
+    invoke.mockResolvedValue({ data: { proposal: { tackler1: 44, interceptedBy: "21", dawg: "Reed", pbr: 7.5 } }, error: null });
+    const result = await fetchAiProposal({ odk: "D" }, 4, {
+      activeSection: "defPlaymakers", observationText: "tackle by 44, intercepted by 21",
+    });
+    const body = invoke.mock.calls[0][1].body;
+    expect(body.unresolvedFields).toEqual(expect.arrayContaining(["tackler1", "interceptedBy", "dawg"]));
+    // Client passes the raw response through; the transaction filter coerces/drops.
+    const { safePatch } = filterAiProposal({
+      proposal: result.proposal,
+      candidate: { odk: "D" } as CandidateData,
+      unresolvedFields: new Set(["tackler1", "interceptedBy", "dawg", "pbr"]),
+    });
+    expect(safePatch).toEqual({ tackler1: 44, interceptedBy: 21 }); // names and floats dropped
+  });
+  it("drops playmaker proposals outside the Playmakers card and on offense", async () => {
+    invoke.mockResolvedValue({ data: { proposal: { tackler1: 44 } }, error: null });
+    const wrongSection = await fetchAiProposal({ odk: "D" }, 4, {
+      activeSection: "defResults", observationText: "tackle by 44 on the gain of 3",
+    });
+    expect(wrongSection.proposal).toEqual({});
+    const offense = await fetchAiProposal({ odk: "O" }, 1, {
+      activeSection: "playResults", observationText: "tackle by 44",
+    });
+    expect(offense.proposal).toEqual({});
   });
   it("does not invent zero return yards for an incomplete pass", async () => {
     invoke.mockResolvedValue({ data: { proposal: { retYards: 0 } }, error: null });

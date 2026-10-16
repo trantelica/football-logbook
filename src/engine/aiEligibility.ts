@@ -32,10 +32,42 @@ export const AI_ELIGIBLE_FIELDS = new Set([
   "coverage",
   "defStrength",
   "retYards",
+  // Pass 4 Playmakers actor fields — section-scoped to defPlaymakers.
+  // Same jersey-number contract as the offensive Play Results actors:
+  // bare integers only, roster governance validates at commit.
+  "tackler1",
+  "tackler2",
+  "tackler3",
+  "tackler4",
+  "interceptedBy",
+  "coverPlayer",
+  "pbr",
+  "dawg",
+  "unsung",
 ]);
 
 export const DEFENSE_AI_FIELDS = new Set([
   "defFront", "blitz", "coverage", "defStrength", "retYards",
+  "tackler1", "tackler2", "tackler3", "tackler4",
+  "interceptedBy", "coverPlayer", "pbr", "dawg", "unsung",
+]);
+
+/**
+ * Pass 4 Playmakers actor fields. AI proposals must be bare integer jersey
+ * numbers and only flow when the active section is defPlaymakers. Enforced
+ * by filterAiProposal (integer coercion) and by the section-aware drop in
+ * fetchAiProposal. Never invented: the coach must name the player.
+ */
+export const DEF_PLAYMAKER_ACTOR_FIELDS = new Set([
+  "tackler1",
+  "tackler2",
+  "tackler3",
+  "tackler4",
+  "interceptedBy",
+  "coverPlayer",
+  "pbr",
+  "dawg",
+  "unsung",
 ]);
 
 /**
