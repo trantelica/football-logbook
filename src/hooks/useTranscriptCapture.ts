@@ -64,7 +64,13 @@ export interface TranscriptCaptureState {
   /** Stop speech recognition. Pass { discardInterim: true } to skip flushing
    *  interim into text — used when the caller has already snapshotted the
    *  in-flight interim and is about to switch the recording target. */
-  stopListening: (opts?: { discardInterim?: boolean }) => void;
+  stopListening: (opts?: {
+    discardInterim?: boolean;
+    /** Called once with the football-aware transcript of this utterance (or
+     *  null when unavailable). When set, the enhanced text is handed to the
+     *  caller instead of being merged into `text`. */
+    onEnhanced?: (enhanced: string | null) => void;
+  }) => void;
   /** Toggle listening on/off */
   toggleListening: () => void;
   /** Clear all captured transcript */
@@ -124,19 +130,22 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     }
   }, []);
 
-  const stopRecorder = useCallback((apply: boolean) => {
+  const stopRecorder = useCallback((apply: boolean, onEnhanced?: (t: string | null) => void) => {
     sessionRef.current++;
     const entry = recorderRef.current;
     recorderRef.current = null;
-    if (!entry) return;
+    if (!entry) { onEnhanced?.(null); return; }
     const session = sessionRef.current;
+    // Mark busy synchronously so callers waiting on `enhancing` never see a gap
+    // between releasing the mic and the clip being sent.
+    if (apply) setEnhancing(true);
     entry.rec.onstop = async () => {
       entry.stream.getTracks().forEach((t) => t.stop());
-      if (!apply || !entry.chunks.length) return;
+      if (!apply || !entry.chunks.length) { setEnhancing(false); onEnhanced?.(null); return; }
       const blob = new Blob(entry.chunks, { type: entry.rec.mimeType || "audio/webm" });
-      setEnhancing(true);
       const result = await transcribeClip(blob, getSttVocabulary());
       setEnhancing(false);
+      if (onEnhanced) { onEnhanced(result || null); return; }
       if (session !== sessionRef.current || !result) return;
       const prefix = entry.prefix;
       setText((cur) => {
@@ -145,7 +154,7 @@ export function useTranscriptCapture(): TranscriptCaptureState {
         return prefix.trim() ? prefix.trimEnd() + "\n" + result : result;
       });
     };
-    try { entry.rec.stop(); } catch { entry.stream.getTracks().forEach((t) => t.stop()); }
+    try { entry.rec.stop(); } catch { entry.stream.getTracks().forEach((t) => t.stop()); setEnhancing(false); onEnhanced?.(null); }
   }, []);
 
   const startListening = useCallback(() => {
@@ -220,7 +229,7 @@ export function useTranscriptCapture(): TranscriptCaptureState {
     }
   }, [startRecorder]);
 
-  const stopListening = useCallback((opts?: { discardInterim?: boolean }) => {
+  const stopListening = useCallback((opts?: { discardInterim?: boolean; onEnhanced?: (enhanced: string | null) => void }) => {
     const recognition = recognitionRef.current;
     recognitionRef.current = null;
     if (recognition) {
@@ -233,7 +242,7 @@ export function useTranscriptCapture(): TranscriptCaptureState {
       try { recognition.abort(); } catch { /* ignore */ }
     }
     setListening(false);
-    stopRecorder(!opts?.discardInterim);
+    stopRecorder(!opts?.discardInterim || !!opts?.onEnhanced, opts?.onEnhanced);
     if (opts?.discardInterim) {
       setInterim("");
       return;

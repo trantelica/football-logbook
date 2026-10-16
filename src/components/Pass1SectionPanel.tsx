@@ -1506,10 +1506,31 @@ export function Pass1SectionPanel({ proposalSlot, proposalActions }: Pass1Sectio
     onStop: () => {
       if (!pttActiveRef.current) return;
       pttActiveRef.current = false;
-      // A very short tap can release before React reports `listening`; always
-      // tear the recognizer down so it can never be left running.
-      if (!recording.listening) recording.stopListening({ discardInterim: true });
-      if (recording.listening || recordingForRef.current) stopDictation();
+      const id = recordingForRef.current;
+      if (!id) {
+        recording.stopListening({ discardInterim: true });
+        return;
+      }
+      // Browser text for this hold (the fallback if the football-aware
+      // transcript is unavailable), composed exactly as stopDictation does.
+      const base = baseTextBeforeDictationRef.current;
+      const fin = recording.text.trim();
+      const tail = recording.interim.trim();
+      const live = fin ? (tail ? fin + "\n" + tail : fin) : tail;
+      const browserText = joinBaseAndLive(base, live);
+      // Release = capture, then interpret once: ask for the enhanced clip text,
+      // save the section, and run the same Update Proposal as pressing U.
+      recording.stopListening({
+        discardInterim: true,
+        onEnhanced: (enhanced) => {
+          const finalText = enhanced ? joinBaseAndLive(base, enhanced) : browserText;
+          // A new dictation started while we waited — don't clobber it.
+          if (recordingForRef.current && recordingForRef.current !== id) return;
+          if (enhanced) setSectionText(id, finalText);
+          if (finalText.trim()) void runUpdateProposal(id, { textOverride: finalText });
+        },
+      });
+      stopDictation();
     },
   });
 
