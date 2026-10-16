@@ -46,6 +46,7 @@ import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { isFieldRelevant, computeDisplayStatus } from "@/engine/proposalDisplayStatus";
 import { Pass1SectionPanel } from "./Pass1SectionPanel";
+import { buildSttVocabulary, setSttVocabulary } from "@/engine/sttVocabulary";
 
 const WORKFLOW_STAGES = [
   { value: "0", label: "Game Setup", pass: 0, enabled: true },
@@ -127,6 +128,10 @@ export function DraftPanel() {
   } = useTransaction();
   const { getValues, isLookupField, addValue, getEntryAttributes, getLookupMap } = useLookup();
   const { roster, addPlayer } = useRoster();
+  // Keep dictation vocabulary in sync with the season's playbook and roster.
+  useEffect(() => {
+    setSttVocabulary(buildSttVocabulary(getLookupMap(), roster));
+  }, [getLookupMap, roster]);
   const { saveInput } = useRawInput();
   const [isAiEnriching, setIsAiEnriching] = useState(false);
   /** Last parsed transcript text — used as observation context for AI enrichment */
