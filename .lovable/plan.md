@@ -21,7 +21,8 @@ Commit & Exit      L      Cmd + Esc   (also Ctrl/Cmd + Alt + Enter)
 - **Commit & Exit:** today's "Commit & Leave", renamed to match your wording.
 - **Buttons and legend:** every commit button shows its key, and the keyboard legend and Pass 2/3 help line list the three actions and the chords.
 - Letters keep today's rules: off while typing, while a dialog is open, and in Pass 1 Text Editing mode. Chords are the only commit keys that work while typing.
-- "K" is proposed because S, D, R, U, C, F, N, L are taken in Pass 1 and Space is push-to-talk. Tell me if you prefer another letter.
+- "Y" for Stay (from "stay") is free: S, D, R, U, C, F, N, L are taken in Pass 1 and Space is push-to-talk.
+- **Cmd + Esc for Exit:** works on Mac. On Windows, Ctrl+Esc opens the Start menu and the browser can't override it, so Windows and Linux coaches use Ctrl+Alt+Enter, which works on every system. Plain Esc keeps its current job (leave a text box, exit Text Editing) and never commits.
 
 ## Technical details
 - `src/engine/passShortcuts.ts`: add `useCommitShortcuts({ enabled, suspended, onNext, onStay, onExit })` with the letter bindings plus a chord listener that skips the text-input guard but keeps the open-dialog and suspended guards. Add a single `COMMIT_ACTIONS` constant (label, letter, chord) used by buttons and the legend so they cannot drift.
@@ -30,7 +31,8 @@ Commit & Exit      L      Cmd + Esc   (also Ctrl/Cmd + Alt + Enter)
 - `KeyboardLegend.tsx`: Commit group lists the three actions from `COMMIT_ACTIONS`.
 - Tests: new `commitShortcuts.test.ts` (letters blocked in inputs, chords allowed in inputs, both blocked with a dialog open, no collision with push-to-talk) and a transaction test for stay (slot remains selected, saved values shown, deferred overwrite resumes in stay mode).
 - Not touched: parser, AI, carry-forward and pins, schema, export, PassRail, Index.tsx, commit validation rules.
-- Risk to verify first: chord collisions with browser or OS shortcuts. Ctrl/Cmd+Enter and Ctrl/Cmd+Shift+Enter are normally free; Ctrl/Cmd+Alt+Enter will be checked in the preview.
+- Escape handling: the shared listener currently fires its Escape handler for any Escape press. It must treat Meta+Escape as the Exit commit chord and leave plain Escape untouched, so Cmd+Esc never also blurs the field or leaves Text Editing. Pass 1's own Escape handler gets the same check.
+- Risk to verify first: chord collisions with browser or OS shortcuts. Ctrl/Cmd+Enter and Ctrl/Cmd+Shift+Enter are normally free; Cmd+Esc and Ctrl/Cmd+Alt+Enter will be checked in the preview.
 
 ---
 
