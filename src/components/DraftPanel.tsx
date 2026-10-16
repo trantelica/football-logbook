@@ -40,7 +40,7 @@ import { GRADE_FIELDS } from "@/engine/personnel";
 import { toast } from "sonner";
 import { Phase10SmokeTest } from "@/dev/Phase10SmokeTest";
 import { isDevMode } from "@/engine/devMode";
-import { usePassShortcuts } from "@/engine/passShortcuts";
+import { usePassShortcuts, useCommitShortcuts, COMMIT_ACTION_BY_ID, type CommitActionId } from "@/engine/passShortcuts";
 
 import { fetchAiProposal } from "@/engine/aiEnrichClient";
 import { TranscriptPanel } from "./TranscriptPanel";
@@ -94,6 +94,7 @@ export function DraftPanel() {
     activePass,
     setActivePass,
     commitAndNext,
+    commitAndStay,
     nextSlot,
     adjustments,
     tdCorrectionPending,
@@ -201,24 +202,37 @@ export function DraftPanel() {
    * While drafting, N/L advance to Proposal Review rather than committing
    * blind — the coach still sees the proposal before anything is written.
    */
+  // One press everywhere: if the proposal has not been reviewed yet, the key
+  // reviews it and then commits in the same step. Validation errors, TD
+  // correction and other review dialogs keep state out of "proposal", so the
+  // follow-up commit is dropped and the coach is asked as usual.
+  const pendingCommitRef = useRef<{ mode: CommitActionId; expires: number } | null>(null);
+  const triggerCommit = (mode: CommitActionId) => {
+    if (state === "proposal") {
+      void runCommit(mode);
+      return;
+    }
+    reviewProposal();
+    pendingCommitRef.current = { mode, expires: Date.now() + 400 };
+  };
+  useEffect(() => {
+    const p = pendingCommitRef.current;
+    if (!p) return;
+    if (state === "proposal") {
+      pendingCommitRef.current = null;
+      if (Date.now() <= p.expires) void runCommit(p.mode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+  useCommitShortcuts({
+    enabled: (activePass === 2 || activePass === 3) && selectedSlotNum !== null,
+    onNext: () => triggerCommit("next"),
+    onStay: () => triggerCommit("stay"),
+    onExit: () => triggerCommit("exit"),
+  });
   usePassShortcuts({
     enabled: (activePass === 2 || activePass === 3) && selectedSlotNum !== null,
-    bindings: {
-      N: () => {
-        if (state === "proposal") void handleCommitAndNext();
-        else reviewProposal();
-      },
-      L: () => {
-        if (state === "proposal") {
-          commitProposal();
-          setLastObservationText("");
-          setLastDeterministicPatch({});
-        } else {
-          reviewProposal();
-        }
-      },
-    },
-
+    bindings: {},
     onEscape: () => {
       (document.activeElement as HTMLElement | null)?.blur?.();
     },
@@ -942,6 +956,28 @@ export function DraftPanel() {
     }
   };
 
+  const handleCommitAndStay = async () => {
+    const result = await commitAndStay();
+    if (result.committed) {
+      setLastObservationText("");
+      setLastDeterministicPatch({});
+    }
+  };
+
+  const handleCommitAndExit = async () => {
+    const ok = await commitProposal();
+    if (ok) {
+      setLastObservationText("");
+      setLastDeterministicPatch({});
+    }
+  };
+
+  const runCommit = async (mode: CommitActionId) => {
+    if (mode === "next") await handleCommitAndNext();
+    else if (mode === "stay") await handleCommitAndStay();
+    else await handleCommitAndExit();
+  };
+
   const handleNextSlot = async () => {
     const advanced = await nextSlot();
     if (!advanced) {
@@ -1319,7 +1355,7 @@ export function DraftPanel() {
 
         {/*
          * In Pass 1 slot mode the Pass1SectionPanel renders its OWN
-         * Finish dictation entry / Commit & Next / Commit & Leave controls
+         * Finish dictation entry / Commit & Next / Stay / Exit controls
          * inside the Unified Proposal Candidate. The outer Review Proposal /
          * Back to Edit / Commit / Commit & Next buttons here would form a
          * second, redundant commit layer for the same play. Suppress them
@@ -1387,15 +1423,30 @@ export function DraftPanel() {
                     >
                       <ChevronRight className="h-3.5 w-3.5" />
                       Commit & Next
+                      <kbd className="kbd ml-1">N</kbd>
+                    </Button>
+                  )}
+                  {isSlotMode && (
+                    <Button
+                      size="sm"
+                      className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
+                      onClick={() => void handleCommitAndStay()}
+                      title={`Save, then reopen this play · ${COMMIT_ACTION_BY_ID.stay.chords[0]}`}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Commit & Stay
+                      <kbd className="kbd ml-1">Y</kbd>
                     </Button>
                   )}
                   <Button
                     size="sm"
                     className="gap-1 bg-proposal text-proposal-foreground hover:bg-proposal/90"
-                    onClick={() => { commitProposal(); setLastObservationText(""); setLastDeterministicPatch({}); }}
+                    onClick={() => void handleCommitAndExit()}
+                    title={`Save and close the slot · ${COMMIT_ACTION_BY_ID.exit.chords[0]}`}
                   >
                     <Check className="h-3.5 w-3.5" />
-                    Commit
+                    {isSlotMode ? "Commit & Exit" : "Commit"}
+                    {isSlotMode && <kbd className="kbd ml-1">L</kbd>}
                   </Button>
                   <Button
                     size="sm"
