@@ -21,3 +21,6 @@
 ## Parked (do not start until user says go)
 - [ ] Partial game import: bring a partial file from another source into an existing game; match by play number; imported values arrive as reviewed proposals, never overwrite committed data.
 - [ ] Persistent storage beyond the browser: cloud backup/sync of seasons and games that survives browser clearing and works across devices; browser stays the working copy.
+
+## Coach usability enhancements (parked)
+- [ ] Keep Tab inside the work area. In Pass 2 Personnel, Tab from the QB jersey box jumps to the browser address bar. Tab should wrap from the last box to the first (Shift+Tab the reverse), and the same should hold in every pass. Parked until the coach says go.
