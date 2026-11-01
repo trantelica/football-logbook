@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { useFocusLoop } from "@/engine/focusLoop";
 import { SeasonProvider, useSeason } from "@/engine/seasonContext";
 import { GameProvider, useGameContext } from "@/engine/gameContext";
 import { LookupProvider } from "@/engine/lookupContext";
@@ -35,6 +36,17 @@ import { WelcomeScreen } from "@/components/WelcomeScreen";
  * are reference material, consulted occasionally — they should not compete with
  * the work surface for vertical space on every play.
  */
+/** Work surface; Tab / Shift+Tab loop inside it instead of escaping to the address bar. */
+const WorkArea = ({ children }: { children: ReactNode }) => {
+  const ref = useRef<HTMLElement>(null);
+  useFocusLoop(ref);
+  return (
+    <main ref={ref} className="min-w-0 flex-1 overflow-auto p-4">
+      {children}
+    </main>
+  );
+};
+
 const AppShell = () => {
   const { activeGame } = useGameContext();
   const { restoringSession } = useSeason();
@@ -65,10 +77,10 @@ const AppShell = () => {
               scrolling. */}
           <div className="flex min-h-0 flex-1">
             <PassRail />
-            <main className="min-w-0 flex-1 overflow-auto p-4">
+            <WorkArea>
               <DraftPanel />
               <div id="dev-tools-slot" />
-            </main>
+            </WorkArea>
           </div>
         </>
       ) : (
