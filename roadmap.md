@@ -23,4 +23,4 @@
 - [ ] Persistent storage beyond the browser: cloud backup/sync of seasons and games that survives browser clearing and works across devices; browser stays the working copy.
 
 ## Coach usability enhancements (parked)
-- [ ] Keep Tab inside the work area. In Pass 2 Personnel, Tab from the QB jersey box jumps to the browser address bar. Tab should wrap from the last box to the first (Shift+Tab the reverse), and the same should hold in every pass. Parked until the coach says go.
+- [x] Keep Tab inside the work area. In Pass 2 Personnel, Tab from the QB jersey box jumps to the browser address bar. Tab should wrap from the last box to the first (Shift+Tab the reverse), and the same should hold in every pass.
