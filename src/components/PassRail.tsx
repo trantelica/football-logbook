@@ -149,8 +149,14 @@ export function PassRail() {
             const meta = slotMetaMap.get(play.playNum);
             const done = passProgress(play, meta);
             const isSelected = selectedSlotNum === play.playNum;
-            const isNonOffense = play.odk !== "O";
-            const situation = situationLabel(play);
+            // Defense is a logged pass (Pass 4), so D rows read like offense
+            // rows; only K/S rows stay quiet.
+            const isNonOffense = play.odk !== "O" && play.odk !== "D";
+            const isDefense = play.odk === "D";
+            const baseSituation = situationLabel(play);
+            const situation = isDefense
+              ? `D${baseSituation ? ` · ${baseSituation}` : ""}`
+              : baseSituation;
 
             return (
               <button
