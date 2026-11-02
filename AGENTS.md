@@ -3,3 +3,4 @@
 - Derive add-value governance from season-maintained, non-enum schema fields so defensive and offensive vocabularies share explicit review without unlocking fixed enums.
 - Normalize side-qualified defensive yard-line speech before shared parsing; explicit signed values remain unchanged because yard lines are always offense-relative.
 - Reuse section-scoped AI enrichment for defensive call/result gaps with same-run deterministic projections and ODK guards; defensive playmaker fields are AI-eligible only on the Playmakers card as bare integer jerseys (same contract as offensive actors), always coach-reviewed, never invented.- Keep keyboard focus inside the main work area via a single focus loop on the work surface (not per panel), so every pass gets identical Tab wrapping.
+- Cloud backup stores append-only, owner-scoped season package snapshots; restores reuse the season-import validate/confirm path as a new season so the browser copy is never overwritten.
