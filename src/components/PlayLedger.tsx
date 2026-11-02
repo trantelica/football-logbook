@@ -91,6 +91,8 @@ export function PlayLedger() {
     useTransaction();
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<LedgerScope>("all");
+  const [view, setView] = useState<LedgerView>("offense");
+  const columns = view === "defense" ? DEFENSE_LEDGER_COLUMNS : OFFENSE_LEDGER_COLUMNS;
 
   const committedCount = useMemo(
     () => committedPlays.filter((p) => isLogged(p, slotMetaMap.get(p.playNum))).length,
@@ -98,11 +100,15 @@ export function PlayLedger() {
   );
 
   const rows = useMemo(
-    () =>
-      scope === "committed"
-        ? committedPlays.filter((p) => isLogged(p, slotMetaMap.get(p.playNum)))
-        : committedPlays,
-    [committedPlays, slotMetaMap, scope],
+    () => {
+      const scoped =
+        scope === "committed"
+          ? committedPlays.filter((p) => isLogged(p, slotMetaMap.get(p.playNum)))
+          : committedPlays;
+      // Defense columns only mean something on D rows.
+      return view === "defense" ? scoped.filter((p) => p.odk === "D") : scoped;
+    },
+    [committedPlays, slotMetaMap, scope, view],
   );
 
   if (!activeGame) return null;
@@ -139,6 +145,21 @@ export function PlayLedger() {
             </p>
           </div>
 
+          <div className="flex items-center gap-2">
+          <ToggleGroup
+            type="single"
+            value={view}
+            onValueChange={(v) => v && setView(v as LedgerView)}
+            size="sm"
+            aria-label="Column set"
+          >
+            <ToggleGroupItem value="offense" className="h-7 px-3 text-xs">
+              Offense
+            </ToggleGroupItem>
+            <ToggleGroupItem value="defense" className="h-7 px-3 text-xs">
+              Defense
+            </ToggleGroupItem>
+          </ToggleGroup>
           <ToggleGroup
             type="single"
             value={scope}
@@ -152,19 +173,20 @@ export function PlayLedger() {
               Committed
             </ToggleGroupItem>
           </ToggleGroup>
+          </div>
         </SheetHeader>
 
         <div className="h-[calc(75vh-4.25rem)] overflow-auto px-5 py-3">
           {rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No plays committed yet.
+              {view === "defense" ? "No defensive plays match." : "No plays committed yet."}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="h-8 w-20 px-2 text-xs font-semibold">State</TableHead>
-                  {VISIBLE_COLUMNS.map((col) => {
+                  {columns.map((col) => {
                     const def = playSchema.find((f) => f.name === col);
                     return (
                       <TableHead key={col} className="h-8 px-2 text-xs font-semibold">
@@ -210,7 +232,7 @@ export function PlayLedger() {
                           {committed ? "Committed" : "Open"}
                         </span>
                       </TableCell>
-                      {VISIBLE_COLUMNS.map((col) => (
+                      {columns.map((col) => (
                         <TableCell
                           key={col}
                           className={cn(
