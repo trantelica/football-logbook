@@ -36,14 +36,10 @@ import { playSchema, QTR_DISPLAY } from "@/engine/schema";
 import type { PlayRecord, SlotMeta } from "@/engine/types";
 import { cn } from "@/lib/utils";
 
-const VISIBLE_COLUMNS = [
-  "playNum",
-  "qtr",
-  "odk",
-  "series",
-  "dn",
-  "dist",
-  "yardLn",
+const SHARED_COLUMNS = ["playNum", "qtr", "odk", "series", "dn", "dist", "yardLn"] as const;
+
+export const OFFENSE_LEDGER_COLUMNS: readonly string[] = [
+  ...SHARED_COLUMNS,
   "offForm",
   "offPlay",
   "result",
@@ -52,7 +48,23 @@ const VISIBLE_COLUMNS = [
   "eff",
 ];
 
+export const DEFENSE_LEDGER_COLUMNS: readonly string[] = [
+  ...SHARED_COLUMNS,
+  "defFront",
+  "defStrength",
+  "blitz",
+  "coverage",
+  "result",
+  "gainLoss",
+  "retYards",
+  "tackler1",
+  "tackler2",
+  "interceptedBy",
+  "dawg",
+];
+
 type LedgerScope = "all" | "committed";
+type LedgerView = "offense" | "defense";
 
 /**
  * Whether the coach has actually logged this play.
