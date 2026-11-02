@@ -522,6 +522,12 @@ export function StatusBar() {
 
   return (
     <>
+      <CloudBackupDialog
+        open={cloudOpen}
+        onOpenChange={setCloudOpen}
+        activeSeason={activeSeason ? { seasonId: activeSeason.seasonId, label: activeSeason.label } : null}
+        onRestore={stageSeasonImport}
+      />
       <footer className="flex items-center gap-3 border-t bg-card px-4 py-1.5 text-xs text-muted-foreground">
         {/* RYG dot */}
         <div className={cn("h-2 w-2 rounded-full ring-1 ring-foreground/10", indicator)} />
