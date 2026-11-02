@@ -42,7 +42,7 @@ import { isPass1Complete } from "@/engine/personnel";
 import { slugify, dateStamp } from "@/engine/filenameHelpers";
 import { SCHEMA_VERSION } from "@/engine/schema";
 import { cn } from "@/lib/utils";
-import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore, MoreHorizontal } from "lucide-react";
+import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore, MoreHorizontal, Cloud } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +52,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PlayLedger } from "./PlayLedger";
+import { CloudBackupDialog } from "./CloudBackupDialog";
 import { ReferenceDrawer } from "./ReferenceDrawer";
 import { toast } from "sonner";
 
@@ -393,6 +394,8 @@ export function StatusBar() {
     }
   };
 
+  const [cloudOpen, setCloudOpen] = useState(false);
+
   // ── Load Season Package ──
   const handleLoadSeason = () => {
     seasonFileInputRef.current?.click();
@@ -405,8 +408,15 @@ export function StatusBar() {
 
     try {
       const text = await file.text();
-      const payload = JSON.parse(text);
+      stageSeasonImport(JSON.parse(text));
+    } catch (err) {
+      toast.error(`Season import failed: ${err instanceof Error ? err.message : "Invalid JSON file"}`);
+    }
+  };
 
+  // Shared by file load and cloud restore: validate → confirm → new season.
+  const stageSeasonImport = (payload: unknown) => {
+    try {
       const validation = validateSeasonPackageImport(payload);
       if (!validation.valid) {
         showPreflight("Season Import Blocked", validation.errors, "error");
@@ -614,6 +624,9 @@ export function StatusBar() {
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleExportSeason} disabled={!activeSeason}>
                 <PackageOpen className="mr-2 h-3.5 w-3.5" /> Export season
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setCloudOpen(true)}>
+                <Cloud className="mr-2 h-3.5 w-3.5" /> Cloud backup
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
