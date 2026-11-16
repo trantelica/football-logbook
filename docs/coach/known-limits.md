@@ -41,6 +41,7 @@ Still parked:
 
 ## 5. AI Behavior
 
+- AI assist and football-aware dictation **require sign-in** (the … menu, then Cloud backup). Signed out, the app still works: it uses browser dictation and the built-in parser only.
 - AI is **advisory only**.
 - AI does **not** commit.
 - AI does **not** overwrite fields already resolved by the deterministic parser.
