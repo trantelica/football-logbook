@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { toast } from "@/hooks/use-toast";
 import { isSignedInForAi } from "./aiAuth";
+import { AI_PROVIDERS, aiRequestConfig } from "./aiSetup";
 
 const KEY = "hudl.enhancedDictation";
 let paused = false; // set after a credits/permission failure for this session
@@ -30,14 +31,20 @@ export function setEnhancedDictationEnabled(on: boolean) {
 
 export async function transcribeClip(blob: Blob, keywords: string[]): Promise<string | null> {
   if (blob.size < 2000) return null;
-  // Enhanced dictation needs a signed-in coach. Signed out, keep the browser
-  // transcript and say so once rather than uploading audio that will be refused.
-  if (!(await isSignedInForAi())) {
+  // Football-aware dictation runs on the coach's own key when their provider
+  // can transcribe (Google Gemini, OpenAI), otherwise on the built-in AI, which
+  // needs sign-in. With neither, keep the browser transcript and say so once
+  // rather than uploading audio that will be refused.
+  const own = aiRequestConfig();
+  const ownDictation = own && AI_PROVIDERS[own.provider].dictation ? own : null;
+  if (!ownDictation && !(await isSignedInForAi())) {
     if (!signInNoticeShown) {
       signInNoticeShown = true;
       toast({
         title: "Dictation",
-        description: "Using browser dictation. Sign in (… menu, then Cloud backup) for football-aware dictation.",
+        description: own
+          ? `Using browser dictation. ${AI_PROVIDERS[own.provider].company} cannot transcribe audio; a Google Gemini or OpenAI key can (… menu, then AI setup).`
+          : "Using browser dictation. For football-aware dictation, open the … menu, then AI setup.",
       });
     }
     return null;
@@ -45,6 +52,11 @@ export async function transcribeClip(blob: Blob, keywords: string[]): Promise<st
   const form = new FormData();
   form.append("file", new File([blob], "clip.webm", { type: blob.type.replace(/^video\//, "audio/") || "audio/webm" }));
   form.append("keywords", JSON.stringify(keywords));
+  if (ownDictation) {
+    form.append("aiProvider", ownDictation.provider);
+    form.append("aiKey", ownDictation.apiKey);
+    form.append("aiModel", ownDictation.model);
+  }
   const { data, error } = await supabase.functions.invoke("transcribe", { body: form });
   if (error) {
     let msg = "Enhanced dictation unavailable — kept browser transcript.";

@@ -18,7 +18,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { AI_SIGN_IN_MESSAGE, isSignedInForAi } from "./aiAuth";
+import { AI_SIGN_IN_MESSAGE, readFunctionError, resolveAiAccess } from "./aiAuth";
 import { GRADE_FIELDS } from "./personnel";
 import type { PositionAliasMap } from "./positionAliases";
 
@@ -49,6 +49,11 @@ export type AiGradeErrorCategory =
   | "rate_limited"
   | "credits_exhausted"
   | "gateway_error"
+  // Own-key setups (… menu, then AI setup)
+  | "ai_setup"
+  | "key_rejected"
+  | "model_unavailable"
+  | "model_error"
   | "model_empty"
   | "server_exception";
 
@@ -82,7 +87,8 @@ export async function fetchAiGradeProposal(
     GRADE_SET.has(f),
   );
 
-  if (!(await isSignedInForAi())) {
+  const access = await resolveAiAccess();
+  if (!access.allowed) {
     return { patch: {}, conflicts: [], error: AI_SIGN_IN_MESSAGE, errorCategory: "auth" };
   }
 
@@ -95,12 +101,15 @@ export async function fetchAiGradeProposal(
       positionLabels: opts.positionLabels ?? {},
       gradeRange: { min: GRADE_MIN, max: GRADE_MAX },
       canonicalFields: GRADE_FIELDS,
+      ...(access.aiConfig ? { aiConfig: access.aiConfig } : {}),
     },
   });
 
   if (error) {
     const detail =
-      (data as { error?: string; errorCategory?: AiGradeErrorCategory } | null) ?? null;
+      ((await readFunctionError(error)) as { error?: string; errorCategory?: AiGradeErrorCategory } | null) ??
+      (data as { error?: string; errorCategory?: AiGradeErrorCategory } | null) ??
+      null;
     return {
       patch: {},
       conflicts: [],

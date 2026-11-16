@@ -42,7 +42,7 @@ import { hasCoachWork } from "@/engine/passProgress";
 import { slugify, dateStamp } from "@/engine/filenameHelpers";
 import { SCHEMA_VERSION } from "@/engine/schema";
 import { cn } from "@/lib/utils";
-import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore, MoreHorizontal, Cloud } from "lucide-react";
+import { Download, Clipboard, FileOutput, Archive, Upload, DatabaseBackup, PackageOpen, PackagePlus, ArchiveRestore, MoreHorizontal, Cloud, Sparkles } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PlayLedger } from "./PlayLedger";
 import { CloudBackupDialog } from "./CloudBackupDialog";
+import { AiSetupDialog } from "./AiSetupDialog";
 import { ReferenceDrawer } from "./ReferenceDrawer";
 import { toast } from "sonner";
 
@@ -403,6 +404,7 @@ export function StatusBar() {
   };
 
   const [cloudOpen, setCloudOpen] = useState(false);
+  const [aiSetupOpen, setAiSetupOpen] = useState(false);
 
   // ── Load Season Package ──
   const handleLoadSeason = () => {
@@ -536,6 +538,7 @@ export function StatusBar() {
         activeSeason={activeSeason ? { seasonId: activeSeason.seasonId, label: activeSeason.label } : null}
         onRestore={stageSeasonImport}
       />
+      <AiSetupDialog open={aiSetupOpen} onOpenChange={setAiSetupOpen} />
       <footer className="flex items-center gap-3 border-t bg-card px-4 py-1.5 text-xs text-muted-foreground">
         {/* RYG dot */}
         <div className={cn("h-2 w-2 rounded-full ring-1 ring-foreground/10", indicator)} />
@@ -598,7 +601,7 @@ export function StatusBar() {
                 size="sm"
                 variant="ghost"
                 className="h-6 w-6 p-0"
-                aria-label="Data and backup actions"
+                aria-label="Data, backup and AI setup"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
@@ -652,6 +655,14 @@ export function StatusBar() {
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleLoadSeason}>
                 <PackagePlus className="mr-2 h-3.5 w-3.5" /> Load season
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">
+                AI
+              </DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setAiSetupOpen(true)}>
+                <Sparkles className="mr-2 h-3.5 w-3.5" /> AI setup
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
