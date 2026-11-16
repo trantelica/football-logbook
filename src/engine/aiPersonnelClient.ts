@@ -20,7 +20,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { AI_SIGN_IN_MESSAGE, isSignedInForAi } from "./aiAuth";
+import { AI_SIGN_IN_MESSAGE, readFunctionError, resolveAiAccess } from "./aiAuth";
 import {
   PERSONNEL_POSITIONS,
 } from "./personnel";
@@ -54,6 +54,11 @@ export type AiPersonnelErrorCategory =
   | "rate_limited"
   | "credits_exhausted"
   | "gateway_error"
+  // Own-key setups (… menu, then AI setup)
+  | "ai_setup"
+  | "key_rejected"
+  | "model_unavailable"
+  | "model_error"
   | "model_empty"
   | "server_exception";
 
@@ -73,7 +78,8 @@ export async function fetchAiPersonnelProposal(
 
   const positionAliases = (opts.positionAliases ?? {}) as PositionAliasMap;
 
-  if (!(await isSignedInForAi())) {
+  const access = await resolveAiAccess();
+  if (!access.allowed) {
     return { patch: {}, error: AI_SIGN_IN_MESSAGE, errorCategory: "auth" };
   }
 
@@ -85,13 +91,17 @@ export async function fetchAiPersonnelProposal(
       positionAliases,
       roster: opts.roster ?? [],
       canonicalFields: PERSONNEL_POSITIONS,
+      ...(access.aiConfig ? { aiConfig: access.aiConfig } : {}),
     },
   });
 
   if (error) {
     console.error("ai-enrich-personnel invocation error:", error);
     // supabase-js wraps non-2xx as error but still includes the body in `data`.
-    const detail = (data as { error?: string; errorCategory?: AiPersonnelErrorCategory } | null) ?? null;
+    const detail =
+      ((await readFunctionError(error)) as { error?: string; errorCategory?: AiPersonnelErrorCategory } | null) ??
+      (data as { error?: string; errorCategory?: AiPersonnelErrorCategory } | null) ??
+      null;
     return {
       patch: {},
       error: detail?.error ?? `AI personnel service error: ${error.message ?? "unknown"}`,

@@ -12,7 +12,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { AI_SIGN_IN_MESSAGE, isSignedInForAi } from "./aiAuth";
+import { AI_SIGN_IN_MESSAGE, readFunctionError, resolveAiAccess } from "./aiAuth";
 import { playSchema } from "./schema";
 import { getUnresolvedFields } from "./aiEnrichment";
 import { AI_ELIGIBLE_FIELDS, DEFENSE_AI_FIELDS, DEF_PLAYMAKER_ACTOR_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
@@ -310,7 +310,8 @@ export async function fetchAiProposal(
     }
   }
 
-  if (!(await isSignedInForAi())) {
+  const access = await resolveAiAccess();
+  if (!access.allowed) {
     return { proposal: {}, error: AI_SIGN_IN_MESSAGE };
   }
 
@@ -329,12 +330,15 @@ export async function fetchAiProposal(
       activeSection: opts?.activeSection,
       // Slice D1: AI parser-crosscheck (additive; absent when no suspicion).
       ...(suspectFields.length > 0 ? { suspectFields, suspicionEvidence } : {}),
+      // The coach's own AI key and model, when registered under AI setup.
+      ...(access.aiConfig ? { aiConfig: access.aiConfig } : {}),
     },
   });
 
   if (error) {
     console.error("ai-enrich invocation error:", error);
-    return { proposal: {}, error: "AI enrichment service error" };
+    const detail = await readFunctionError(error);
+    return { proposal: {}, error: detail?.error ?? "AI enrichment service error" };
   }
 
   if (data?.error) {
