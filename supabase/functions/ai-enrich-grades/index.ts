@@ -12,6 +12,8 @@
  *     conflicts; server still filters to avoid silent overwrite).
  */
 
+import Anthropic from "npm:@anthropic-ai/sdk@1.4.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -64,7 +66,7 @@ async function requireUser(req: Request): Promise<Response | null> {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  const signIn = "Sign in to use AI assist (open the \u2026 menu, then Cloud backup).";
+  const signIn = "AI assist is not set up on this device. Open the \u2026 menu, then AI setup.";
 
   const authorization = req.headers.get("Authorization") ?? "";
   if (!/^Bearer\s+\S+/i.test(authorization)) return deny(401, signIn);
@@ -103,13 +105,241 @@ async function requireUser(req: Request): Promise<Response | null> {
   return null;
 }
 
+// ── BEGIN AI provider block ─────────────────────────────────────────────────
+// Kept identical in ai-enrich, ai-enrich-grades and ai-enrich-personnel
+// (functions deploy as single files; a test fails if the copies drift).
+//
+// A coach can register their own AI key in the app (… menu, then AI setup).
+// The browser then sends { provider, apiKey, model } as `aiConfig` with each
+// request. The key is used for that one upstream call and is never stored or
+// logged here. With no `aiConfig`, the built-in AI is used and the caller must
+// be signed in (see requireUser).
+
+type AiProvider = "gemini" | "openai" | "anthropic";
+interface AiConfig { provider: AiProvider; apiKey: string; model: string }
+interface AiTool { name: string; description: string; parameters: Record<string, unknown> }
+// The provider answer is untyped JSON; every read of it below is guarded.
+// deno-lint-ignore no-explicit-any
+type ChatData = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+type AiCallResult =
+  | { ok: true; data: ChatData; source: "own" | "builtin" }
+  | { ok: false; status: number; error: string; errorCategory: string };
+
+const AI_PROVIDER_LABEL: Record<AiProvider, string> = {
+  gemini: "Google Gemini",
+  openai: "OpenAI",
+  anthropic: "Claude",
+};
+const AI_SETUP_HINT = "Open the … menu, then AI setup.";
+const AI_UPSTREAM: Record<Exclude<AiProvider, "anthropic">, string> = {
+  openai: "https://api.openai.com/v1/chat/completions",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+};
+
+/**
+ * Reads the caller's own-key settings.
+ * null = none sent (use built-in AI); "invalid" = sent but unusable.
+ * The provider picks a fixed upstream address; nothing the caller sends is
+ * ever used as a URL.
+ */
+function readAiConfig(raw: unknown): AiConfig | null | "invalid" {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) return "invalid";
+  const { provider, apiKey, model } = raw as Record<string, unknown>;
+  if (provider !== "gemini" && provider !== "openai" && provider !== "anthropic") return "invalid";
+  if (typeof apiKey !== "string" || !/^\S{8,400}$/.test(apiKey)) return "invalid";
+  if (typeof model !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(model)) return "invalid";
+  return { provider, apiKey, model };
+}
+
+function aiFail(status: number, error: string, errorCategory: string): AiCallResult {
+  return { ok: false, status, error, errorCategory };
+}
+
+function redactKey(text: string, key: string): string {
+  return text.split(key).join("[key]");
+}
+
+/** Turns a provider's refusal into a plain message the coach can act on. */
+function ownKeyFailure(ai: AiConfig, status: number, detail: string): AiCallResult {
+  const who = AI_PROVIDER_LABEL[ai.provider];
+  const d = detail.toLowerCase();
+  const badKey =
+    status === 401 || status === 403 ||
+    d.includes("api key not valid") || d.includes("valid api key") ||
+    d.includes("invalid x-api-key") || d.includes("incorrect api key");
+  if (badKey) return aiFail(401, `Your ${who} key was not accepted. ${AI_SETUP_HINT}`, "key_rejected");
+  if (status === 402 || d.includes("credit balance") || d.includes("insufficient_quota")) {
+    return aiFail(402, `Your ${who} account has no credit left. Add credit on your ${who} account, then try again.`, "credits_exhausted");
+  }
+  if (status === 429) {
+    return aiFail(429, `${who} is busy or your plan's limit was reached. Try again shortly.`, "rate_limited");
+  }
+  if (status === 404) {
+    return aiFail(400, `The model "${ai.model}" is not available on your ${who} account. ${AI_SETUP_HINT}`, "model_unavailable");
+  }
+  if (status === 400) {
+    return aiFail(400, `${who} could not handle this request with the model "${ai.model}". ${AI_SETUP_HINT}`, "model_error");
+  }
+  return aiFail(502, `${who} had a problem. Try again in a moment.`, "gateway_error");
+}
+
+/** If the model answered with JSON text instead of a function call, present it as the call. */
+function withToolCallFromText(data: ChatData, toolName: string): ChatData {
+  const message = data?.choices?.[0]?.message;
+  if (!message || message.tool_calls?.[0]?.function?.arguments) return data;
+  const content = typeof message.content === "string" ? message.content : "";
+  const match = content.match(/\{[\s\S]*\}/);
+  if (!match) return data;
+  try {
+    const parsed = JSON.parse(match[0]);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      message.tool_calls = [{ type: "function", function: { name: toolName, arguments: JSON.stringify(parsed) } }];
+    }
+  } catch { /* leave the text answer as it is */ }
+  return data;
+}
+
+function postChat(
+  url: string,
+  key: string,
+  model: string,
+  system: string,
+  user: string,
+  tool: AiTool,
+  toolChoice: unknown,
+): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      tools: [{ type: "function", function: tool }],
+      tool_choice: toolChoice,
+    }),
+  });
+}
+
+async function callClaude(ai: AiConfig, system: string, user: string, tool: AiTool): Promise<AiCallResult> {
+  const client = new Anthropic({ apiKey: ai.apiKey, maxRetries: 1, timeout: 60_000 });
+  try {
+    // Current Claude models reject a forced tool call, so the tool is offered
+    // and the prompt says to use it.
+    const msg = await client.messages.create({
+      model: ai.model,
+      max_tokens: 8000,
+      system: `${system}\n\nAnswer by calling the ${tool.name} tool exactly once. Do not answer in plain text.`,
+      messages: [{ role: "user", content: user }],
+      tools: [{
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.parameters as Anthropic.Tool.InputSchema,
+      }],
+      tool_choice: { type: "auto", disable_parallel_tool_use: true },
+    });
+    let args: unknown = null;
+    let text = "";
+    for (const block of msg.content) {
+      if (block.type === "tool_use" && args === null) args = block.input;
+      else if (block.type === "text") text += block.text;
+    }
+    const message: Record<string, unknown> = { content: text || null };
+    if (args !== null) {
+      message.tool_calls = [{ type: "function", function: { name: tool.name, arguments: JSON.stringify(args) } }];
+    }
+    return { ok: true, data: withToolCallFromText({ choices: [{ message }] }, tool.name), source: "own" };
+  } catch (e) {
+    if (e instanceof Anthropic.APIError) {
+      const detail = redactKey(String(e.message ?? ""), ai.apiKey);
+      console.error("AI anthropic error:", e.status, detail.slice(0, 300));
+      return ownKeyFailure(ai, typeof e.status === "number" ? e.status : 502, detail);
+    }
+    throw e;
+  }
+}
+
+/**
+ * Asks the model to fill in the tool's fields and returns the answer in
+ * chat-completions shape (`choices[0].message.tool_calls[0].function.arguments`)
+ * whichever provider produced it.
+ */
+async function callModel(ai: AiConfig | null, system: string, user: string, tool: AiTool): Promise<AiCallResult> {
+  const forced = { type: "function", function: { name: tool.name } };
+
+  if (!ai) {
+    const key = Deno.env.get("LOVABLE_API_KEY");
+    if (!key) {
+      console.error("callModel: LOVABLE_API_KEY missing");
+      return aiFail(500, "AI service unavailable", "auth");
+    }
+    const resp = await postChat(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      key,
+      "google/gemini-3-flash-preview",
+      system,
+      user,
+      tool,
+      forced,
+    );
+    if (resp.status === 429) return aiFail(429, "AI rate limited. Try again shortly.", "rate_limited");
+    if (resp.status === 402) {
+      return aiFail(402, "AI credits exhausted. Add funds in Settings > Workspace > Usage.", "credits_exhausted");
+    }
+    if (!resp.ok) {
+      console.error("AI gateway error:", resp.status, await resp.text());
+      return aiFail(500, "AI service error", "gateway_error");
+    }
+    return { ok: true, data: await resp.json(), source: "builtin" };
+  }
+
+  if (ai.provider === "anthropic") return callClaude(ai, system, user, tool);
+
+  const url = AI_UPSTREAM[ai.provider];
+  let resp = await postChat(url, ai.apiKey, ai.model, system, user, tool, forced);
+  if (resp.status === 400) {
+    const detail = redactKey(await resp.text(), ai.apiKey);
+    if (detail.toLowerCase().includes("api key")) return ownKeyFailure(ai, 400, detail);
+    // Some models reject a forced function call. Ask once more and let the
+    // model choose, with the prompt saying to use the function.
+    const nudged = `${system}\n\nAnswer by calling the ${tool.name} function. Do not answer in plain text.`;
+    resp = await postChat(url, ai.apiKey, ai.model, nudged, user, tool, "auto");
+  }
+  if (!resp.ok) {
+    const detail = redactKey(await resp.text(), ai.apiKey);
+    console.error(`AI ${ai.provider} error:`, resp.status, detail.slice(0, 300));
+    return ownKeyFailure(ai, resp.status, detail);
+  }
+  return { ok: true, data: withToolCallFromText(await resp.json(), tool.name), source: "own" };
+}
+// ── END AI provider block ───────────────────────────────────────────────────
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const denied = await requireUser(req);
-  if (denied) return denied;
+  let body: Record<string, unknown> = {};
+  try {
+    const parsed = await req.json();
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) body = parsed;
+  } catch { /* an unreadable body is treated as an empty one */ }
+
+  // A coach using their own AI key needs no sign-in. The built-in AI does.
+  const ai = readAiConfig(body.aiConfig);
+  if (ai === "invalid") {
+    return new Response(
+      JSON.stringify({ error: `Your AI setup is incomplete. ${AI_SETUP_HINT}`, errorCategory: "ai_setup" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  if (!ai) {
+    const denied = await requireUser(req);
+    if (denied) return denied;
+  }
 
   try {
     const {
@@ -118,7 +348,7 @@ Deno.serve(async (req) => {
       unresolvedFields,
       positionAliases,
       positionLabels,
-    } = await req.json();
+    } = body as ChatData;
 
     const MAX_INPUT_LEN = 4000;
     if (
@@ -135,15 +365,6 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ patch: {}, error: `Narration text too long (max ${MAX_INPUT_LEN} chars)`, errorCategory: "bad_request" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("ai-enrich-grades: LOVABLE_API_KEY missing");
-      return new Response(
-        JSON.stringify({ error: "AI service unavailable", errorCategory: "auth" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -214,61 +435,19 @@ ${JSON.stringify(aliases)}
 
 Return ONLY canonical grade* keys with integer values in [${GRADE_MIN}, ${GRADE_MAX}]. Omit everything else.`;
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "propose_grades",
-                description:
-                  "Propose canonical Pass 3 grade values inferred from the coach's narration. Omit fields you cannot confidently infer.",
-                parameters: buildSchema(unresolved),
-              },
-            },
-          ],
-          tool_choice: {
-            type: "function",
-            function: { name: "propose_grades" },
-          },
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "AI rate limited. Try again shortly.", errorCategory: "rate_limited" }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Add funds in Settings > Workspace > Usage.", errorCategory: "credits_exhausted" }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+    const result = await callModel(ai, systemPrompt, userPrompt, {
+      name: "propose_grades",
+      description:
+        "Propose canonical Pass 3 grade values inferred from the coach's narration. Omit fields you cannot confidently infer.",
+      parameters: buildSchema(unresolved),
+    });
+    if (!result.ok) {
       return new Response(
-        JSON.stringify({ error: "AI service error", errorCategory: "gateway_error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: result.error, errorCategory: result.errorCategory }),
+        { status: result.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    const data = await response.json();
+    const data = result.data;
 
     let raw: Record<string, unknown> = {};
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
@@ -318,7 +497,7 @@ Return ONLY canonical grade* keys with integer values in [${GRADE_MIN}, ${GRADE_
     }
 
     return new Response(
-      JSON.stringify({ patch }),
+      JSON.stringify({ patch, aiSource: result.source }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
