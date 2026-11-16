@@ -17,6 +17,7 @@ import { diffConfig } from "./configStore";
 import { SCHEMA_VERSION, exportSchemaSnapshot, playSchema } from "./schema";
 import { computeSnapshotHash } from "./hash";
 import { coercePlayToSchemaTypes } from "./coerce";
+import { deriveSlotMeta, inferFieldSizeFromPlays } from "./slotMetaDerive";
 
 const DB_NAME = "football-engine";
 const DB_VERSION = 6;
@@ -820,7 +821,7 @@ export async function importSeasonPackageNewSeason(
 
   const db = await getDB();
   const tx = db.transaction(
-    ["seasons", "lookups", "roster", "games", "plays", "coach_notes", "config"],
+    ["seasons", "lookups", "roster", "games", "plays", "slot_meta", "coach_notes", "config"],
     "readwrite",
   );
 
@@ -865,13 +866,18 @@ export async function importSeasonPackageNewSeason(
     await gameStore.put({ ...g, gameId: newGameId, seasonId: newSeasonId });
   }
 
-  // 5) Plays (remapped gameId)
+  // 5) Plays (remapped gameId), each with its commit metadata. The package
+  //    carries no slot_meta, so it is rebuilt from the play: without it the
+  //    restored game would skip overwrite review and show no progress.
   const playStore = tx.objectStore("plays");
+  const slotMetaStore = tx.objectStore("slot_meta");
   for (const [oldGameId, plays] of Object.entries(pkg.playsByGame)) {
     const newGameId = gameIdMap.get(oldGameId);
     if (!newGameId) continue;
     for (const p of plays) {
-      await playStore.put({ ...p, gameId: newGameId });
+      const restored = { ...p, gameId: newGameId };
+      await playStore.put(restored);
+      await slotMetaStore.put(deriveSlotMeta(restored));
     }
   }
 
@@ -903,9 +909,11 @@ export async function importSeasonPackageNewSeason(
  * label (handled by caller via buildRestoredOpponentLabel).
  *
  * Imported plays land directly in the `plays` store (committed rows).
- * No candidate/proposal/transient state is restored. No slot_meta or
- * audit trail is fabricated. Season lookups/roster/config are NOT
- * touched.
+ * No candidate/proposal/transient state is restored and no audit trail
+ * is fabricated. Commit metadata (slot_meta) is rebuilt from the plays,
+ * because overwrite review and pass progress depend on it. The game
+ * keeps its field size, PAT mode and slot layout when the archive
+ * records them. Season lookups/roster/config are NOT touched.
  */
 export async function importSessionArchiveAsNewGame(
   normalized: import("./sessionArchiveImport").NormalizedSessionArchive,
@@ -928,14 +936,28 @@ export async function importSessionArchiveAsNewGame(
     schemaVersion: SCHEMA_VERSION,
   };
 
-  const tx = db.transaction(["games", "plays", "coach_notes"], "readwrite");
+  // Field size drives yard-line prediction and validation, so a 100-yard game
+  // must not come back as the 80-yard default. Older archives did not record
+  // it; for those it is inferred only when the plays prove it.
+  const fieldSize = normalized.fieldSize ?? inferFieldSizeFromPlays(normalized.plays);
+  if (fieldSize) newGame.fieldSize = fieldSize;
+  if (normalized.patMode) newGame.patMode = normalized.patMode;
+  // totalPlays is what marks a game as slot-based. Without it the restored
+  // game opens in the legacy free-form mode with no play rail.
+  const lastPlayNum = normalized.plays.reduce((max, p) => Math.max(max, p.playNum), 0);
+  const totalPlays = normalized.totalPlays ?? lastPlayNum;
+  if (totalPlays > 0) newGame.totalPlays = totalPlays;
+
+  const tx = db.transaction(["games", "plays", "slot_meta", "coach_notes"], "readwrite");
   await tx.objectStore("games").put(newGame);
 
   const playStore = tx.objectStore("plays");
+  const slotMetaStore = tx.objectStore("slot_meta");
   for (const p of normalized.plays) {
     // Defense-in-depth: coerce numeric fields, force new gameId.
     const coerced = coercePlayToSchemaTypes({ ...p, gameId: newGameId });
     await playStore.put(coerced);
+    await slotMetaStore.put(deriveSlotMeta(coerced));
   }
 
   const noteStore = tx.objectStore("coach_notes");

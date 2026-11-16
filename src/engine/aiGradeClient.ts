@@ -18,6 +18,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { AI_SIGN_IN_MESSAGE, isSignedInForAi } from "./aiAuth";
 import { GRADE_FIELDS } from "./personnel";
 import type { PositionAliasMap } from "./positionAliases";
 
@@ -80,6 +81,10 @@ export async function fetchAiGradeProposal(
   const unresolvedFields = (opts.unresolvedFields ?? []).filter((f) =>
     GRADE_SET.has(f),
   );
+
+  if (!(await isSignedInForAi())) {
+    return { patch: {}, conflicts: [], error: AI_SIGN_IN_MESSAGE, errorCategory: "auth" };
+  }
 
   const { data, error } = await supabase.functions.invoke("ai-enrich-grades", {
     body: {

@@ -12,6 +12,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { AI_SIGN_IN_MESSAGE, isSignedInForAi } from "./aiAuth";
 import { playSchema } from "./schema";
 import { getUnresolvedFields } from "./aiEnrichment";
 import { AI_ELIGIBLE_FIELDS, DEFENSE_AI_FIELDS, DEF_PLAYMAKER_ACTOR_FIELDS, LOCATION_CONSTRAINED_FIELDS } from "./aiEligibility";
@@ -307,6 +308,10 @@ export async function fetchAiProposal(
         ...(sig.scannerCanonical ? { scannerCanonical: sig.scannerCanonical } : {}),
       };
     }
+  }
+
+  if (!(await isSignedInForAi())) {
+    return { proposal: {}, error: AI_SIGN_IN_MESSAGE };
   }
 
   const { data, error } = await supabase.functions.invoke("ai-enrich", {

@@ -111,10 +111,70 @@ function buildSuggestFieldsSchema(
   };
 }
 
+/**
+ * Only signed-in coaches may spend AI credits.
+ *
+ * These functions are reachable by anyone who knows the project URL, and the
+ * publishable key is public by design, so neither is proof of anything. The
+ * caller must present a real user session. Set the optional AI_ALLOWED_EMAILS
+ * secret (comma-separated) to restrict use to named accounts, because sign-up
+ * itself is open.
+ *
+ * Kept inline in each function file so every function deploys on its own.
+ * Returns null when the caller may proceed, otherwise the response to send.
+ */
+async function requireUser(req: Request): Promise<Response | null> {
+  const deny = (status: number, error: string) =>
+    new Response(JSON.stringify({ error, errorCategory: "auth" }), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  const signIn = "Sign in to use AI assist (open the \u2026 menu, then Cloud backup).";
+
+  const authorization = req.headers.get("Authorization") ?? "";
+  if (!/^Bearer\s+\S+/i.test(authorization)) return deny(401, signIn);
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const apiKey =
+    Deno.env.get("SUPABASE_ANON_KEY") ??
+    Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ??
+    req.headers.get("apikey");
+  if (!supabaseUrl || !apiKey) {
+    console.error("requireUser: SUPABASE_URL or API key missing");
+    return deny(500, "AI sign-in check is not configured");
+  }
+
+  let user: { id?: unknown; email?: unknown } | null = null;
+  try {
+    const resp = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { Authorization: authorization, apikey: apiKey },
+    });
+    if (!resp.ok) return deny(401, signIn);
+    user = await resp.json();
+  } catch (e) {
+    console.error("requireUser: auth lookup failed", e);
+    return deny(503, "Could not confirm your sign-in. Try again in a moment.");
+  }
+  if (!user || typeof user.id !== "string" || !user.id) return deny(401, signIn);
+
+  const allowed = (Deno.env.get("AI_ALLOWED_EMAILS") ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (allowed.length > 0) {
+    const email = typeof user.email === "string" ? user.email.toLowerCase() : "";
+    if (!allowed.includes(email)) return deny(403, "This account is not approved for AI assist.");
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const denied = await requireUser(req);
+  if (denied) return denied;
 
   try {
     const {

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { isPass1Complete } from "@/engine/personnel";
+import { hasCoachWork } from "@/engine/passProgress";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
 import { playSchema, QTR_DISPLAY } from "@/engine/schema";
@@ -70,11 +70,12 @@ type LedgerView = "offense" | "defense";
  * Whether the coach has actually logged this play.
  *
  * Not `committedFields.length > 0` — scaffolding pre-commits qtr/odk/series, so
- * that is true for every slot in a brand-new game. isPass1Complete requires a
- * result and gain/loss, which only a real commit produces.
+ * that is true for every slot in a brand-new game. hasCoachWork asks whether
+ * any pass has committed work, so a play with personnel or grades counts even
+ * when its play details were never logged here.
  */
 function isLogged(play: PlayRecord, meta: SlotMeta | undefined): boolean {
-  return isPass1Complete(play, meta);
+  return hasCoachWork(play, meta);
 }
 
 function formatCellValue(play: PlayRecord, col: string): string {

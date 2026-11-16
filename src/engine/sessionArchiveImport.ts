@@ -9,8 +9,10 @@
  * existing session, schema expansion.
  */
 
-import type { PlayRecord, CoachNote } from "./types";
+import type { PlayRecord, CoachNote, PatMode } from "./types";
 import type { SessionArchive, SessionArchiveLookupsSnapshot } from "./sessionArchiveExport";
+
+const PAT_MODES: ReadonlyArray<PatMode> = ["none", "youth_1_2", "hs_kick"];
 
 // ── Errors ──
 
@@ -35,6 +37,10 @@ export interface NormalizedSessionArchive {
   lookups: SessionArchiveLookupsSnapshot;
   seasonRevision: number;
   exportedAt: string;
+  /** Game settings, present only when the archive recorded valid values. */
+  fieldSize?: 80 | 100;
+  patMode?: PatMode;
+  totalPlays?: number;
 }
 
 // ── Validation ──
@@ -145,6 +151,14 @@ export function normalizeSessionArchiveImport(payload: unknown): NormalizedSessi
     roster: cloned.lookups?.roster ?? null,
   };
 
+  const game = (cloned.game ?? {}) as unknown as Record<string, unknown>;
+  const fieldSize = game.fieldSize === 80 || game.fieldSize === 100 ? game.fieldSize : undefined;
+  const patMode = PAT_MODES.includes(game.patMode as PatMode) ? (game.patMode as PatMode) : undefined;
+  const totalPlays =
+    typeof game.totalPlays === "number" && Number.isInteger(game.totalPlays) && game.totalPlays > 0
+      ? game.totalPlays
+      : undefined;
+
   return {
     sourceGameId: cloned.game.gameId,
     opponent: cloned.game.opponent ?? null,
@@ -154,6 +168,9 @@ export function normalizeSessionArchiveImport(payload: unknown): NormalizedSessi
     lookups,
     seasonRevision: cloned.meta?.seasonRevision ?? 0,
     exportedAt: cloned.meta?.exportedAt ?? new Date().toISOString(),
+    ...(fieldSize ? { fieldSize } : {}),
+    ...(patMode ? { patMode } : {}),
+    ...(totalPlays ? { totalPlays } : {}),
   };
 }
 
