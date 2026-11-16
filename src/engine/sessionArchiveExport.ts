@@ -5,7 +5,7 @@
  * Exports a single game's committed state + lookup snapshot as JSON.
  */
 
-import type { PlayRecord, CoachNote, LookupTable, RosterEntry } from "./types";
+import type { PlayRecord, CoachNote, LookupTable, RosterEntry, PatMode } from "./types";
 import { APP_VERSION, SCHEMA_VERSION, exportSchemaSnapshot } from "./schema";
 
 // ── Constants ──
@@ -29,6 +29,10 @@ export interface SessionArchiveGame {
   opponent: string | null;
   date: string | null;
   score: string | null;
+  /** Game settings a restore needs. Absent in archives written before they were recorded. */
+  fieldSize?: 80 | 100;
+  patMode?: PatMode;
+  totalPlays?: number;
 }
 
 export interface SessionArchiveLookupsSnapshot {
@@ -98,7 +102,14 @@ export function validateArchiveMinimum(
 // ── Builder ──
 
 export interface BuildSessionArchiveParams {
-  gameMeta: { gameId: string; opponent?: string | null; date?: string | null };
+  gameMeta: {
+    gameId: string;
+    opponent?: string | null;
+    date?: string | null;
+    fieldSize?: 80 | 100;
+    patMode?: PatMode;
+    totalPlays?: number;
+  };
   plays: ReadonlyArray<PlayRecord>;
   notes: ReadonlyArray<CoachNote>;
   lookupsSnapshot: SessionArchiveLookupsSnapshot;
@@ -128,6 +139,9 @@ export function buildSessionArchive(params: BuildSessionArchiveParams): SessionA
       opponent: params.gameMeta.opponent ?? null,
       date: params.gameMeta.date ?? null,
       score: null,
+      ...(params.gameMeta.fieldSize ? { fieldSize: params.gameMeta.fieldSize } : {}),
+      ...(params.gameMeta.patMode ? { patMode: params.gameMeta.patMode } : {}),
+      ...(params.gameMeta.totalPlays ? { totalPlays: params.gameMeta.totalPlays } : {}),
     },
     counts: {
       plays: sortedPlays.length,

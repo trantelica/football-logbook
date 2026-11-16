@@ -34,6 +34,7 @@ import { computeProposalMeta, type ProposalMetaMap } from "./proposalMeta";
 import { computeValidationReasons } from "./validationReasons";
 import { getUnresolvedFields, filterAiProposal } from "./aiEnrichment";
 import { buildLookupGovernanceQueue, GOVERNED_LOOKUP_FIELD_NAMES, type LookupGovernanceItem } from "./lookupGovernanceQueue";
+import { deriveCommittedFields, fillMissingSlotMeta } from "./slotMetaDerive";
 // normalizeToSchema imported for potential future use; grade normalization is inline
 /** Match type for governed lookup AI proposals */
 export type GovernedMatchType = "exact" | "fuzzy" | "candidate_new";
@@ -394,20 +395,25 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
       // failed read left committedPlays empty and silent — the rail showed 0/0
       // and the status bar reported nothing logged, indistinguishable from a
       // genuinely empty game.
-      getPlaysByGame(gameId)
-        .then((plays) => setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum)))
+      // Loaded together because a play with no stored metadata gets it derived
+      // from the play itself (see slotMetaDerive). Games restored from a backup
+      // or archive used to arrive with none, which silently disabled overwrite
+      // review for them.
+      Promise.all([
+        getPlaysByGame(gameId),
+        getAllSlotMetaForGame(gameId).catch((err) => {
+          console.error("Failed to load slot metadata for game", gameId, err);
+          return [] as SlotMeta[];
+        }),
+      ])
+        .then(([plays, metas]) => {
+          const sorted = plays.sort((a, b) => a.playNum - b.playNum);
+          setCommittedPlays(sorted);
+          setSlotMetaMap(fillMissingSlotMeta(sorted, metas));
+        })
         .catch((err) => {
           console.error("Failed to load plays for game", gameId, err);
           toast.error("Could not load plays for this game. Try reloading.");
-        });
-      getAllSlotMetaForGame(gameId)
-        .then((metas) => {
-          const map = new Map<number, SlotMeta>();
-          for (const m of metas) map.set(m.playNum, m);
-          setSlotMetaMap(map);
-        })
-        .catch((err) => {
-          console.error("Failed to load slot metadata for game", gameId, err);
         });
     } else {
       setCommittedPlays([]);
@@ -1151,7 +1157,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     // Update slotMeta: add grade fields to committed set
     const meta = slotMetaMap.get(selectedSlotNum);
-    const newCommittedFields = new Set(meta?.committedFields ?? []);
+    const newCommittedFields = new Set(meta?.committedFields ?? deriveCommittedFields(committedRow));
     for (const gf of GRADE_FIELDS) {
       if (gradeSnapshot[gf] != null) {
         newCommittedFields.add(gf);
@@ -1274,10 +1280,14 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
       let normalized = result.normalizedPlay!;
 
-      const meta = slotMetaMap.get(selectedSlotNum);
-      const committedFields = meta?.committedFields ?? [];
-
       const existingSlot = committedPlays.find((p) => p.playNum === selectedSlotNum);
+
+      // Missing metadata must never read as "nothing is committed", or the
+      // overwrite check below finds nothing to protect. Fall back to what the
+      // stored play itself holds.
+      const meta = slotMetaMap.get(selectedSlotNum);
+      const committedFields =
+        meta?.committedFields ?? (existingSlot ? deriveCommittedFields(existingSlot) : []);
 
       // 9.2B: Merge inactive fields from existing committed play
       normalized = mergeInactiveFields(normalized, existingSlot ?? null, cfgActiveFields);
@@ -1399,7 +1409,7 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
 
     if (isSlotMode && selectedSlotNum !== null) {
       const meta = slotMetaMap.get(selectedSlotNum);
-      const newCommittedFields = new Set(meta?.committedFields ?? []);
+      const newCommittedFields = new Set(meta?.committedFields ?? deriveCommittedFields(existingPlay));
       for (const f of playSchema) {
         const val = (pendingNormalized as unknown as Record<string, unknown>)[f.name];
         if (val !== null && val !== undefined) {
@@ -1812,11 +1822,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   const refreshCommittedPlays = useCallback(async () => {
     if (!gameId) return;
     const plays = await getPlaysByGame(gameId);
-    setCommittedPlays(plays.sort((a, b) => a.playNum - b.playNum));
+    const sorted = plays.sort((a, b) => a.playNum - b.playNum);
+    setCommittedPlays(sorted);
     const metas = await getAllSlotMetaForGame(gameId);
-    const map = new Map<number, SlotMeta>();
-    for (const m of metas) map.set(m.playNum, m);
-    setSlotMetaMap(map);
+    setSlotMetaMap(fillMissingSlotMeta(sorted, metas));
   }, [gameId]);
 
   // Phase 6: Next Slot — pure navigation, no commit, no state mutation

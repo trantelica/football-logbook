@@ -267,7 +267,14 @@ export function StatusBar() {
       }
       const findLookup = (name: string) => lookupTables.find((t) => t.fieldName === name) ?? null;
       const archive = buildSessionArchive({
-        gameMeta: { gameId: activeGame.gameId, opponent: activeGame.opponent, date: activeGame.date },
+        gameMeta: {
+          gameId: activeGame.gameId,
+          opponent: activeGame.opponent,
+          date: activeGame.date,
+          fieldSize: activeGame.fieldSize,
+          patMode: activeGame.patMode,
+          totalPlays: activeGame.totalPlays,
+        },
         plays, notes,
         lookupsSnapshot: {
           offForm: findLookup("offForm"),
