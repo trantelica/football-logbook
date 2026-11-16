@@ -38,7 +38,7 @@ import {
   validateSeasonPackageImport, normalizeSeasonPackageImport,
   type SeasonImportValidationError,
 } from "@/engine/seasonTransfer";
-import { isPass1Complete } from "@/engine/personnel";
+import { hasCoachWork } from "@/engine/passProgress";
 import { slugify, dateStamp } from "@/engine/filenameHelpers";
 import { SCHEMA_VERSION } from "@/engine/schema";
 import { cn } from "@/lib/utils";
@@ -74,10 +74,11 @@ export function StatusBar() {
   // `committedPlays` is every slot in the game, not the committed ones, and
   // scaffolding pre-commits qtr/odk/series — so neither its length nor a
   // non-empty committedFields tells you anything was logged. A fresh 40-play
-  // game reported "40 committed" with nothing entered. isPass1Complete is the
-  // real signal: the play has a result and gain/loss.
+  // game reported "40 committed" with nothing entered. hasCoachWork is the
+  // real signal: some pass has committed work on the play. It is not tied to
+  // Pass 1, so a game worked only in Pass 2 and 3 does not report 0 logged.
   const loggedCount = committedPlays.filter((p) =>
-    isPass1Complete(p, slotMetaMap.get(p.playNum)),
+    hasCoachWork(p, slotMetaMap.get(p.playNum)),
   ).length;
 
   const [preflightErrors, setPreflightErrors] = useState<(ExportError | ArchiveError | ImportValidationError | SeasonImportValidationError | ArchiveImportValidationError)[]>([]);

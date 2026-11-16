@@ -7,8 +7,9 @@
  * and neither was good at its job.
  *
  * The rail does navigation only: one dense row per play, showing the play
- * number, how far through the three passes it is, and just enough situation to
- * recognise it. It scrolls independently of the work surface, so selecting a
+ * number, which of the three passes are done, and just enough situation to
+ * recognise it. Each pip is its own pass: a play with personnel and grades but
+ * no play details shows the second and third pip, not nothing. It scrolls independently of the work surface, so selecting a
  * play never moves the panel the coach is typing into.
  *
  * The full grid still exists for inspection — see PlayLedger.
@@ -17,27 +18,14 @@
  */
 
 import { useEffect, useMemo, useRef } from "react";
-import { isPass1Complete, isPass2Complete, anyGradePresent } from "@/engine/personnel";
+import { passFlags, passTally } from "@/engine/passProgress";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTransaction } from "@/engine/transaction";
 import { useGameContext } from "@/engine/gameContext";
-import type { PlayRecord, SlotMeta } from "@/engine/types";
+import type { PlayRecord } from "@/engine/types";
 import { cn } from "@/lib/utils";
 
 const ODK_FILTER_OPTIONS = ["ALL", "O", "D", "K"] as const;
-
-/** How many of the three passes are done — drives the progress pips. */
-function passProgress(play: PlayRecord, meta: SlotMeta | undefined): number {
-  if (!isPass1Complete(play, meta)) return 0;
-  // Non-offensive plays have no personnel or blocking work, so Pass 1 is
-  // everything there is to do. Showing them as 1-of-3 forever would read as
-  // permanently unfinished.
-  if (play.odk !== "O") return 3;
-  let done = 1;
-  if (isPass2Complete(play, meta)) done += 1;
-  if (anyGradePresent(play)) done += 1;
-  return done;
-}
 
 function situationLabel(play: PlayRecord): string {
   const dn = play.dn;
@@ -46,15 +34,16 @@ function situationLabel(play: PlayRecord): string {
   return `${dn} & ${dist}`;
 }
 
-function ProgressPips({ done, muted }: { done: number; muted: boolean }) {
+/** One pip per pass, lit independently: play details, personnel, blocking. */
+function ProgressPips({ flags, muted }: { flags: readonly boolean[]; muted: boolean }) {
   return (
     <span className="flex shrink-0 gap-[3px]" aria-hidden>
-      {[0, 1, 2].map((i) => (
+      {flags.map((lit, i) => (
         <span
           key={i}
           className={cn(
             "h-1.5 w-1.5 rounded-full transition-colors",
-            i < done
+            lit
               ? muted
                 ? "bg-muted-foreground/50"
                 : "bg-committed"
@@ -75,6 +64,7 @@ export function PassRail() {
     slotMetaMap,
     odkFilter,
     setOdkFilter,
+    activePass,
   } = useTransaction();
 
   const selectedRef = useRef<HTMLButtonElement | null>(null);
@@ -96,9 +86,9 @@ export function PassRail() {
 
   if (!activeGame) return null;
 
-  const doneCount = committedPlays.filter(
-    (p) => passProgress(p, slotMetaMap.get(p.playNum)) === 3,
-  ).length;
+  // Counted for the pass the coach is in, so working only Pass 2 and 3 on a
+  // game whose play details live in Hudl does not read as 0 of N forever.
+  const tally = passTally(committedPlays, slotMetaMap, activePass);
 
   return (
     <nav
@@ -113,8 +103,11 @@ export function PassRail() {
           <h2 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Plays
           </h2>
-          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-            {doneCount}/{committedPlays.length}
+          <span
+            className="font-mono text-[10px] tabular-nums text-muted-foreground"
+            title={tally.description}
+          >
+            {tally.done}/{tally.total}
           </span>
         </div>
 
@@ -147,7 +140,7 @@ export function PassRail() {
         ) : (
           filteredPlays.map((play) => {
             const meta = slotMetaMap.get(play.playNum);
-            const done = passProgress(play, meta);
+            const flags = passFlags(play, meta);
             const isSelected = selectedSlotNum === play.playNum;
             // Defense is a logged pass (Pass 4), so D rows read like offense
             // rows; only K/S rows stay quiet.
@@ -192,7 +185,7 @@ export function PassRail() {
                   {isNonOffense ? (play.odk ?? "") : situation || "—"}
                 </span>
 
-                <ProgressPips done={done} muted={isNonOffense} />
+                <ProgressPips flags={flags} muted={isNonOffense} />
               </button>
             );
           })

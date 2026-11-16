@@ -16,7 +16,7 @@
  * Pure display. No mutations, no proposal or commit logic.
  */
 
-import { isPass1Complete } from "@/engine/personnel";
+import { isPassWorkCommitted } from "@/engine/passProgress";
 import { useTransaction } from "@/engine/transaction";
 import { cn } from "@/lib/utils";
 
@@ -76,13 +76,14 @@ export function PlayHUD() {
   const meta = selectedSlotNum !== null ? slotMetaMap.get(selectedSlotNum) : undefined;
 
   // Not `committedFields.length > 0` — scaffolding pre-commits qtr/odk/series,
-  // so that reads as "Committed" on an untouched slot. isPass1Complete requires
-  // a result and gain/loss, which only a real commit produces.
+  // so that reads as "Committed" on an untouched slot. Asked of the pass the
+  // coach is in: a play whose personnel is committed reads as committed in
+  // Pass 2 even when its play details were never logged here.
   const selectedPlay =
     selectedSlotNum !== null
       ? committedPlays.find((p) => p.playNum === selectedSlotNum)
       : undefined;
-  const isCommitted = !!selectedPlay && isPass1Complete(selectedPlay, meta);
+  const isCommitted = !!selectedPlay && isPassWorkCommitted(selectedPlay, meta, activePass);
 
   // Blocking beats every other state: an unresolved error is the one thing
   // worth interrupting the film for.

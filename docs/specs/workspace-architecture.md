@@ -174,7 +174,11 @@ scaffolded slots, and dead permanently if that load rejected.
 | `SlotsGrid` | `PassRail` (navigation) + `PlayLedger` (inspection) |
 | `CommittedPlaysPanel` | `PlayLedger` |
 
-`CommittedPlaysPanel` was labelled "Committed Plays (N)" but counted **slots**, so a brand-new 40-play game reported 40 committed with nothing logged. Scaffolding pre-commits `qtr`/`odk`/`series`, so `committedFields.length > 0` is true for every untouched slot and is **not** a valid test for "the coach logged this". Use `isPass1Complete`, which requires a result and gain/loss.
+`CommittedPlaysPanel` was labelled "Committed Plays (N)" but counted **slots**, so a brand-new 40-play game reported 40 committed with nothing logged. Scaffolding pre-commits `qtr`/`odk`/`series`, so `committedFields.length > 0` is true for every untouched slot and is **not** a valid test for "the coach logged this". Use `hasCoachWork` (`src/engine/passProgress.ts`), which is true once any pass has committed work on the play.
+
+Progress is reported **per pass**, not gated on Pass 1. The passes are independent: a coach whose down, distance and result already live in Hudl may work only Pass 2 and Pass 3, and a Pass 1 gate made every play of such a game read as untouched. The rail pips light independently, the rail count follows the active pass, and the HUD asks whether the active pass has committed work.
+
+> **Do not restore a Pass 1 gate on progress.** `src/test/passProgress.test.ts` guards this.
 
 ---
 
