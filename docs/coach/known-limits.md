@@ -41,7 +41,12 @@ Still parked:
 
 ## 5. AI Behavior
 
-- AI assist and football-aware dictation **require sign-in** (the … menu, then Cloud backup). Signed out, the app still works: it uses browser dictation and the built-in parser only.
+- AI assist needs **one of two things**: your own AI key, or sign-in.
+  - **Your own key** (the … menu, then **AI setup**): a three-step guide for Google Gemini, ChatGPT (OpenAI) or Claude. No sign-in needed. You pay your AI provider directly; Google Gemini is usually free for light use.
+  - **Sign-in** (the … menu, then Cloud backup): uses the app's built-in AI.
+  - With neither, the app still works: it uses browser dictation and the built-in parser only.
+- Your AI key is saved **only in the browser on that device**. It is not part of backups, exports or session archives, so set it up again on each device you use. Anyone with access to that browser profile can use the key, so remove it (AI setup, then Remove) on a shared computer.
+- Football-aware dictation runs on a Google Gemini or OpenAI key, or on the built-in AI when signed in. A Claude key cannot transcribe audio; with only a Claude key, dictation uses the browser's own.
 - AI is **advisory only**.
 - AI does **not** commit.
 - AI does **not** overwrite fields already resolved by the deterministic parser.

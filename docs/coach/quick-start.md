@@ -45,6 +45,7 @@ Enter grades for the offensive line and skill positions.
 
 - Speak grades naturally: "O-line gets a one except right tackle gets a two."
 - Press **Update Proposal** to run the parser. If anything remains unresolved, the app can suggest AI-assisted fills.
+- To turn on AI-assisted fills, open the **…** menu at the bottom right and choose **AI setup**. It walks you through connecting your own AI account in about two minutes.
 - Review every proposal before committing. The parser and AI are advisory — you decide what gets committed.
 
 ### Pass 4 — Defense (defensive plays only)
