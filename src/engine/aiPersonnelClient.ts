@@ -20,6 +20,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { AI_SIGN_IN_MESSAGE, isSignedInForAi } from "./aiAuth";
 import {
   PERSONNEL_POSITIONS,
 } from "./personnel";
@@ -71,6 +72,10 @@ export async function fetchAiPersonnelProposal(
   }
 
   const positionAliases = (opts.positionAliases ?? {}) as PositionAliasMap;
+
+  if (!(await isSignedInForAi())) {
+    return { patch: {}, error: AI_SIGN_IN_MESSAGE, errorCategory: "auth" };
+  }
 
   const { data, error } = await supabase.functions.invoke("ai-enrich-personnel", {
     body: {
